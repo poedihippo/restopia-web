@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -12,6 +12,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { withProductType } from '@/utils/productUomName'
 import { X, Loader2, ArrowRight } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 
 // A cut row points at product-UOMs, and the backend requires both to be on
 // their product's BASE unit (E12: "... must be on its base unit"). Yield must
@@ -67,35 +68,74 @@ export default function ProductCutSheet({ open, onClose, editData, variant = 'sh
   })
 
   // Product-UOMs that sit on their product's base unit — the only valid cut
-  // endpoints. Resolved client-side because the cut table has no dedicated
-  // "base units only" list.
-  const { data: puData, isLoading: puLoading } = useQuery({
+  // endpoints. Paged 20 at a time (search is server-side, more pages load on
+  // scroll); the base-unit check stays client-side because the API has no
+  // "base units only" filter. Only fetched while the sheet is open — it is
+  // mounted closed on other pages (e.g. Portioning's "Buat Product Cut").
+  const PU_PAGE_SIZE = 20
+  const puPages = useInfiniteOptions<any>({
     queryKey: ['product-cuts-base-uoms', debouncedDropdownSearch],
-    queryFn: () =>
+    enabled: open,
+    fetchPage: (page) =>
       productUomsService
         .list({
-          per_page: 1000,
+          page,
+          per_page: PU_PAGE_SIZE,
           include: 'product,uom',
           'filter[search]': debouncedDropdownSearch || undefined,
         } as any)
         .then((r) => r.data),
   })
-  const allPu: any[] = (puData as any)?.data ?? []
+  const puLoading = puPages.loading
 
   // A product-UOM is "on its base unit" when its uom_id matches the product's
   // base_uom_id. Products without a base_uom_id fall back to their default
   // product-UOM so the picker is never empty for a valid product.
-  const basePu: any[] = allPu.filter((pu) => {
+  const isBasePu = (pu: any) => {
     const base = pu?.product?.base_uom_id
     if (base) return Number(pu?.uom_id) === Number(base)
     return !!pu?.is_default
+  }
+  const pagedBasePu: any[] = puPages.items.filter(isBasePu)
+
+  // The client-side filter can leave a page too short to scroll, which would
+  // strand the remaining pages — keep pulling until the list can scroll.
+  useEffect(() => {
+    if (!open || puPages.isFetching || !puPages.hasNextPage) return
+    if (pagedBasePu.length < PU_PAGE_SIZE) puPages.fetchNextPage()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, puPages.isFetching, puPages.hasNextPage, pagedBasePu.length])
+
+  // Edit mode: the saved parent/child may not be on the loaded pages.
+  const editIds = editData ? [editData.parent_product_uom_id, editData.child_product_uom_id].filter(Boolean) : []
+  const { data: editPuData } = useQuery({
+    queryKey: ['product-cuts-base-uoms', 'ids', editIds.join(',')],
+    enabled: open && editIds.length > 0,
+    queryFn: () =>
+      productUomsService
+        .list({ per_page: editIds.length, include: 'product,uom', 'filter[ids]': editIds.join(',') } as any)
+        .then((r) => r.data),
   })
+  const editPu: any[] = (editPuData as any)?.data?.data ?? (editPuData as any)?.data ?? []
+
+  // Remember every row seen so a picked option keeps its label after the
+  // search (and therefore the loaded pages) changes.
+  const seenPu = useRef(new Map<number, any>())
+  for (const pu of [...editPu, ...pagedBasePu]) if (pu?.id) seenPu.current.set(Number(pu.id), pu)
 
   const puLabel = (pu: any) =>
     withProductType(
       [pu?.product?.name ?? pu?.name, pu?.uom?.code ?? pu?.uom_code].filter(Boolean).join(' · '),
       pu?.product?.type,
     )
+
+  const watchedParent = watch('parent_product_uom_id')
+  const watchedChild = watch('child_product_uom_id')
+  const basePu: any[] = [...pagedBasePu]
+  for (const id of [Number(watchedParent), Number(watchedChild)]) {
+    const pu = seenPu.current.get(id)
+    if (pu && !basePu.some((p) => Number(p.id) === id)) basePu.unshift(pu)
+  }
 
   const puOptions = basePu.map((pu) => ({
     value: Number(pu.id),
@@ -143,12 +183,10 @@ export default function ProductCutSheet({ open, onClose, editData, variant = 'sh
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
-  const watchedParent = watch('parent_product_uom_id')
-  const watchedChild = watch('child_product_uom_id')
   const watchedYield = watch('yield_qty')
 
-  const parentPu = basePu.find((pu) => Number(pu.id) === Number(watchedParent))
-  const childPu = basePu.find((pu) => Number(pu.id) === Number(watchedChild))
+  const parentPu = seenPu.current.get(Number(watchedParent))
+  const childPu = seenPu.current.get(Number(watchedChild))
   const parentName = parentPu?.product?.name ?? ''
   const childName = childPu?.product?.name ?? ''
 
@@ -221,6 +259,7 @@ export default function ProductCutSheet({ open, onClose, editData, variant = 'sh
                   placeholder="Pilih produk induk (unit dasar)..."
                   searchPlaceholder="Cari produk..."
                   loading={puLoading}
+                  {...puPages.selectProps}
                   error={errors.parent_product_uom_id?.message as string | undefined}
                   onSearchChange={setDropdownSearch}
                 />
@@ -248,6 +287,7 @@ export default function ProductCutSheet({ open, onClose, editData, variant = 'sh
                   placeholder="Pilih produk anak (unit dasar)..."
                   searchPlaceholder="Cari produk..."
                   loading={puLoading}
+                  {...puPages.selectProps}
                   error={errors.child_product_uom_id?.message as string | undefined}
                   onSearchChange={setDropdownSearch}
                 />

@@ -170,3 +170,44 @@ Web (`zulfi`):
 Open:
 - [ ] Run migration 000168 on DEV, grant the new permissions to the accounting roles, then reconcile one real BCA/Mandiri month end-to-end.
 - [ ] The list's Difference column shows "—" (the list has no summary); add it to the list response if wanted.
+
+## Re-audit 2026-11-16 — new findings
+
+Independent read-only pass over API (`dev` @ e058f805) and WEB (`zulfi`). API build/vet/test clean (DB tests skipped); WEB tsc clean in accounting code.
+
+### Deferred — changes the business flow (decide before fixing)
+
+- [ ] **Production without materials** adds stock with no journal (`productions/.../internal/journal.go:190` skips a 0 total) and leaves avg cost untouched (`product-costs/domain/service/inflow.go:46`). On sale, COGS credits an inventory account that was never debited; a product with no cost sells at 0 COGS. Options: require a unit cost and post Dr Finished Goods / Cr production-cost-absorbed (or inventory adjustment); treat as stock adjustment; or block material-less productions. Need the business reason productions run without materials.
+- [ ] **Unbalanced auto-journals are silently skipped** — receipts `internal/journal.go:316`, deliveries `cogs.go:354`, productions `internal/journal.go:190` return `nil, nil` and the document still finalizes. Making it an error would block documents; decide error vs. auto rounding line.
+- [ ] **Intra-company inter-branch sales**: `ShouldPostCogs` false for same-company `po_from_branch`/`transfer_to_branch` (`deliveries/.../internal/cogs.go:42`), but seller can invoice (revenue + AR) and buyer receipt books Dr inventory / Cr AP → revenue without COGS, stock counted twice, no due-to/due-from or elimination.
+- [ ] **Same-company transfers post no GL** — per-branch inventory accounts drift from stock.
+- [ ] **Payment / cash-transaction delete hard-deletes the posted journal** in an open period (`payments/.../delete_usecase.go:71`, `cash-transactions/.../delete_usecase.go:51`) instead of reversing.
+- [ ] **Stock opname books 0 variance** when a product has no avg cost (`stock-opnames/.../inventory_cost.go:27`).
+- [ ] No central debit = credit check in `JournalRepositoryImpl.Create/Update`, no DB constraint (each posting site checks itself).
+- [ ] Production cost = materials only (no labour/overhead absorption, no WIP). Acceptable for same-day bakery runs; matters for per-product margin.
+- [ ] Suspected, not traced: POS order with a delivery is skipped by the sales journal (`sales_journal.go:276`) — no revenue unless an invoice is raised.
+- [ ] Tax report base still assumes 11%; AR/AP vs control-account tie-out (4.7) still open.
+
+### Fixed 2026-11-16 (no business-flow change)
+
+API (`dapur-cokelat-api`, `dev`, uncommitted; build/vet/test clean, 81 packages):
+- [x] COA update refuses changing `account_type_id` / `normal_balance` or setting `is_header=true` once the account has journal lines (`PostedAccountLockedFields`). Not done: refusing header for accounts referenced in account settings (5 settings tables).
+- [x] Manual journals: `reference_type` only empty or `opening_balance`, `reference_id` empty.
+- [x] Payment journals: amounts/fees rounded to cents at the request boundary + `journal_entity.RoundAndBalanceDetails` (rounding drift onto the largest line, real mismatch → error). Cash-transaction amounts rounded to cents.
+- [x] Manual and cash reversals book to the original's branch.
+- [x] `BusinessDate` for SO reversal, supplies-used, payment void.
+- [x] Supplier statement: optional `supplier_id`; name match is exact (trimmed, case-insensitive) — "Toko A" no longer matches "Toko AB".
+
+WEB (`zulfi`):
+- [x] Sales by Invoice + Invoice detail payments read `meta.total_pages` (pager was hidden / payments stopped at 200).
+- [x] Opening balance re-save: new draft first, then reverse the old one; draft deleted if the reversal fails.
+- [x] "Closing" removed from manual journal types; closing journal's edit/delete/reverse disabled.
+- [x] Balance Sheet / Income Statement / AP Aging check `report.read` (API guard); Trial Balance export disabled without `report.read`.
+- [x] Allocate Payment: document picker by number (shows party + outstanding) instead of a raw id.
+- [x] Period Reopen disabled when its fiscal year is closed.
+- [x] Journals Export sends the list's filters.
+- [x] Balance Sheet "Current Year Earnings" row no longer drills into the GL.
+- [x] Supplier export filenames use the local date.
+- [x] Supplier Statements: supplier dropdown built from the statement's parties (exact-name match, includes supplying branches).
+
+Still open (low): cash-transaction delete guard reads `journal.period` which the API doesn't return (API still blocks closed periods).

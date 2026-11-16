@@ -270,14 +270,14 @@ export const reportsService = {
   getCustomerStatement: (params: { customer_id: number; as_of_date?: string }): Promise<AxiosResponse<{ success: boolean; message: string; data: ArAgingResponse }>> =>
     api.get('/reports/customer-statements', { params }),
 
-  /** JSON twin of exportSupplierStatements; `supplier` = name contains (case-insensitive). */
-  getSupplierStatement: (params: { supplier?: string; as_of_date?: string }): Promise<AxiosResponse<{ success: boolean; message: string; data: ApAgingResponse }>> =>
+  /** JSON twin of exportSupplierStatements; `supplier` = exact name (case-insensitive), `supplier_id` wins when given. */
+  getSupplierStatement: (params: { supplier?: string; supplier_id?: number; as_of_date?: string }): Promise<AxiosResponse<{ success: boolean; message: string; data: ApAgingResponse }>> =>
     api.get('/reports/supplier-statements', { params }),
 
   exportCustomerStatements: (params: { customer_id: number; as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/customer-statements/exports', { params, responseType: 'blob' }),
 
-  exportSupplierStatements: (params: { supplier?: string; as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
+  exportSupplierStatements: (params: { supplier?: string; supplier_id?: number; as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/supplier-statements/exports', { params, responseType: 'blob' }),
 
   // Tax & Budget

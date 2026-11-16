@@ -182,7 +182,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         } as any)
         const body = (res.data as any) ?? {}
         all.push(...(body.data ?? []))
-        const lastPage = Number(body.meta?.last_page ?? 1)
+        const lastPage = Number(body.meta?.total_pages ?? body.meta?.last_page ?? 1)
         if (page >= lastPage) break
       }
       return all

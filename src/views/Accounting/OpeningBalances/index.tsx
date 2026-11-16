@@ -310,9 +310,19 @@ export default function OpeningBalancesView() {
         details: buildDetails(),
       }
       if (existing && !existing.is_posted) return journalsService.update(existing.id, payload as any)
-      // Posted journals are locked: reverse the old one, then start a new draft.
-      if (existing?.is_posted) await journalsService.reverse(existing.id)
-      return journalsService.create(payload as any)
+      if (!existing?.is_posted) return journalsService.create(payload as any)
+      // Posted journals are locked: save the new draft FIRST, then reverse the old
+      // one. If the reversal fails, drop the new draft so the posted opening
+      // balance is never left reversed without a replacement (or doubled).
+      const created = await journalsService.create(payload as any)
+      try {
+        await journalsService.reverse(existing.id)
+      } catch (err) {
+        const newId = (created as any)?.data?.data?.id
+        if (newId) await journalsService.delete(newId).catch(() => undefined)
+        throw err
+      }
+      return created
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['journals'] })

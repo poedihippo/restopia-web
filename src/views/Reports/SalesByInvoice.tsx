@@ -223,7 +223,7 @@ export default function SalesByInvoiceReport() {
     [orders],
   )
 
-  const lastPage = meta?.last_page ?? 1
+  const lastPage = meta?.total_pages ?? meta?.last_page ?? 1
 
   const { data: paymentsData } = useQuery({
     queryKey: ['report-sales-invoice-payments', dateFrom, dateTo, branchFilter],

@@ -183,7 +183,8 @@ function bucketDisplayLabel(bucket: string | undefined): string {
 
 export default function ApAgingView() {
   const { hasPermission, isSuperadmin } = useAuth()
-  const canRead = isSuperadmin || hasPermission('journal.read')
+  // GET /reports/* is guarded by report.read (report_route.go RBACMiddleware).
+  const canRead = isSuperadmin || hasPermission('report.read')
 
   const [asOfDate, setAsOfDate] = useState<string>(today())
   // filter[search]: the backend returns only matching lines and recomputes the

@@ -88,6 +88,8 @@ const amountTd: React.CSSProperties = { ...tdStyle, textAlign: 'right', fontVari
 export default function TrialBalanceView() {
   const { hasPermission } = useAuth()
   const canRead = hasPermission('journal.read')
+  // The Excel export is a /reports route → report.read (report_route.go).
+  const canReportExport = hasPermission('report.read')
 
   const [periodId, setPeriodId] = useState<number>(0)
   const [branchScope, setBranchScope] = useState<FinanceBranchScope>('')
@@ -160,7 +162,7 @@ export default function TrialBalanceView() {
     exportExcel()
   }
 
-  const canExport = rows.length > 0
+  const canExport = rows.length > 0 && canReportExport
 
   return (
     <div style={{ padding: '32px 32px 64px', maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -186,6 +188,7 @@ export default function TrialBalanceView() {
           type="button"
           onClick={handleExport}
           disabled={!canExport || isExporting}
+          title={!canReportExport ? 'Export needs the report.read permission' : undefined}
           style={{
             display: 'flex',
             alignItems: 'center',

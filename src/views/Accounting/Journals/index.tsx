@@ -108,7 +108,7 @@ const JOURNAL_TYPE_LABELS: Record<string, string> = {
 const JOURNAL_TYPE_OPTIONS = [
   { value: 'manual', label: 'General' },
   { value: 'adjustment', label: 'Adjustment' },
-  { value: 'closing', label: 'Closing' },
+  // 'closing' is not offered: the API refuses it (posted only by closing a fiscal year).
   { value: 'payment', label: 'Payment' },
   { value: 'purchase', label: 'Purchase' },
 ]
@@ -208,17 +208,22 @@ export default function JournalsView() {
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter])
 
+  // Shared by the list and the Excel export (the export reads the same filter[...] keys).
+  const listFilters = {
+    'filter[search]': debouncedSearch || undefined,
+    'filter[type]': typeFilter || undefined,
+    'filter[period_id]': periodFilter || undefined,
+    'filter[date]': dateFilter || undefined,
+    'filter[is_posted]': postedFilter || undefined,
+    'filter[is_reversed]': reversedFilter || undefined,
+    'filter[chart_of_account_id]': accountFilter?.ids || undefined,
+  }
+
   const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
     queryKey: ['journals', page, perPage, debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter?.ids],
     queryFn: () => journalsService.list({
       page, per_page: perPage, sort: '-id', include: 'period,journal_details,created_by',
-      'filter[search]': debouncedSearch || undefined,
-      'filter[type]': typeFilter || undefined,
-      'filter[period_id]': periodFilter || undefined,
-      'filter[date]': dateFilter || undefined,
-      'filter[is_posted]': postedFilter || undefined,
-      'filter[is_reversed]': reversedFilter || undefined,
-      'filter[chart_of_account_id]': accountFilter?.ids || undefined,
+      ...listFilters,
     } as any).then((r) => r.data),
   })
   // Any refetch (after a create/update/delete invalidates the list, or a
@@ -502,7 +507,7 @@ export default function JournalsView() {
     detailLines.reduce((s, l) => s + toCents(Number(l.credit || 0)), 0)
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
-    mutationFn: () => reportsService.exportJournalEntries(),
+    mutationFn: () => reportsService.exportJournalEntries({ ...listFilters, sort: '-id' } as any),
     onSuccess: (res) => { downloadFileFromResponse(res, 'journal-entries.xlsx') },
     onError: () => toast.error('Gagal mengekspor data.'),
   })

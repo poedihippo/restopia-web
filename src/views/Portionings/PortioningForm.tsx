@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Trash2, Loader2, Save, Eye, Scissors } from 'lucide-react'
+import { Plus, Trash2, Loader2, Save, Eye, Scissors, ArrowRight, ChevronDown } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 import { portioningsService } from '@/services/portionings.service'
 import { companiesService } from '@/services/companies.service'
@@ -20,7 +20,7 @@ import ProductCutSheet from '@/views/ProductCuts/ProductCutSheet'
 import type { Portioning, PortioningRequest } from '@/types/api'
 import type { PortioningSource, PortioningSourceOutput } from '@/services/portionings.service'
 
-// Location pickers are hidden on this form; the backend always gets GENERAL.
+// Fallback when Owner / Lokasi (behind "Allocation") are left blank.
 const LOCATION_GENERAL = 'GENERAL'
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
@@ -28,12 +28,11 @@ const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
 const detailSchema = z.object({
   // The source stock row this detail is cut from (a product_inventory_id).
-  base_product_inventory_id: z.coerce.number().min(1, 'Sumber wajib dipilih'),
-  product_uom_id: z.coerce.number().min(1, 'SKU hasil wajib dipilih'),
-  qty: z.coerce.number().gt(0, 'Qty hasil harus lebih dari 0'),
-  // Optional whole number of source units this cut uses; blank = let the API
-  // compute ceil(sum of qty / yield).
-  source_qty: z.coerce.number().min(0).optional(),
+  base_product_inventory_id: z.coerce.number().min(1, 'Produk asal wajib dipilih'),
+  product_uom_id: z.coerce.number().min(1, 'Produk hasil wajib dipilih'),
+  qty: z.coerce.number().gt(0, 'Isi Qty asal — Qty hasil harus lebih dari 0'),
+  // Whole number of source units this cut uses; Qty hasil = this × yield.
+  source_qty: z.coerce.number().int('Qty asal harus bilangan bulat').min(1, 'Qty asal wajib diisi (min. 1)'),
   batch_code: z.string().optional(),
   expiry_date: z.string().optional(),
   description: z.string().optional(),
@@ -48,8 +47,10 @@ const schema = z.object({
   description: z.string().optional(),
   source_owner_ref: z.string().min(1, 'Owner sumber wajib diisi'),
   source_stage: z.string().min(1, 'Stage sumber wajib diisi'),
+  source_location_ref: z.string().optional(),
   output_owner_ref: z.string().min(1, 'Owner output wajib diisi'),
   output_stage: z.string().min(1, 'Stage output wajib diisi'),
+  output_location_ref: z.string().optional(),
   details: z.array(detailSchema).min(1, 'Minimal satu potongan'),
 })
 
@@ -59,10 +60,11 @@ type FormValues = z.infer<typeof schema>
 
 const fieldInputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '7px 10px',
+  height: 34,
+  padding: '0 10px',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)',
-  fontSize: 12,
+  fontSize: 13,
   color: 'var(--foreground)',
   background: 'var(--surface-raised)',
   outline: 'none',
@@ -72,51 +74,43 @@ const fieldInputStyle: React.CSSProperties = {
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 500,
   color: 'var(--foreground)',
-  marginBottom: 4,
+  marginBottom: 6,
   display: 'block',
 }
 
-const sectionHeaderStyle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  color: 'var(--foreground-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.6px',
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 13.5,
+  fontWeight: 500,
+  color: 'var(--foreground)',
 }
 
 const cardStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
   background: 'var(--surface)',
   border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-lg)',
+  borderRadius: 'var(--radius-xl)',
   overflow: 'visible',
   boxShadow: 'var(--shadow-sm)',
   minWidth: 0,
 }
 
 const cardHeaderStyle: React.CSSProperties = {
-  padding: '12px 20px',
+  padding: '12px 16px',
   borderBottom: '1px solid var(--border)',
-  background: 'var(--background)',
-  borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
 }
 
 const errorTextStyle: React.CSSProperties = {
   fontSize: 11,
   color: 'var(--destructive)',
   marginTop: 3,
-}
-
-const roStyle: React.CSSProperties = {
-  ...fieldInputStyle,
-  background: 'var(--background)',
-  borderStyle: 'dashed',
-  color: 'var(--foreground-muted)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
 }
 
 // minmax(0, 1fr) stops long content (e.g. the source dropdown text) from
@@ -243,7 +237,7 @@ function PreviewPanel({ result, stale }: { result: PreviewResult; stale: boolean
           flexWrap: 'wrap',
         }}
       >
-        <span style={sectionHeaderStyle}>Hasil Preview</span>
+        <span style={sectionTitleStyle}>Hasil Preview</span>
         <span
           style={{
             padding: '3px 10px',
@@ -398,8 +392,10 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
       description: '',
       source_owner_ref: 'GENERAL',
       source_stage: 'GENERAL',
+      source_location_ref: 'GENERAL',
       output_owner_ref: 'GENERAL',
       output_stage: 'GENERAL',
+      output_location_ref: 'GENERAL',
       details: [emptyDetail()],
     },
   })
@@ -538,7 +534,13 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
   const deriveQtyFromSource = (index: number, invId: number, puId: number, srcRaw: unknown) => {
     const y = yieldFor(invId, puId)
     const raw = Number(srcRaw)
-    if (!y || y <= 0 || !Number.isFinite(raw) || raw <= 0) return
+    if (!y || y <= 0) return
+    // Qty hasil is read-only, so a blank / zero Qty asal clears it (and the
+    // schema then asks for Qty asal) instead of leaving a stale number.
+    if (!Number.isFinite(raw) || raw <= 0) {
+      if (Number(getValues(`details.${index}.qty`)) !== 0) setValue(`details.${index}.qty`, 0)
+      return
+    }
     // Round first — buildPayload sends `Math.round(source_qty)`, so deriving
     // from the same rounded value keeps qty and source_qty in agreement (a
     // typed 1.5 becomes 2 on both sides instead of 2 sent with qty for 1.5).
@@ -553,6 +555,19 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
   // Pop-up "Buat Product Cut" — cut table baru langsung terpakai di dropdown SKU hasil
   // (sheet meng-invalidate 'portioning-source-outputs').
   const [cutModalOpen, setCutModalOpen] = useState(false)
+  // Owner + Location ("Allocation") are collapsed by default — Stage is the
+  // usual choice. Opens on its own when a loaded record uses a non-GENERAL value.
+  const [showAllocation, setShowAllocation] = useState(false)
+  const allocationValues = [
+    watch('source_owner_ref'),
+    watch('source_location_ref'),
+    watch('output_owner_ref'),
+    watch('output_location_ref'),
+  ]
+  const hasCustomAllocation = allocationValues.some((v) => v && v !== 'GENERAL')
+  useEffect(() => {
+    if (hasCustomAllocation) setShowAllocation(true)
+  }, [hasCustomAllocation])
   const { hasPermission } = useAuth()
   const canCreateCut = hasPermission('product-cut.create')
   const [debouncedCompanySearch, setDebouncedCompanySearch] = useState('')
@@ -616,7 +631,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
       base_product_inventory_id: Number(d.base_product_inventory_id ?? 0),
       product_uom_id: Number(d.product_uom_id ?? 0),
       qty: Number(d.qty ?? 0),
-      source_qty: d.source_qty ? Number(d.source_qty) : undefined,
+      source_qty: Number(d.source_qty ?? 0),
       batch_code: d.batch_code ?? '',
       expiry_date: d.expiry_date ? String(d.expiry_date).slice(0, 10) : '',
       description: d.description ?? '',
@@ -632,8 +647,10 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
       description: editRecord.description ?? '',
       source_owner_ref: editRecord.source_owner_ref || 'GENERAL',
       source_stage: editRecord.source_stage || 'GENERAL',
+      source_location_ref: editRecord.source_location_ref || 'GENERAL',
       output_owner_ref: editRecord.output_owner_ref || 'GENERAL',
       output_stage: editRecord.output_stage || 'GENERAL',
+      output_location_ref: editRecord.output_location_ref || 'GENERAL',
       details: details.length > 0 ? details : [emptyDetail()],
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -647,24 +664,22 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
     description: values.description || undefined,
     source_owner_ref: values.source_owner_ref,
     source_stage: values.source_stage,
-    source_location_ref: LOCATION_GENERAL,
+    source_location_ref: values.source_location_ref || LOCATION_GENERAL,
     output_owner_ref: values.output_owner_ref,
     output_stage: values.output_stage,
-    output_location_ref: LOCATION_GENERAL,
+    output_location_ref: values.output_location_ref || LOCATION_GENERAL,
     details: values.details.map((d) => ({
       product_uom_id: d.product_uom_id,
       qty: Number(d.qty),
       base_product_inventory_id: Number(d.base_product_inventory_id),
-      // Only send a whole number >= 1; blank lets the API compute
-      // ceil(sum of qty / yield) for the shared source row.
-      source_qty: Number(d.source_qty) > 0 ? Math.round(Number(d.source_qty)) : undefined,
+      source_qty: Math.round(Number(d.source_qty)),
       batch_code: d.batch_code || undefined,
       expiry_date: d.expiry_date || undefined,
       description: d.description || undefined,
       status,
       owner_ref: d.owner_ref || values.output_owner_ref || null,
       stage: d.stage || values.output_stage || null,
-      location_ref: LOCATION_GENERAL,
+      location_ref: values.output_location_ref || LOCATION_GENERAL,
       // Packaging is auto-resolved by the backend when materials is empty.
       materials: [],
     })),
@@ -784,219 +799,252 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
   }
 
   return (
-    <div
-      style={{
-        display: 'flex', flexDirection: 'column', gap: 24,
-        width: '100%', paddingTop: 8, paddingBottom: 24,
-      }}
-    >
+    <div className="v2-form" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 8 }}>
+      <BackLink href="/production/portioning" label="Portioning" />
+
       {/* Top bar */}
-      <div
-        style={{
-          display: 'flex', flexDirection: 'column', gap: 12,
-          paddingBottom: 20, borderBottom: '1px solid var(--border)',
-        }}
-      >
-        <BackLink href="/production/portioning" label="Portioning" />
-        <div style={{ minWidth: 0 }}>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>
-            {isEdit ? 'Edit Portioning' : 'New Portioning'}
-          </h1>
-          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '2px 0 0' }}>
-            {isEdit && editRecord?.code ? (
-              <span style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>{editRecord.code}</span>
-            ) : (
-              'Potong sumber (mis. kue 20x40) menjadi SKU hasil'
-            )}
-            {isEdit &&
-              ' — penyimpanan ulang membalik lalu menulis ulang stok (ditolak bila output sudah terjual, dipotong atau dipindah).'}
-          </p>
-        </div>
+      <div style={{ minWidth: 0 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>
+          {isEdit ? 'Edit Portioning' : 'New Portioning'}
+        </h1>
+        <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: '2px 0 0' }}>
+          {isEdit && editRecord?.code ? (
+            <span style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>{editRecord.code}</span>
+          ) : (
+            'Potong produk asal (mis. kue 20x40) menjadi produk hasil'
+          )}
+          {isEdit &&
+            ' — penyimpanan ulang membalik lalu menulis ulang stok (ditolak bila output sudah terjual, dipotong atau dipindah).'}
+        </p>
       </div>
 
       {/* Form — Enter must never submit (Final moves stock) */}
-      <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
+      <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
           <span style={{ color: 'var(--destructive)' }}>*</span>
           <span>Required fields</span>
         </div>
 
-        {/* Section 1 — Header */}
-        <div style={cardStyle}>
-          <div style={cardHeaderStyle}>
-            <span style={sectionHeaderStyle}>Portioning Details</span>
-          </div>
-          <div style={{ padding: 20, ...twoColGrid }}>
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Tanggal
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <input
-                type="date"
-                {...register('date')}
-                style={{ ...fieldInputStyle, border: `1px solid ${errors.date ? 'var(--destructive)' : 'var(--border)'}` }}
-              />
-              {errors.date && <span style={errorTextStyle}>{errors.date.message}</span>}
+        {/* Details + Dimensi share one row on wide screens */}
+        <div className="prod-top-row">
+          {/* Section 1 — Header */}
+          <div style={cardStyle}>
+            <div style={cardHeaderStyle}>
+              <span style={sectionTitleStyle}>Portioning Details</span>
             </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Status
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <Controller
-                name="status"
-                control={control}
-                render={({ field }) => (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {([
-                      { value: 'pending', label: 'Draft' },
-                      { value: 'final', label: 'Final' },
-                    ] as const).map((s) => {
-                      const isSel = field.value === s.value
-                      const tone = s.value === 'final' ? 'success' : 'warning'
-                      return (
-                        <button
-                          key={s.value}
-                          type="button"
-                          onClick={() => field.onChange(s.value)}
-                          style={{
-                            padding: '6px 18px', borderRadius: 'var(--radius-md)', fontSize: 13,
-                            fontWeight: 500, cursor: 'pointer',
-                            border: isSel ? `1px solid var(--${tone})` : '1px solid var(--border)',
-                            background: isSel ? `var(--${tone}-bg)` : 'var(--surface)',
-                            color: isSel ? `var(--${tone})` : 'var(--foreground-muted)',
-                          }}
-                        >
-                          {s.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              />
-              <span style={hintStyle}>Draft tidak memindah stok.</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2', minWidth: 0 }}>
-              <label style={labelStyle}>Notes</label>
-              <textarea
-                {...register('description')}
-                rows={2}
-                placeholder="Optional notes"
-                style={{ ...fieldInputStyle, resize: 'vertical', fontFamily: 'var(--font-sans)' }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Section 1b — Dimension pickers (location hidden → GENERAL) */}
-        <div style={cardStyle}>
-          <div style={cardHeaderStyle}>
-            <span style={sectionHeaderStyle}>Dimensi Portioning</span>
-          </div>
-          <div style={{ padding: 20, ...twoColGrid, gap: 24 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
-              <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>Konsumsi Dari</span>
-              <div style={{ ...twoColGrid, gap: 10 }}>
-                <div style={fieldWrap}>
-                  <label style={labelStyle}>
-                    Owner <span style={{ color: 'var(--destructive)' }}>*</span>
-                  </label>
-                  <Controller
-                    name="source_owner_ref"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? 'GENERAL'}
-                        onChange={field.onChange}
-                        options={companyOptions}
-                        placeholder="Pilih owner..."
-                        searchPlaceholder="Cari perusahaan..."
-                        loading={companiesLoading}
-                        disabled
-                        error={errors.source_owner_ref?.message as string | undefined}
-                        onSearchChange={setCompanySearch}
-                      />
-                    )}
-                  />
-                </div>
-                <div style={fieldWrap}>
-                  <label style={labelStyle}>
-                    Stage <span style={{ color: 'var(--destructive)' }}>*</span>
-                  </label>
-                  <Controller
-                    name="source_stage"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? 'GENERAL'}
-                        onChange={field.onChange}
-                        options={stageOptions}
-                        placeholder="Pilih stage..."
-                        searchPlaceholder="Cari stage..."
-                        loading={stagesLoading}
-                        error={errors.source_stage?.message as string | undefined}
-                      />
-                    )}
-                  />
-                </div>
+            <div className="v2-form-grid" style={{ padding: 16, ...twoColGrid, gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <label style={labelStyle}>
+                  Tanggal <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  {...register('date')}
+                  style={{ ...fieldInputStyle, border: `1px solid ${errors.date ? 'var(--destructive)' : 'var(--border)'}` }}
+                />
+                {errors.date && <span style={errorTextStyle}>{errors.date.message}</span>}
               </div>
-              <span style={{ ...hintStyle, marginTop: 0 }}>
-                Memotong hasil portioning (mis. Loaf → Ind)? Pilih stage <strong>finished</strong>.
-              </span>
+
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <label style={labelStyle}>
+                  Status <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <Controller
+                  name="status"
+                  control={control}
+                  render={({ field }) => (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {([
+                        { value: 'pending', label: 'Draft' },
+                        { value: 'final', label: 'Final' },
+                      ] as const).map((s) => {
+                        const isSel = field.value === s.value
+                        const tone = s.value === 'final' ? 'success' : 'warning'
+                        return (
+                          <button
+                            key={s.value}
+                            type="button"
+                            onClick={() => field.onChange(s.value)}
+                            style={{
+                              height: 34, padding: '0 16px', borderRadius: 'var(--radius-md)', fontSize: 13,
+                              fontWeight: 500, cursor: 'pointer',
+                              border: isSel ? `1px solid var(--${tone})` : '1px solid var(--border)',
+                              background: isSel ? `var(--${tone}-bg)` : 'var(--surface)',
+                              color: isSel ? `var(--${tone})` : 'var(--foreground-muted)',
+                            }}
+                          >
+                            {s.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                />
+                <span style={hintStyle}>Draft tidak memindah stok.</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gridColumn: '1 / -1', minWidth: 0 }}>
+                <label style={labelStyle}>Notes</label>
+                <textarea
+                  {...register('description')}
+                  rows={2}
+                  placeholder="Optional notes"
+                  style={{
+                    ...fieldInputStyle, height: 'auto', minHeight: 64, padding: '8px 10px',
+                    lineHeight: 1.5, resize: 'vertical', display: 'block',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 1b — Dimension Pickers */}
+          <div style={cardStyle}>
+            <div style={cardHeaderStyle}>
+              <span style={sectionTitleStyle}>Dimensi Portioning</span>
+              <button
+                type="button"
+                className="alloc-toggle"
+                aria-expanded={showAllocation}
+                onClick={() => setShowAllocation((v) => !v)}
+                title="Show Owner and Location"
+              >
+                <span className="v2-link">Allocation</span>
+                {!showAllocation && (
+                  <span className="alloc-summary">{hasCustomAllocation ? 'custom' : 'GENERAL'}</span>
+                )}
+                <ChevronDown size={14} style={{ transform: showAllocation ? 'rotate(180deg)' : 'none', transition: 'transform 150ms ease' }} />
+              </button>
             </div>
 
             <div
+              className="v2-form-grid"
               style={{
-                display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0,
-                paddingLeft: 24, borderLeft: '1px solid var(--border)',
+                padding: 16,
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+                columnGap: 32,
+                rowGap: 16,
               }}
             >
-              <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>Output Ke</span>
-              <div style={{ ...twoColGrid, gap: 10 }}>
-                <div style={fieldWrap}>
-                  <label style={labelStyle}>
-                    Owner <span style={{ color: 'var(--destructive)' }}>*</span>
-                  </label>
-                  <Controller
-                    name="output_owner_ref"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? 'GENERAL'}
-                        onChange={field.onChange}
-                        options={companyOptions}
-                        placeholder="Pilih owner..."
-                        searchPlaceholder="Cari perusahaan..."
-                        loading={companiesLoading}
-                        disabled
-                        error={errors.output_owner_ref?.message as string | undefined}
-                        onSearchChange={setCompanySearch}
-                      />
-                    )}
-                  />
+              {/* Konsumsi Dari */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="dim-side-head" data-side="source">Konsumsi Dari</span>
+                {/* Stage stays full width on top; Allocation adds Owner + Lokasi below it. */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
+                  <div style={{ display: showAllocation ? undefined : 'none', order: 1 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>
+                      Owner <span style={{ color: 'var(--destructive)' }}>*</span>
+                    </label>
+                    <Controller
+                      name="source_owner_ref"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableSelect
+                          value={field.value ?? 'GENERAL'}
+                          onChange={field.onChange}
+                          options={companyOptions}
+                          placeholder="Pilih owner..."
+                          searchPlaceholder="Cari perusahaan..."
+                          loading={companiesLoading}
+                          error={errors.source_owner_ref?.message as string | undefined}
+                          onSearchChange={setCompanySearch}
+                        />
+                      )}
+                    />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', order: 0 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>
+                      Stage <span style={{ color: 'var(--destructive)' }}>*</span>
+                    </label>
+                    <Controller
+                      name="source_stage"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableSelect
+                          value={field.value ?? 'GENERAL'}
+                          onChange={field.onChange}
+                          options={stageOptions}
+                          placeholder="Pilih stage..."
+                          searchPlaceholder="Cari stage..."
+                          loading={stagesLoading}
+                          error={errors.source_stage?.message as string | undefined}
+                        />
+                      )}
+                    />
+                  </div>
+                  <div style={{ display: showAllocation ? undefined : 'none', order: 2 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>Lokasi</label>
+                    <input
+                      type="text"
+                      placeholder="GENERAL"
+                      {...register('source_location_ref')}
+                      style={fieldInputStyle}
+                    />
+                  </div>
                 </div>
-                <div style={fieldWrap}>
-                  <label style={labelStyle}>
-                    Stage <span style={{ color: 'var(--destructive)' }}>*</span>
-                  </label>
-                  <Controller
-                    name="output_stage"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? 'GENERAL'}
-                        onChange={field.onChange}
-                        options={stageOptions}
-                        placeholder="Pilih stage..."
-                        searchPlaceholder="Cari stage..."
-                        loading={stagesLoading}
-                        error={errors.output_stage?.message as string | undefined}
-                      />
-                    )}
-                  />
+              </div>
+
+              {/* Source → output direction marker */}
+              <div className="dim-arrow" aria-hidden>
+                <ArrowRight size={22} strokeWidth={1.75} />
+              </div>
+
+              {/* Output Ke */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="dim-side-head" data-side="output">Output Ke</span>
+                {/* Stage stays full width on top; Allocation adds Owner + Lokasi below it. */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
+                  <div style={{ display: showAllocation ? undefined : 'none', order: 1 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>
+                      Owner <span style={{ color: 'var(--destructive)' }}>*</span>
+                    </label>
+                    <Controller
+                      name="output_owner_ref"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableSelect
+                          value={field.value ?? 'GENERAL'}
+                          onChange={field.onChange}
+                          options={companyOptions}
+                          placeholder="Pilih owner..."
+                          searchPlaceholder="Cari perusahaan..."
+                          loading={companiesLoading}
+                          error={errors.output_owner_ref?.message as string | undefined}
+                          onSearchChange={setCompanySearch}
+                        />
+                      )}
+                    />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', order: 0 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>
+                      Stage <span style={{ color: 'var(--destructive)' }}>*</span>
+                    </label>
+                    <Controller
+                      name="output_stage"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableSelect
+                          value={field.value ?? 'GENERAL'}
+                          onChange={field.onChange}
+                          options={stageOptions}
+                          placeholder="Pilih stage..."
+                          searchPlaceholder="Cari stage..."
+                          loading={stagesLoading}
+                          error={errors.output_stage?.message as string | undefined}
+                        />
+                      )}
+                    />
+                  </div>
+                  <div style={{ display: showAllocation ? undefined : 'none', order: 2 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>Lokasi</label>
+                    <input
+                      type="text"
+                      placeholder="GENERAL"
+                      {...register('output_location_ref')}
+                      style={fieldInputStyle}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1005,46 +1053,38 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
 
         {/* Section 2 — Cuts */}
         <div style={cardStyle}>
-          <div
-            style={{
-              ...cardHeaderStyle,
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}
-          >
-            <span style={sectionHeaderStyle}>Potongan (SKU Hasil)</span>
+          <div style={cardHeaderStyle}>
+            <span style={sectionTitleStyle}>
+              Potongan (SKU Hasil)
+              <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--foreground-subtle)', fontWeight: 400 }}>
+                {detailFields.length} baris
+              </span>
+            </span>
             <div style={{ display: 'flex', gap: 8 }}>
-            {canCreateCut && (
+              {canCreateCut && (
+                <button
+                  type="button"
+                  className="v2-btn v2-btn-ghost v2-btn-sm"
+                  onClick={() => setCutModalOpen(true)}
+                  style={{ height: 30 }}
+                >
+                  <Scissors size={13} />
+                  Buat Product Cut
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setCutModalOpen(true)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-                  background: 'var(--surface)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500,
-                  cursor: 'pointer', color: 'var(--accent)',
-                }}
+                className="v2-btn v2-btn-outline v2-btn-sm"
+                onClick={handleAddDetail}
+                style={{ height: 30 }}
               >
-                <Scissors size={12} />
-                Buat Product Cut
+                <Plus size={13} />
+                Tambah Potongan
               </button>
-            )}
-            <button
-              type="button"
-              onClick={handleAddDetail}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500,
-                cursor: 'pointer', color: 'var(--foreground)',
-              }}
-            >
-              <Plus size={12} />
-              Tambah Potongan
-            </button>
             </div>
           </div>
 
-          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
             {detailFields.map((field, index) => {
               const rowErrors = errors.details?.[index]
               const d = watchedValues.details?.[index]
@@ -1060,57 +1100,52 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
               // Source units this row alone burns, and the whole-unit total the
               // API would use if source_qty is left blank.
               const srcConsumed = yld && yld > 0 ? qtyVal / yld : null
-              const totalSrcConsumed = usedSourceIds.includes(invId)
-                ? (watchedValues.details ?? []).reduce((sum, row) => {
-                    if (Number(row?.base_product_inventory_id) !== invId) return sum
-                    const y = yieldFor(invId, Number(row?.product_uom_id))
-                    return y && y > 0 ? sum + Number(row?.qty ?? 0) / y : sum
-                  }, 0)
-                : null
-              const impliedSourceQty = totalSrcConsumed != null ? Math.ceil(totalSrcConsumed) : null
 
               return (
                 <div
                   key={field.id}
                   data-portioning-detail-index={index}
+                  className="cut-row"
                   style={{
-                    border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
-                    background: 'var(--background)', padding: 16,
-                    display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0,
+                    padding: 16, display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0,
+                    borderTop: index === 0 ? 'none' : '1px solid var(--border)',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>
-                      Potongan #{index + 1}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                      <span className="cut-num">{index + 1}</span>
+                      Potongan
                     </span>
                     <button
                       type="button"
+                      className="v2-icon-btn"
                       onClick={() => removeDetail(index)}
                       disabled={detailFields.length <= 1}
                       title="Hapus potongan"
                       style={{
-                        display: 'flex', alignItems: 'center', padding: 4, background: 'transparent',
-                        border: 'none', cursor: detailFields.length <= 1 ? 'not-allowed' : 'pointer',
-                        color: 'var(--destructive)', opacity: detailFields.length <= 1 ? 0.4 : 1,
+                        color: 'var(--destructive)',
+                        cursor: detailFields.length <= 1 ? 'not-allowed' : 'pointer',
+                        opacity: detailFields.length <= 1 ? 0.35 : 1,
                       }}
                     >
                       <Trash2 size={14} />
                     </button>
                   </div>
 
-                  <div style={{ ...twoColGrid, alignItems: 'stretch' }}>
+                  <div
+                    className="v2-form-grid"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+                      columnGap: 12, rowGap: 12, alignItems: 'stretch',
+                    }}
+                  >
                     {/* FROM — source stock row */}
-                    <div
-                      style={{
-                        ...columnBox,
-                        border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
-                        background: 'var(--surface)', padding: 14,
-                      }}
-                    >
-                      <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>From · sumber</span>
+                    <div className="cut-side" style={columnBox}>
+                      <span className="dim-side-head" data-side="source" style={{ alignSelf: 'flex-start' }}>From · asal</span>
                       <div style={fieldWrap}>
                         <label style={labelStyle}>
-                          Baris sumber <span style={{ color: 'var(--destructive)' }}>*</span>
+                          Produk Asal <span style={{ color: 'var(--destructive)' }}>*</span>
                         </label>
                         <Controller
                           name={`details.${index}.base_product_inventory_id`}
@@ -1127,59 +1162,72 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                                 setValue(`details.${index}.product_uom_id`, 0)
                                 setValue(`details.${index}.source_qty`, 1)
                                 setValue(`details.${index}.qty`, 1)
+                                // Expiry defaults to the chosen Produk Asal's expiry
+                                // (still editable).
+                                const picked = sourceById.get(Number(v))
+                                setValue(
+                                  `details.${index}.expiry_date`,
+                                  picked?.expiry_date ? String(picked.expiry_date).slice(0, 10) : '',
+                                )
                               }}
                               options={sourceOptions}
-                              placeholder="Pilih baris sumber..."
+                              placeholder="Pilih produk asal..."
                               searchPlaceholder="Cari produk/batch..."
                               loading={sourcesLoading}
                               error={rowErrors?.base_product_inventory_id?.message as string | undefined}
                             />
                           )}
                         />
-                      </div>
-                      <div style={fieldWrap}>
-                        <label style={labelStyle}>Stok sumber</label>
-                        <div style={roStyle}>
-                          {src
-                            ? `${formatNumber(src.stock)}${src.product_code ? ` · ${src.product_code}` : ''}${src.batch_code ? ` · ${src.batch_code}` : ''}`
-                            : '—'}
-                        </div>
+                        <span style={hintStyle}>
+                          Stok:{' '}
+                          {src ? (
+                            <>
+                              <strong style={{ color: 'var(--foreground)', fontWeight: 500 }}>{formatNumber(src.stock)}</strong>
+                              {src.product_code ? ` · ${src.product_code}` : ''}
+                              {src.batch_code ? ` · ${src.batch_code}` : ''}
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </span>
                       </div>
                       <div style={fieldWrap}>
                         <label style={labelStyle}>
-                          Source qty <span style={{ color: 'var(--foreground-subtle)', fontWeight: 400 }}>(opsional)</span>
+                          Qty asal <span style={{ color: 'var(--destructive)' }}>*</span>
                         </label>
                         <input
                           type="number"
                           step="1"
                           min="1"
-                          placeholder={impliedSourceQty != null ? `Otomatis: ${formatNumber(impliedSourceQty)}` : 'Otomatis'}
+                          placeholder="1"
                           {...sourceQtyField}
                           onChange={(e) => {
                             onSourceQtyChange(e)
                             deriveQtyFromSource(index, invId, puId, e.target.value)
                           }}
-                          style={fieldInputStyle}
+                          style={{
+                            ...fieldInputStyle,
+                            border: `1px solid ${rowErrors?.source_qty ? 'var(--destructive)' : 'var(--border)'}`,
+                          }}
                         />
-                        <span style={hintStyle}>
-                          Jumlah unit sumber utuh yang dipakai potongan ini. Kosongkan untuk otomatis
-                          (ceil total fraksi).
-                        </span>
+                        {rowErrors?.source_qty ? (
+                          <span style={errorTextStyle}>{rowErrors.source_qty.message}</span>
+                        ) : (
+                          <span style={hintStyle}>Jumlah produk asal utuh yang dipotong.</span>
+                        )}
                       </div>
                     </div>
 
-                    {/* TO — output SKU */}
-                    <div
-                      style={{
-                        ...columnBox,
-                        border: '1px solid var(--accent-light)', borderRadius: 'var(--radius-md)',
-                        background: 'var(--surface)', padding: 14,
-                      }}
-                    >
-                      <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>To · hasil</span>
+                    <div className="dim-arrow" aria-hidden style={{ alignSelf: 'center' }}>
+                      <ArrowRight size={20} strokeWidth={1.75} />
+                    </div>
+
+                    {/* TO — output SKU + the new stock row's batch / expiry */}
+                    <div className="cut-side" data-side="output" style={columnBox}>
+                      <span className="dim-side-head" data-side="output" style={{ alignSelf: 'flex-start' }}>To · hasil</span>
                       <div style={fieldWrap}>
                         <label style={labelStyle}>
-                          SKU hasil <span style={{ color: 'var(--destructive)' }}>*</span>
+                          Produk Hasil <span style={{ color: 'var(--destructive)' }}>*</span>
                         </label>
                         <Controller
                           name={`details.${index}.product_uom_id`}
@@ -1203,12 +1251,12 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                               options={outOptions}
                               placeholder={
                                 invId === 0
-                                  ? 'Pilih baris sumber dulu...'
+                                  ? 'Pilih produk asal dulu...'
                                   : outLoading
-                                    ? 'Memuat SKU hasil...'
+                                    ? 'Memuat produk hasil...'
                                     : outOptions.length === 0
                                       ? 'Sumber ini tidak bisa dipotong'
-                                      : 'Pilih SKU hasil...'
+                                      : 'Pilih produk hasil...'
                               }
                               searchPlaceholder="Cari SKU..."
                               loading={outLoading}
@@ -1216,67 +1264,69 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                             />
                           )}
                         />
-                        {invId > 0 && !outLoading && outOptions.length === 0 && (
+                        {invId > 0 && !outLoading && outOptions.length === 0 ? (
                           <span style={{ ...hintStyle, color: 'var(--warning)' }}>
                             Tidak ada cut table dari produk sumber ini — klik &quot;Buat Product Cut&quot;
                             untuk menambahkannya.
                           </span>
+                        ) : (
+                          <span style={hintStyle}>
+                            Yield:{' '}
+                            {yld ? (
+                              <strong style={{ color: 'var(--foreground)', fontWeight: 500 }}>
+                                1 sumber = {formatNumber(yld)} hasil
+                              </strong>
+                            ) : (
+                              '—'
+                            )}
+                          </span>
                         )}
                       </div>
-                      <div style={fieldWrap}>
-                        <label style={labelStyle}>
-                          Qty hasil <span style={{ color: 'var(--destructive)' }}>*</span>
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          {...register(`details.${index}.qty`)}
-                          style={{
-                            ...fieldInputStyle,
-                            color: 'var(--foreground)',
-                            border: `1px solid ${rowErrors?.qty ? 'var(--destructive)' : 'var(--border)'}`,
-                          }}
-                        />
-                        {rowErrors?.qty && <span style={errorTextStyle}>{rowErrors.qty.message}</span>}
-                      </div>
-                      <div style={fieldWrap}>
-                        <label style={labelStyle}>Yield</label>
-                        <div style={roStyle}>
-                          {yld ? `1 sumber = ${formatNumber(yld)} hasil` : '—'}
+                      <div className="cut-out-grid">
+                        <div style={fieldWrap}>
+                          <label style={labelStyle}>
+                            Qty hasil <span style={{ color: 'var(--destructive)' }}>*</span>
+                          </label>
+                          {/* Derived: Qty asal × yield — not typed by hand. */}
+                          <input
+                            type="number"
+                            readOnly
+                            tabIndex={-1}
+                            title="Qty asal × yield"
+                            {...register(`details.${index}.qty`)}
+                            style={{
+                              ...fieldInputStyle,
+                              background: 'var(--background)',
+                              color: 'var(--foreground-muted)',
+                              cursor: 'default',
+                              border: `1px solid ${rowErrors?.qty ? 'var(--destructive)' : 'var(--border)'}`,
+                            }}
+                          />
+                          {rowErrors?.qty ? (
+                            <span style={errorTextStyle}>{rowErrors.qty.message}</span>
+                          ) : srcConsumed != null ? (
+                            <span style={hintStyle}>Memakai {formatNumber(srcConsumed, 4)} unit sumber.</span>
+                          ) : null}
+                        </div>
+                        <div style={fieldWrap}>
+                          <label style={labelStyle}>Batch Code</label>
+                          <input
+                            type="text"
+                            placeholder="Opsional"
+                            {...register(`details.${index}.batch_code`)}
+                            style={fieldInputStyle}
+                          />
+                        </div>
+                        <div style={fieldWrap}>
+                          <label style={labelStyle}>Expiry Date</label>
+                          <input
+                            type="date"
+                            title="Kosongkan untuk memakai expiry sumber"
+                            {...register(`details.${index}.expiry_date`)}
+                            style={fieldInputStyle}
+                          />
                         </div>
                       </div>
-                      {srcConsumed != null && (
-                        <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                          Memakai {formatNumber(srcConsumed, 4)} unit sumber.
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      ...twoColGrid, gap: 16,
-                      paddingTop: 14, borderTop: '1px dashed var(--border)',
-                    }}
-                  >
-                    <div style={fieldWrap}>
-                      <label style={labelStyle}>Batch Code</label>
-                      <input
-                        type="text"
-                        placeholder="Opsional (default: kode portioning)"
-                        {...register(`details.${index}.batch_code`)}
-                        style={fieldInputStyle}
-                      />
-                    </div>
-                    <div style={fieldWrap}>
-                      <label style={labelStyle}>Expiry Date</label>
-                      <input
-                        type="date"
-                        placeholder="Opsional (default: expiry sumber)"
-                        {...register(`details.${index}.expiry_date`)}
-                        style={fieldInputStyle}
-                      />
                     </div>
                   </div>
                 </div>
@@ -1284,7 +1334,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
             })}
 
             {errors.details && typeof (errors.details as any).message === 'string' && (
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+              <span style={{ fontSize: 12, color: 'var(--destructive)', padding: '0 16px 16px' }}>
                 {(errors.details as any).message}
               </span>
             )}
@@ -1297,7 +1347,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
         {/* Form actions */}
         <div
           style={{
-            display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10,
+            display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8,
             position: 'sticky', bottom: 0, zIndex: 5,
             padding: '12px 0', background: 'var(--background)',
             borderTop: '1px solid var(--border)', flexWrap: 'wrap',
@@ -1310,25 +1360,18 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
           )}
           <button
             type="button"
+            className="v2-btn v2-btn-ghost"
             onClick={() => router.push('/production/portioning')}
-            style={{
-              padding: '9px 20px', background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-              color: 'var(--foreground)',
-            }}
+            style={{ height: 36, padding: '0 18px' }}
           >
             Cancel
           </button>
           <button
             type="button"
+            className="v2-btn v2-btn-outline"
             onClick={handleSubmit(onPreview, onInvalid)}
             disabled={previewMutation.isPending || isPending}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px',
-              background: 'var(--surface)', border: '1px solid var(--accent)',
-              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-              color: 'var(--accent)', opacity: previewMutation.isPending || isPending ? 0.7 : 1,
-            }}
+            style={{ height: 36, padding: '0 18px' }}
           >
             {previewMutation.isPending ? (
               <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
@@ -1339,29 +1382,20 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
           </button>
           <button
             type="button"
+            className="v2-btn v2-btn-outline"
             onClick={() => saveAs('pending')}
             disabled={isPending}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px',
-              background: 'var(--surface)', border: '1px solid var(--border-strong)',
-              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-              color: 'var(--foreground)', opacity: isPending ? 0.7 : 1,
-            }}
+            style={{ height: 36, padding: '0 18px' }}
           >
             Simpan Draft
           </button>
           <button
             type="button"
+            className="v2-btn v2-btn-primary"
             onClick={() => saveAs('final')}
             disabled={isPending || insufficient}
             title={insufficient ? 'Perbaiki stok lalu Preview ulang' : undefined}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px',
-              background: 'var(--accent)', color: 'white', border: 'none',
-              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500,
-              cursor: isPending || insufficient ? 'not-allowed' : 'pointer',
-              opacity: isPending || insufficient ? 0.5 : 1,
-            }}
+            style={{ height: 36, padding: '0 18px' }}
           >
             {isPending ? (
               <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
@@ -1381,6 +1415,44 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
       />
 
       <style>{`
+        .prod-top-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+        @media (max-width: 1100px) { .prod-top-row { grid-template-columns: minmax(0, 1fr); } }
+        .v2-form .ss-trigger { min-height: 34px; padding: 0 10px !important; font-size: 13px !important; }
+        .dim-side-head {
+          align-self: center; margin-bottom: 6px; padding: 4px 12px; border-radius: 999px;
+          font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+        }
+        .dim-side-head[data-side="source"] { color: var(--accent); background: var(--accent-light-bg); border: 1px solid rgba(198, 139, 78, 0.3); }
+        .dim-side-head[data-side="output"] { color: var(--success); background: var(--success-bg); border: 1px solid rgba(28, 148, 102, 0.25); }
+        .dim-arrow { align-self: center; display: inline-flex; align-items: center; justify-content: center; color: var(--accent-light); }
+        .alloc-toggle {
+          display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 8px;
+          border: none; border-radius: 6px; background: none; cursor: pointer;
+          font-size: 12px; font-family: var(--font-sans); color: var(--accent);
+          transition: background 150ms ease;
+        }
+        .alloc-toggle:hover { background: var(--surface-muted, var(--background)); }
+        .alloc-summary {
+          font-size: 10.5px; font-weight: 500; padding: 1px 6px; border-radius: 999px;
+          color: var(--foreground-muted); background: var(--surface-muted, var(--background)); border: 1px solid var(--border);
+        }
+        .cut-side {
+          padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+          background: var(--background);
+        }
+        .cut-side[data-side="output"] { border-color: rgba(28, 148, 102, 0.22); }
+        .cut-out-grid { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(0, 1fr); gap: 12px; }
+        @media (max-width: 1280px) { .cut-out-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .cut-out-grid > :first-child { grid-column: 1 / -1; } }
+        .cut-num {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 22px; height: 22px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+          color: var(--accent); background: var(--accent-light-bg);
+        }
+        @media (max-width: 700px) {
+          .v2-form .v2-form-grid { grid-template-columns: minmax(0, 1fr) !important; }
+          .dim-arrow { justify-self: center; transform: rotate(90deg); }
+          .cut-out-grid { grid-template-columns: minmax(0, 1fr); }
+        }
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
