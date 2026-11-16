@@ -1,6 +1,7 @@
 'use client'
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { getProductUomName, withProductType } from '@/utils/productUomName';
+import { packagingChains } from '@/utils/unitDisplay';
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
@@ -270,13 +271,17 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   // Berlaku untuk semua tipe branch, termasuk "outlet" (product-UOM kini punya
   // branch_types "outlet", jadi tidak perlu lagi pengecualian).
   const activeBranchType = ((user as any)?.branch?.type as string | undefined) || undefined
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', activeProductTypes, activeBranchType, debouncedDropdownSearch],
-    queryFn: () =>
+  // Product-UOM selector: 20 per page, server-side search, next page on
+  // scroll (same pattern as other paged selects).
+  const productUomOpts = useInfiniteOptions<any>({
+    queryKey: ['po-product-uom-options', activeProductTypes, activeBranchType, debouncedDropdownSearch],
+    staleTime: 60_000,
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
+          per_page: 20,
           'filter[search]': debouncedDropdownSearch || undefined,
-          per_page: 1000,
           include: 'product,uom',
           'filter[product_types]': activeProductTypes,
           'filter[branch_type]': activeBranchType,
@@ -284,21 +289,21 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
         } as any)
         .then((r) => r.data),
   })
+  const productUomsLoading = productUomOpts.loading
 
-  // Query tambahan: termasuk produk inactive (untuk import resep)
-  const { data: allProductUomsData } = useQuery({
-    queryKey: ['product-uoms-all-with-inactive'],
-    queryFn: () =>
-      productUomsService
-        .list({
-          per_page: 1000,
-          include: 'product,uom',
-          'filter[is_active]': '1',
-        } as any)
-        .then((r) => r.data),
-  })
+  // A line's product-UOM is often not in the current page (edit rows,
+  // recipe imports, after a new search), so each picked id is fetched once
+  // by id and cached. Rows picked from the dropdown are seeded on select.
+  const productUomByIdKey = (id: number) => ['product-uom-by-id', id]
+  const fetchProductUomById = (id: number) =>
+    queryClient.fetchQuery({
+      queryKey: productUomByIdKey(id),
+      staleTime: 5 * 60_000,
+      queryFn: () =>
+        productUomsService.findById(id, { include: 'product,uom' }).then((r) => (r.data as any)?.data ?? null),
+    })
 
-  const handleImportRecipes = (selectedRecipes: any[]) => {
+  const handleImportRecipes = async (selectedRecipes: any[]) => {
     const currentDetails = watch('details')
     const newItems: Record<number, number> = {}
 
@@ -314,18 +319,20 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     })
 
     const finalDetails = [...currentDetails]
-    Object.entries(newItems).forEach(([productUomId, qty]) => {
+    for (const [productUomId, qty] of Object.entries(newItems)) {
       const id = Number(productUomId)
       const existingIndex = finalDetails.findIndex((d) => d.product_uom_id === id)
 
       if (existingIndex >= 0) {
         finalDetails[existingIndex].qty += qty
       } else {
-        const product = mergedProductUoms.find((p: any) => p.id === id)
+        const product =
+          mergedProductUoms.find((p: any) => p.id === id) ??
+          (await fetchProductUomById(id).catch(() => null))
         const price = product?.base_price ?? 0
         finalDetails.push({ product_uom_id: id, qty, price, description: '', is_price_locked: true, is_taxable: false })
       }
-    })
+    }
 
     const cleanedDetails = finalDetails.filter(
       (d) => d.product_uom_id !== 0 || d.qty !== 1 || d.price !== 0 || d.description !== ''
@@ -338,8 +345,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     setValue('details', cleanedDetails, { shouldDirty: true, shouldValidate: true })
   }
 
-  const allProductUoms = (productUomsData as any)?.data ?? []
-  const allInactiveProductUoms = (allProductUomsData as any)?.data ?? []
+  const allProductUoms: any[] = productUomOpts.items
   const activeDetailUomIds = new Set(
     (initialData?.details ?? [])
       .map((d: any) => d.product_uom_id)
@@ -359,16 +365,28 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     return activeDetailUomIds.has(pu.id) || formDetailUomIds.has(pu.id)
   })
 
-  // Merge: tambahkan inactive product_uoms yang sedang dipakai di form
-  const mergedProductUoms = [...productUoms]
-  for (const inactive of allInactiveProductUoms) {
-    if (!mergedProductUoms.find((pu: any) => pu.id === inactive.id)) {
-      // Hanya tambahkan jika sedang dipakai di form
-      if (formDetailUomIds.has(inactive.id) || activeDetailUomIds.has(inactive.id)) {
-        mergedProductUoms.push(inactive)
-      }
-    }
-  }
+  // Rows used on the form's lines, fetched by id (see fetchProductUomById),
+  // so their label / price / packaging survive paging and searching —
+  // inactive ones included.
+  const lineUomIds = Array.from(
+    new Set<number>([...formDetailUomIds, ...activeDetailUomIds].map(Number).filter((n) => n > 0)),
+  )
+  const lineUomQueries = useQueries({
+    queries: lineUomIds.map((id) => ({
+      queryKey: productUomByIdKey(id),
+      staleTime: 5 * 60_000,
+      queryFn: () =>
+        productUomsService.findById(id, { include: 'product,uom' }).then((r) => (r.data as any)?.data ?? null),
+    })),
+  })
+  const lineUomRows: any[] = lineUomQueries.map((q) => q.data).filter(Boolean)
+
+  // Merge: current page + line rows not in it (shown first so the trigger
+  // label of every line resolves).
+  const mergedProductUoms = [
+    ...lineUomRows.filter((row: any) => !productUoms.some((pu: any) => pu.id === row.id)),
+    ...productUoms,
+  ]
 
   // Last-purchase-price history for the selected supplier. Reads existing POs;
   // no backend change. Newest entry per product_uom_id (POs sorted -date).
@@ -448,8 +466,18 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     label: withProductType(getProductUomName(pu, pu.product?.name), pu.product?.type),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
+    meta: packagingChains(pu.product?.conversions).join(' · ') || undefined,
     base_price: pu.base_price ?? 0,
   }))
+
+  // Packaging chain of the product-UOM picked on a line (e.g. "1 PACK →
+  // 300 GR"). Looks in every loaded list, since the dropdown list is
+  // narrowed by search and edit rows carry their own product_uom.
+  const packagingFor = (productUomId: number): string => {
+    if (!productUomId) return ''
+    const pu = mergedProductUoms.find((x: any) => x.id === productUomId)
+    return packagingChains(pu?.product?.conversions).join(' · ')
+  }
 
   // A row that has already been (partly) delivered/received keeps its qty.
   const isRowQtyLocked = (index: number) =>
@@ -1033,6 +1061,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
                                   const matchingUom = mergedProductUoms.find((pu: any) => pu.id === val)
                                   if (matchingUom) {
+                                    // Seed the by-id cache so the line keeps its row after the search changes.
+                                    queryClient.setQueryData(productUomByIdKey(Number(val)), matchingUom)
                                     setValue(`details.${index}.price`, matchingUom.base_price ?? 0)
                                   }
                                 }}
@@ -1040,6 +1070,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                                 placeholder="Select product..."
                                 searchPlaceholder="Search products..."
                                 loading={productUomsLoading}
+                                {...productUomOpts.selectProps}
                                 error={
                                   errors.details?.[index]?.product_uom_id?.message as
                                   | string
@@ -1050,6 +1081,14 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                               />
                             )}
                           />
+                          {packagingFor(Number(currentDetails[index]?.product_uom_id)) && (
+                            <div
+                              style={{ marginTop: 4, fontSize: 11, color: 'var(--foreground-muted)' }}
+                              title="Packaging (largest - smallest)"
+                            >
+                              {packagingFor(Number(currentDetails[index]?.product_uom_id))}
+                            </div>
+                          )}
                         </td>
 
                         {/* Qty */}

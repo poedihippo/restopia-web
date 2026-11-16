@@ -88,7 +88,19 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'OPERATIONS',
     items: [
-      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: 'dashboard.menu' },
+      // One dashboard per branch type. TODO (last step): after login, redirect to
+      // the one matching user.branch.type (outlet → /dashboard, production →
+      // /dashboard/production, warehouse → /dashboard/warehouse). Not wired yet
+      // so all three can be compared side by side.
+      {
+        label: 'Dashboards',
+        icon: LayoutDashboard,
+        children: [
+          { label: 'Outlet', href: '/dashboard', permission: 'dashboard.menu' },
+          { label: 'Production', href: '/dashboard/production', permission: ['production.menu', 'purchase-order.menu', 'internal-purchase-order.menu'] },
+          { label: 'Warehouse', href: '/dashboard/warehouse', permission: ['purchase-order.menu', 'stock-movement.menu', 'invoice.menu'] },
+        ],
+      },
       { label: 'Point of Sale', href: '/pos', icon: ShoppingCart, permission: 'point-of-sale.menu' },
       {
         label: 'Store Operations',
@@ -175,7 +187,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Purchase Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.menu' },
           { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-purchase-order.menu' },
           { label: 'Incoming PO Requests', href: '/purchase/requested-orders', permission: 'purchase-order.menu' },
-          { label: 'PO Payments', href: '/purchase/po-payments', permission: 'payment.menu' },
+          { label: 'Kartu Hutang Supplier', href: '/purchase/supplier-debts', permission: ['payment.menu', 'purchase-order.menu'] },
         ],
       },
       {
@@ -275,7 +287,6 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'AR Aging', href: '/accounting/reports/ar-aging', permission: 'report.menu' },
           { label: 'AP Aging', href: '/accounting/reports/ap-aging', permission: 'journal.menu' },
           { label: 'Customer Statements', href: '/accounting/reports/customer-statements', permission: 'report.menu' },
-          { label: 'Supplier Statements', href: '/accounting/reports/supplier-statements', permission: 'report.menu' },
           { label: 'Kartu Hutang Supplier', href: '/accounting/reports/supplier-debts', permission: 'report.menu' },
           { label: 'Payments Report', href: '/accounting/reports/payments-report', permission: 'report.menu' },
         ],

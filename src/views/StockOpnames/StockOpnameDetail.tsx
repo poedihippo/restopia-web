@@ -22,7 +22,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { convertUp, convertDown, type ConversionEntry } from '@/utils/unitDisplay'
 import {
   CheckCircle2,
-  Circle,
   XCircle,
   Loader2,
   Printer,
@@ -33,6 +32,9 @@ import {
   X,
   ArrowDown,
   MessageSquarePlus,
+  Info,
+  Layers,
+  PackagePlus,
 } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 
@@ -48,6 +50,9 @@ interface LineCountState {
   isMultiUom: boolean
   count_items: Array<{ id?: number; uom_id: number; counted_qty: number | string }>
   description: string
+  /** Baris tanpa batch: kode batch / kedaluwarsa (opsional) untuk batch baru. */
+  batch_code?: string
+  expiry_date?: string
 }
 
 function getLineKey(d: StockOpnameDetailItem): string {
@@ -298,9 +303,13 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   const [searchQuery, setSearchQuery] = useState('')
   const [filterMode, setFilterMode] = useState<'all' | 'pending' | 'counted' | 'variance'>('all')
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({})
-  const [modalAddBatchGroup, setModalAddBatchGroup] = useState<
-    (StockOpnameProductGroup & { allLines?: StockOpnameDetailItem[] }) | null
-  >(null)
+  const [openBatchFields, setOpenBatchFields] = useState<Record<string, boolean>>({})
+  // Satuan lain = product_uom lain dari produk yang sama → grup/baris sendiri
+  // (product_uom_batches punya product_uom_id sendiri). `afterPuId` = grup
+  // asal, supaya baris baru tampil tepat di bawahnya.
+  const [extraGroups, setExtraGroups] = useState<Array<StockOpnameProductGroup & { afterPuId: number }>>([])
+  const [modalAddUnitGroup, setModalAddUnitGroup] = useState<StockOpnameProductGroup | null>(null)
+  const [addingUnitPuId, setAddingUnitPuId] = useState<number | null>(null)
 
   // Ada perubahan yang belum disimpan?
   const [dirty, setDirty] = useState(false)
@@ -430,12 +439,43 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   }
 
   // Merge groups with extra batches per product
+  // + grup satuan baru (extraGroups) tepat di bawah grup asalnya.
   const groupsWithLines = useMemo(() => {
-    return productGroups.map((g) => {
-      const extras = extraBatches[g.product_uom_id] || []
-      return { ...g, allLines: [...(g.stock_opname_details || []), ...extras] }
+    const serverPuIds = new Set(productGroups.map((g) => g.product_uom_id))
+    const pendingExtras = extraGroups.filter((g) => !serverPuIds.has(g.product_uom_id))
+    const ordered: StockOpnameProductGroup[] = []
+    const placed = new Set<number>()
+    const place = (g: StockOpnameProductGroup) => {
+      if (placed.has(g.product_uom_id)) return
+      placed.add(g.product_uom_id)
+      ordered.push(g)
+      pendingExtras.filter((x) => x.afterPuId === g.product_uom_id).forEach(place)
+    }
+    productGroups.forEach(place)
+    pendingExtras.forEach(place)
+    return ordered
+      .map((g) => {
+        const extras = extraBatches[g.product_uom_id] || []
+        return { ...g, allLines: [...(g.stock_opname_details || []), ...extras] }
+      })
+      .filter((g) => g.allLines.length > 0)
+  }, [productGroups, extraGroups, extraBatches])
+
+  // Product-UOM aktif per produk yang tersedia untuk branch type user
+  // (backend menolak product_uom di luar branch type — assertProductUomInBranchType).
+  const productUomsByProductId = useMemo(() => {
+    const map = new Map<number, any[]>()
+    const bt = userBranchType.toLowerCase()
+    rawProductUoms.forEach((pu: any) => {
+      const pid = Number(pu?.product_id)
+      if (!pid || !pu?.id || pu.is_active === false) return
+      if (bt && Array.isArray(pu.branch_types) && !pu.branch_types.some((t: string) => String(t).toLowerCase() === bt)) return
+      const arr = map.get(pid) ?? []
+      arr.push(pu)
+      map.set(pid, arr)
     })
-  }, [productGroups, extraBatches])
+    return map
+  }, [rawProductUoms, userBranchType])
 
   const allLines = useMemo(() => {
     return groupsWithLines.flatMap((g) => g.allLines.map((d) => ({ group: g, detail: d })))
@@ -635,6 +675,15 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   const progressPercent = totalLines > 0 ? Math.round((countedLines / totalLines) * 100) : 0
   const isAllCounted = totalLines > 0 && countedLines === totalLines
 
+  const unitCountByProductId = useMemo(() => {
+    const map = new Map<number, number>()
+    groupsWithLines.forEach((g) => {
+      const pid = Number(g.product_uom?.product_id || g.product_uom?.product?.id || 0)
+      if (pid) map.set(pid, (map.get(pid) ?? 0) + 1)
+    })
+    return map
+  }, [groupsWithLines])
+
   const filteredGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     return groupsWithLines
@@ -642,7 +691,12 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         const productName =
           getProductUomName(g.product_uom, g.product_uom?.product?.name) || g.product_uom?.code || `Produk #${g.product_uom_id}`
         const productCode = g.product_uom?.product?.code || g.product_uom?.code || ''
-        const groupMatches = !q || productName.toLowerCase().includes(q) || productCode.toLowerCase().includes(q)
+        // Satuan (UOM) product_uom + SKU product_uom bila berbeda dari kode produk.
+        const unitCode = g.product_uom?.uom?.code || g.product_uom?.uom?.name || ''
+        const unitName = g.product_uom?.uom?.name || ''
+        const skuCode = g.product_uom?.code && g.product_uom.code !== productCode ? g.product_uom.code : ''
+        const groupMatches =
+          !q || [productName, productCode, skuCode, unitCode, unitName].some((v) => v && v.toLowerCase().includes(q))
 
         const displayLines = g.allLines.filter((detail) => {
           const state = lineCounts[getLineKey(detail)]
@@ -656,10 +710,14 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
           return batch.includes(q)
         })
 
-        return { ...g, productName, productCode, displayLines }
+        // Produk yang punya >1 satuan di lembar ini → satuannya ditonjolkan.
+        const pid = Number(g.product_uom?.product_id || g.product_uom?.product?.id || 0)
+        const multiUnit = !!pid && (unitCountByProductId.get(pid) ?? 0) > 1
+        const isNewUnit = extraGroups.some((x) => x.product_uom_id === g.product_uom_id)
+        return { ...g, productName, productCode, skuCode, unitCode, unitName, multiUnit, displayLines, isNewUnit }
       })
       .filter((g) => g.displayLines.length > 0)
-  }, [groupsWithLines, lineCounts, searchQuery, filterMode])
+  }, [groupsWithLines, lineCounts, searchQuery, filterMode, unitCountByProductId, extraGroups])
   // "No." numbering runs continuously across product groups.
   const groupRowOffsets: number[] = []
   filteredGroups.reduce((acc, g, i) => {
@@ -677,6 +735,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     onSuccess: () => {
       toast.success('Hasil hitungan sudah disimpan')
       setExtraBatches({})
+      setExtraGroups([])
       dirtyRef.current = false
       setDirty(false)
       queryClient.invalidateQueries({ queryKey: ['stock-opnames'] })
@@ -716,10 +775,17 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
             const state = lineCounts[lineKey]
             const invId = getInventoryId(d)
             const line: UpdateStockOpnameDetailLineRequest = {
+              // id baris dari server — wajib untuk baris tanpa batch, kalau
+              // tidak backend membuat baris + batch duplikat.
+              ...(d.id != null && d.id > 0 ? { id: Number(d.id) } : {}),
               ...(invId != null ? { product_inventory_id: invId } : {}),
               product_uom_id: puId,
             }
             if (state?.description) line.description = state.description
+            if (invId == null) {
+              if (state?.batch_code?.trim()) line.batch_code = state.batch_code.trim()
+              if (state?.expiry_date) line.expiry_date = state.expiry_date
+            }
             if (state?.isMultiUom) {
               const validItems = state.count_items
                 .filter((ci) => ci.uom_id && ci.counted_qty !== '' && ci.counted_qty !== null)
@@ -783,7 +849,32 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
 
   const emptyState = (): LineCountState => ({ counted_qty: null, isMultiUom: false, count_items: [], description: '' })
 
-  const updateLineSingleQty = (lineKey: string, val: string) => {
+  // Hitungan tidak boleh negatif: tanda minus/plus/eksponen diblok saat
+  // diketik, dan nilai negatif (paste, panah bawah) dijadikan positif.
+  const blockNonQtyKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault()
+  }
+  const blockNegativePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text')
+    if (/[-+eE]/.test(text)) {
+      e.preventDefault()
+      const cleaned = text.replace(/[^0-9.,]/g, '').replace(',', '.')
+      if (cleaned !== '' && !Number.isNaN(Number(cleaned))) {
+        const el = e.currentTarget
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+        setter?.call(el, cleaned)
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    }
+  }
+  const nonNegative = (val: string): string => {
+    if (val === '') return ''
+    const n = Number(val)
+    return Number.isNaN(n) ? '' : n < 0 ? String(Math.abs(n)) : val
+  }
+
+  const updateLineSingleQty = (lineKey: string, rawVal: string) => {
+    const val = nonNegative(rawVal)
     setDirty(true)
     setLineCounts((prev) => {
       const current = prev[lineKey] || emptyState()
@@ -841,6 +932,14 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     })
   }
 
+  const updateLineBatchField = (lineKey: string, field: 'batch_code' | 'expiry_date', val: string) => {
+    setDirty(true)
+    setLineCounts((prev) => {
+      const current = prev[lineKey] || emptyState()
+      return { ...prev, [lineKey]: { ...current, [field]: val } }
+    })
+  }
+
   const updateLineDescription = (lineKey: string, desc: string) => {
     setDirty(true)
     setLineCounts((prev) => {
@@ -879,28 +978,36 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     toast.success(`${emptyLines.length} baris diisi dengan ${modeLabel}`)
   }
 
-  const handleSelectBatch = (group: StockOpnameProductGroup, inv: any) => {
+  // Batch baru yang belum tercatat di sistem: baris tanpa product_inventory_id.
+  // Backend membuat batch + inventory baru (kode otomatis, stok sistem 0)
+  // saat disimpan — hanya jika baris ini diisi hitungannya.
+  const handleAddNewBatch = (group: StockOpnameProductGroup) => {
     const puId = Number(group.product_uom_id)
     if (!puId) {
       toast.error('Produk tidak valid')
       return
     }
-    const newDetail: StockOpnameDetailItem = {
+    const newDetail = {
       id: -Date.now(),
-      product_inventory_id: inv.id,
+      product_inventory_id: null,
       product_uom_id: puId,
-      system_qty: inv.base_stock ?? inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
+      system_qty: 0,
       counted_qty: null,
       variance: null,
       description: '',
-      product_inventory: inv,
       count_items: [],
-    }
+      isNewBatch: true,
+    } as StockOpnameDetailItem
+    const key = getLineKey(newDetail)
     setDirty(true)
     setExtraBatches((prev) => ({ ...prev, [puId]: [...(prev[puId] || []), newDetail] }))
-    setLineCounts((prev) => ({ ...prev, [getLineKey(newDetail)]: emptyState() }))
-    setModalAddBatchGroup(null)
-    toast.success(`Batch ${inv.product_uom_batch?.batch_code || inv.id} ditambahkan. Isi hitungannya lalu klik Simpan.`)
+    setLineCounts((prev) => ({ ...prev, [key]: emptyState() }))
+    toast.success('Batch baru ditambahkan. Isi hitungan (dan kode batch bila ada), lalu klik Simpan.')
+    setTimeout(() => {
+      const row = document.querySelector<HTMLElement>(`[data-line-key="${key}"]`)
+      row?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      row?.querySelector<HTMLInputElement>('input[data-count-input="true"]')?.focus()
+    }, 80)
   }
 
   const handleRemoveExtra = (puId: number, lineKey: string) => {
@@ -912,8 +1019,111 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     })
   }
 
+  const focusFirstLineOf = (puId: number) => {
+    const g = groupsWithLines.find((x) => x.product_uom_id === puId)
+    const first = g?.allLines[0]
+    if (!first) return
+    setSearchQuery('')
+    setFilterMode('all')
+    setTimeout(() => {
+      const row = document.querySelector<HTMLElement>(`[data-line-key="${getLineKey(first)}"]`)
+      if (!row) return
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      row.querySelector<HTMLInputElement>('input[data-count-input="true"]')?.focus()
+    }, 50)
+  }
+
+  // Satuan lain: product_uom lain dari produk yang sama jadi grup/baris
+  // sendiri. Batch aktif product_uom itu di branch ini ikut dimuat (stok
+  // sistem = stok batch). Tanpa batch → satu baris tanpa product_inventory_id
+  // (backend membuat batch baru dengan stok sistem 0 saat disimpan).
+  const handleSelectUnit = async (sourceGroup: StockOpnameProductGroup, pu: any) => {
+    const puId = Number(pu?.id)
+    if (!puId) return
+    if (groupsWithLines.some((g) => g.product_uom_id === puId)) {
+      setModalAddUnitGroup(null)
+      focusFirstLineOf(puId)
+      return
+    }
+    setAddingUnitPuId(puId)
+    let inventories: any[] = []
+    try {
+      const r = await productInventoriesService.list({
+        per_page: 200,
+        include: 'product_uom_batch',
+        'filter[branch_id]': item?.branch_id ? String(item.branch_id) : undefined,
+        'filter[product_uom_ids]': String(puId),
+        'filter[status]': 'active',
+      } as any)
+      const body = (r.data as any)?.data ?? (r.data as any)
+      inventories = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : []
+    } catch (err) {
+      toastMutationApiError(err, 'Gagal memuat batch satuan ini')
+      setAddingUnitPuId(null)
+      return
+    }
+    const base = -Date.now()
+    const lines: StockOpnameDetailItem[] =
+      inventories.length > 0
+        ? inventories.map((inv, i) => ({
+            id: base - i,
+            product_inventory_id: inv.id,
+            product_uom_id: puId,
+            system_qty: inv.base_stock ?? inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
+            counted_qty: null,
+            variance: null,
+            description: '',
+            product_inventory: inv,
+            count_items: [],
+          }))
+        : [
+            {
+              id: base,
+              product_inventory_id: null,
+              product_uom_id: puId,
+              system_qty: 0,
+              counted_qty: null,
+              variance: null,
+              description: '',
+              count_items: [],
+            } as StockOpnameDetailItem,
+          ]
+    setDirty(true)
+    setExtraGroups((prev) => [
+      ...prev,
+      { product_uom_id: puId, product_uom: pu, stock_opname_details: [], afterPuId: sourceGroup.product_uom_id },
+    ])
+    setExtraBatches((prev) => ({ ...prev, [puId]: [...(prev[puId] || []), ...lines] }))
+    setLineCounts((prev) => {
+      const next = { ...prev }
+      lines.forEach((l) => {
+        next[getLineKey(l)] = emptyState()
+      })
+      return next
+    })
+    setAddingUnitPuId(null)
+    setModalAddUnitGroup(null)
+    toast.success(`Satuan ${pu?.uom?.code || pu?.uom?.name || ''} ditambahkan sebagai baris baru. Isi hitungannya lalu klik Simpan.`)
+    setTimeout(() => {
+      const row = document.querySelector<HTMLElement>(`[data-line-key="${getLineKey(lines[0])}"]`)
+      row?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      row?.querySelector<HTMLInputElement>('input[data-count-input="true"]')?.focus()
+    }, 80)
+  }
+
+  // Klik/fokus kolom hitungan → seluruh angka terblok, jadi user langsung
+  // mengetik angka baru tanpa menghapus dulu. Ditunda satu tick karena
+  // mouseup setelah klik bisa membatalkan seleksi.
+  const selectOnFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    const el = e.currentTarget
+    setTimeout(() => {
+      if (document.activeElement === el) el.select()
+    }, 0)
+  }
+
   // Tekan Enter di kolom hitungan → langsung pindah ke barang berikutnya
   const handleCountKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    blockNonQtyKeys(e)
     if (e.key !== 'Enter') return
     e.preventDefault()
     const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[data-count-input="true"]'))
@@ -957,27 +1167,493 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   else if (!isAllCounted) completeHint = `Masih ${remainingLines} barang belum dihitung.`
   else completeHint = 'Semua sudah dihitung. Klik Selesai untuk menutup.'
 
+  type DisplayGroup = (typeof filteredGroups)[number]
+
+  // Nama produk + satuan (UOM) product_uom-nya — satuan selalu tampil karena
+  // satu produk bisa dihitung dalam beberapa product_uom (GR, PACK, …).
+  const renderProductName = (group: DisplayGroup) => (
+    <div className="so-name">
+      <span className="so-name-text">{group.productName}</span>
+      {group.unitCode && (
+        <span
+          className="so-uom"
+          data-multi={group.multiUnit ? 'true' : undefined}
+          title={group.unitName && group.unitName !== group.unitCode ? `Satuan: ${group.unitName}` : 'Satuan'}
+        >
+          {group.unitCode}
+        </span>
+      )}
+      {group.isNewUnit && <span className="so-new">Satuan baru</span>}
+    </div>
+  )
+
+  const renderProductCodes = (group: DisplayGroup) => (
+    <>
+      {group.productCode && (
+        <span className="so-code" title="Kode produk">
+          {group.productCode}
+        </span>
+      )}
+      {group.skuCode && (
+        <span className="so-code" title="Kode SKU satuan">
+          {group.skuCode}
+        </span>
+      )}
+    </>
+  )
+
+  // Satu baris hitung. `single` = produk hanya punya satu baris → nama produk
+  // ditampilkan di baris itu sendiri (tanpa baris judul grup terpisah).
+  const renderLine = (
+    group: (typeof filteredGroups)[number],
+    detail: StockOpnameDetailItem,
+    rowNo: number,
+    single: boolean,
+    uomLabel: string,
+  ) => {
+    const lineKey = getLineKey(detail)
+    const state = lineCounts[lineKey] || emptyState()
+    const counted = isCountedState(state)
+    const isNew = detail.id != null && detail.id < 0
+    const batchCode = detail.product_inventory?.product_uom_batch?.batch_code || ''
+    const expiry = detail.product_inventory?.product_uom_batch?.expiry_date
+    const isExpired = expiry && new Date(expiry).getTime() < Date.now()
+    const uomOptions = uomOptionsByKey[lineKey] ?? []
+    const noteVisible = !!state.description || !!openNotes[lineKey]
+
+    // Konversi tampilan branch type: stok sistem (base) → satuan branch;
+    // hitungan user dikonversi balik saat save.
+    const disp = lineDisplayByKey[lineKey] ?? null
+    const systemShown = disp
+      ? convertBetween(Number(detail.system_qty) || 0, disp.sourceUomCode, disp.branchUomCode, disp.conversions)
+      : null
+    const lineUomLabel = systemShown !== null && disp ? disp.branchUomCode : uomLabel
+    const varianceBase = getVariance(detail, state, countedBaseOf(detail))
+    const variance =
+      varianceBase !== null && disp
+        ? convertBetween(varianceBase, disp.sourceUomCode, disp.branchUomCode, disp.conversions) ?? varianceBase
+        : varianceBase
+    const hasDiff = variance !== null && variance !== 0
+
+    let varianceText = '—'
+    let varianceTone: 'none' | 'zero' | 'plus' | 'minus' = 'none'
+    if (variance !== null) {
+      if (variance > 0) {
+        varianceText = `+${fmtQty(variance)}`
+        varianceTone = 'plus'
+      } else if (variance < 0) {
+        varianceText = fmtQty(variance)
+        varianceTone = 'minus'
+      } else {
+        varianceText = '0'
+        varianceTone = 'zero'
+      }
+    }
+
+    const batchLine = (
+      <>
+        {batchCode ? (
+          <span className="so-batch" title="Kode batch">
+            Batch {batchCode}
+          </span>
+        ) : detail.isNewBatch ? (
+          <span className="so-sub">Batch baru · kode otomatis jika dikosongkan</span>
+        ) : !single ? (
+          <span className="so-sub">Tanpa batch</span>
+        ) : null}
+        {isNew && <span className="so-new">Baru</span>}
+        {expiry && (
+          <span className="so-sub" style={{ color: isExpired ? 'var(--destructive)' : undefined }}>
+            Exp {formatDate(expiry)}
+          </span>
+        )}
+      </>
+    )
+    const hasBatchLine = !!batchCode || isNew || !!expiry
+
+    return (
+      <tr
+        key={lineKey}
+        data-line-key={lineKey}
+        data-state={hasDiff ? 'diff' : counted ? 'counted' : 'pending'}
+        data-child={single ? undefined : 'true'}
+        className="so-line"
+      >
+        <td className="so-no">{rowNo}</td>
+        <td>
+          {single ? (
+            <div style={{ minWidth: 0 }}>
+              {renderProductName(group)}
+              <div className="so-meta">
+                {renderProductCodes(group)}
+                {hasBatchLine && batchLine}
+              </div>
+            </div>
+          ) : (
+            <div className="so-meta" style={{ paddingLeft: 14 }}>
+              {batchLine}
+            </div>
+          )}
+        </td>
+        <td style={{ textAlign: 'right' }}>
+          <span className="so-qty">{systemShown !== null ? fmtQty(systemShown) : fmtQty(Number(detail.system_qty) || 0)}</span>
+          {lineUomLabel && <span className="so-unit">{lineUomLabel}</span>}
+        </td>
+        <td>
+          {isReadOnly ? (
+            <div>
+              <span className="so-qty">
+                {state.isMultiUom && state.count_items.length > 0
+                  ? state.count_items
+                      .map((ci) => `${ci.counted_qty} ${allKnownUomsMap.get(Number(ci.uom_id))?.code || uomLabel}`)
+                      .join(' + ')
+                  : counted
+                  ? `${state.counted_qty}${lineUomLabel ? ` ${lineUomLabel}` : ''}`
+                  : '—'}
+              </span>
+              {state.description && <div className="so-sub" style={{ fontStyle: 'italic' }}>{state.description}</div>}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {!state.isMultiUom ? (
+                <div className="so-count">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    data-count-input="true"
+                    className="v2-input so-count-input"
+                    step="any"
+                    min={0}
+                    placeholder="Jumlah"
+                    aria-label={`Hitungan ${group.productName}${batchCode ? ` batch ${batchCode}` : ''}`}
+                    value={state.counted_qty === null || state.counted_qty === undefined ? '' : state.counted_qty}
+                    onChange={(e) => updateLineSingleQty(lineKey, e.target.value)}
+                    onKeyDown={handleCountKeyDown}
+                    onPaste={blockNegativePaste}
+                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                    onFocus={selectOnFocus}
+                  />
+                  <span className="so-unit so-unit-fixed">{lineUomLabel}</span>
+                  <button
+                    type="button"
+                    className="v2-btn v2-btn-sm so-quick print-hidden"
+                    onClick={() =>
+                      updateLineSingleQty(
+                        lineKey,
+                        String(systemShown !== null ? Math.round(systemShown * 10000) / 10000 : detail.system_qty),
+                      )
+                    }
+                    title="Isi hitungan sama dengan stok sistem"
+                  >
+                    Sama
+                  </button>
+                  <button
+                    type="button"
+                    className="v2-btn v2-btn-sm so-quick print-hidden"
+                    onClick={() => updateLineSingleQty(lineKey, '0')}
+                    title="Barang tidak ada / kosong"
+                  >
+                    0
+                  </button>
+                </div>
+              ) : (
+                <div className="so-multi">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--foreground-muted)' }}>Beberapa satuan</span>
+                    <button
+                      type="button"
+                      className="v2-btn v2-btn-ghost v2-btn-sm so-tiny"
+                      onClick={() => toggleMultiUom(lineKey, detail, group)}
+                      title="Kembali ke satu satuan"
+                    >
+                      Satuan tunggal
+                    </button>
+                  </div>
+                  {state.count_items.map((ci, ciIdx) => (
+                    <div key={ciIdx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        className="v2-input so-count-input"
+                        style={{ width: 84 }}
+                        step="any"
+                        placeholder="Jumlah"
+                        value={ci.counted_qty}
+                        onChange={(e) => updateCountItem(lineKey, ciIdx, 'counted_qty', nonNegative(e.target.value))}
+                        onKeyDown={blockNonQtyKeys}
+                        onPaste={blockNegativePaste}
+                        min={0}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                    onFocus={selectOnFocus}
+                      />
+                      <select
+                        className="v2-select"
+                        value={ci.uom_id}
+                        onChange={(e) => updateCountItem(lineKey, ciIdx, 'uom_id', e.target.value)}
+                        style={{ width: 96, height: 30 }}
+                      >
+                        {uomOptions.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.code || u.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="v2-icon-btn"
+                        data-tone="danger"
+                        onClick={() => removeCountItem(lineKey, ciIdx)}
+                        title="Hapus baris satuan ini"
+                        aria-label="Hapus baris satuan ini"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="v2-btn v2-btn-ghost v2-btn-sm so-tiny"
+                    style={{ alignSelf: 'flex-start' }}
+                    onClick={() => addCountItem(lineKey, group)}
+                  >
+                    <Plus size={12} /> Tambah satuan
+                  </button>
+                </div>
+              )}
+              {!getInventoryId(detail) &&
+                (detail.isNewBatch || (!state.isMultiUom && state.counted_qty != null && Number(state.counted_qty) > 0)) && (
+                  openBatchFields[lineKey] || state.batch_code || state.expiry_date ? (
+                    <div className="so-newbatch">
+                      <input
+                        type="text"
+                        className="v2-input"
+                        placeholder="Kode batch"
+                        aria-label="Kode batch baru (opsional)"
+                        title="Kode batch baru (opsional — dibuat otomatis jika kosong)"
+                        value={state.batch_code ?? ''}
+                        onChange={(e) => updateLineBatchField(lineKey, 'batch_code', e.target.value)}
+                        autoFocus={!state.batch_code && !state.expiry_date}
+                        style={{ width: 120 }}
+                      />
+                      <input
+                        type="date"
+                        className="v2-input"
+                        data-empty={state.expiry_date ? undefined : 'true'}
+                        aria-label="Tanggal kedaluwarsa batch baru (opsional)"
+                        title="Tanggal kedaluwarsa (opsional)"
+                        value={state.expiry_date ?? ''}
+                        onChange={(e) => updateLineBatchField(lineKey, 'expiry_date', e.target.value)}
+                        style={{ width: 132 }}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="so-linkbtn"
+                      onClick={() => setOpenBatchFields((p) => ({ ...p, [lineKey]: true }))}
+                    >
+                      <Plus size={12} /> Kode batch &amp; kedaluwarsa
+                    </button>
+                  )
+                )}
+              {noteVisible && (
+                <input
+                  type="text"
+                  className="v2-input so-note"
+                  placeholder="Catatan, mis. ditemukan di laci, rusak..."
+                  value={state.description}
+                  onChange={(e) => updateLineDescription(lineKey, e.target.value)}
+                  autoFocus={!state.description}
+                />
+              )}
+            </div>
+          )}
+        </td>
+        <td style={{ textAlign: 'right' }}>
+          <span className="so-var" data-tone={varianceTone}>
+            {varianceText}
+          </span>
+        </td>
+        {!isReadOnly && (
+          <td className="print-hidden" style={{ textAlign: 'right' }}>
+            <div className="so-actions">
+              {single && (
+                <button
+                  type="button"
+                  className="v2-icon-btn"
+                  onClick={() => handleAddNewBatch(group)}
+                  title="Tambah batch baru (belum tercatat di sistem)"
+                  aria-label="Tambah batch baru"
+                >
+                  <PackagePlus size={15} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="v2-icon-btn"
+                data-active={state.isMultiUom ? 'true' : undefined}
+                onClick={() => (state.isMultiUom ? toggleMultiUom(lineKey, detail, group) : setModalAddUnitGroup(group))}
+                title={state.isMultiUom ? 'Kembali ke satu satuan' : 'Tambah satuan lain sebagai baris baru'}
+                aria-label="Satuan lain"
+              >
+                <Layers size={15} />
+              </button>
+              <button
+                type="button"
+                className="v2-icon-btn"
+                data-active={noteVisible ? 'true' : undefined}
+                disabled={!!state.description}
+                onClick={() => setOpenNotes((p) => ({ ...p, [lineKey]: !p[lineKey] }))}
+                title={state.description ? 'Catatan terisi — kosongkan teksnya untuk menyembunyikan' : 'Tambah catatan'}
+                aria-label="Catatan"
+              >
+                <MessageSquarePlus size={15} />
+              </button>
+              {isNew ? (
+                <button
+                  type="button"
+                  className="v2-icon-btn"
+                  data-tone="danger"
+                  onClick={() => handleRemoveExtra(group.product_uom_id, lineKey)}
+                  title="Hapus batch yang baru ditambahkan ini"
+                  aria-label="Hapus batch"
+                >
+                  <Trash2 size={15} />
+                </button>
+              ) : (
+                <span style={{ width: 28, flexShrink: 0 }} />
+              )}
+            </div>
+          </td>
+        )}
+      </tr>
+    )
+  }
+
   return (
-    <div className="stock-opname-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="stock-opname-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <style>{`
         @media print {
           body { background: #fff !important; color: #000 !important; }
           .print-hidden { display: none !important; }
           .stock-opname-sheet { gap: 6px !important; }
-          .product-group-card { break-inside: avoid; border: 1px solid #ccc !important; margin-bottom: 6px !important; }
-          th, td { padding: 3px 6px !important; font-size: 10px !important; }
+          .so-card { box-shadow: none !important; border-color: #ccc !important; }
+          .so-table th, .so-table td { padding: 3px 6px !important; height: auto !important; font-size: 10px !important; position: static !important; }
+          .so-table tr { break-inside: avoid; }
         }
         .so-count-input::-webkit-outer-spin-button,
         .so-count-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .so-count-input { -moz-appearance: textfield; }
-        .so-count-input:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(0,0,0,0.05); }
-        .so-btn:focus-visible, .so-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+        :root .stock-opname-sheet .so-card { overflow: clip; }
+
+        /* Tabel hitung */
+        :root .stock-opname-sheet .v2-table.so-table thead th { padding: 0 12px; height: 36px; }
+        :root .stock-opname-sheet .v2-table.so-table tbody td {
+          height: 52px; padding: 8px 12px; vertical-align: middle;
+        }
+        :root .stock-opname-sheet .so-table tbody tr.so-line { transition: background 120ms ease; }
+        :root .stock-opname-sheet .so-table tbody tr.so-line:hover { background: var(--surface-muted); }
+        :root .stock-opname-sheet .so-table tbody tr.so-line[data-state="counted"] {
+          background: color-mix(in srgb, var(--success-bg) 45%, var(--surface));
+        }
+        :root .stock-opname-sheet .so-table tbody tr.so-line[data-state="diff"] {
+          background: color-mix(in srgb, var(--warning-bg) 60%, var(--surface));
+        }
+        :root .stock-opname-sheet .so-table tbody tr.so-line td:first-child { box-shadow: inset 3px 0 0 transparent; }
+        :root .stock-opname-sheet .so-table tbody tr.so-line[data-state="counted"] td:first-child { box-shadow: inset 3px 0 0 var(--success); }
+        :root .stock-opname-sheet .so-table tbody tr.so-line[data-state="diff"] td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+        :root .stock-opname-sheet .so-table tbody tr.so-line[data-child] td { border-bottom-style: dashed; }
+        :root .stock-opname-sheet .so-table tbody tr.so-group td {
+          height: 40px; padding: 8px 12px; background: var(--surface); border-bottom: 1px dashed var(--border);
+        }
+
+        :root .stock-opname-sheet .so-no { width: 44px; text-align: center; color: var(--foreground-subtle); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+        :root .stock-opname-sheet .so-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 500; color: var(--foreground); }
+        :root .stock-opname-sheet .so-code {
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 400; color: var(--foreground-subtle);
+        }
+        :root .stock-opname-sheet .so-meta > * + *::before {
+          content: '·'; margin-right: 8px; color: var(--foreground-subtle); font-family: var(--font-sans);
+        }
+        :root .stock-opname-sheet .so-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+        :root .stock-opname-sheet .so-batch { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: var(--foreground-muted); }
+        :root .stock-opname-sheet .so-sub { font-size: 11px; color: var(--foreground-subtle); }
+        :root .stock-opname-sheet .so-new {
+          font-size: 10px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
+          color: var(--accent); background: var(--accent-light-bg); padding: 1px 6px; border-radius: 999px;
+        }
+        :root .stock-opname-sheet .so-uom {
+          display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 999px;
+          font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap;
+          color: var(--foreground-muted); background: var(--surface-muted); border: 1px solid var(--border);
+        }
+        :root .stock-opname-sheet .so-uom[data-multi] { color: var(--accent); background: var(--accent-light-bg); border-color: transparent; }
+        :root .stock-opname-sheet .so-name-text { min-width: 0; }
+        :root .stock-opname-sheet .so-qty { font-size: 13px; font-weight: 600; color: var(--foreground); font-variant-numeric: tabular-nums; }
+        :root .stock-opname-sheet .so-unit { margin-left: 4px; font-size: 11px; color: var(--foreground-muted); }
+        :root .stock-opname-sheet .so-unit-fixed { margin-left: 0; min-width: 28px; }
+        :root .stock-opname-sheet .so-count { display: flex; align-items: center; gap: 6px; }
+        :root .stock-opname-sheet .v2-input.so-count-input {
+          width: 104px; height: 30px; text-align: right; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+        }
+        :root .stock-opname-sheet .v2-input.so-count-input::placeholder { font-weight: 400; color: var(--foreground-subtle); }
+        :root .stock-opname-sheet tr[data-state="counted"] .v2-input.so-count-input,
+        :root .stock-opname-sheet tr[data-state="diff"] .v2-input.so-count-input { background: var(--surface); }
+        /* Sama / 0: tombol cepat bernada karamel agar jelas bisa diklik. */
+        :root .stock-opname-sheet .v2-btn.so-quick {
+          height: 28px; padding: 0 11px; font-size: 12px; font-weight: 600;
+          color: var(--accent); background: var(--accent-light-bg);
+          border: 1px solid color-mix(in srgb, var(--accent-light) 45%, transparent);
+          box-shadow: 0 1px 0 rgba(42, 26, 19, 0.06);
+        }
+        :root .stock-opname-sheet .v2-btn.so-quick:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--accent-light-bg) 65%, var(--accent-light));
+          border-color: var(--accent-light);
+        }
+        :root .stock-opname-sheet .v2-btn.so-quick:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+        :root .stock-opname-sheet .v2-btn.so-quick:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 1px; }
+        :root .stock-opname-sheet .v2-btn.so-tiny { height: 24px; padding: 0 8px; font-size: 11.5px; }
+        :root .stock-opname-sheet .so-newbatch { display: flex; align-items: center; gap: 6px; }
+        :root .stock-opname-sheet .so-newbatch .v2-input { height: 28px; font-size: 12px; padding: 0 8px; }
+        :root .stock-opname-sheet .so-newbatch input[type="date"][data-empty] { color: var(--foreground-subtle); }
+        :root .stock-opname-sheet .so-linkbtn {
+          display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; padding: 2px 4px; margin-left: -4px;
+          border: none; border-radius: 4px; background: transparent; cursor: pointer;
+          font-family: var(--font-sans); font-size: 11.5px; color: var(--foreground-muted);
+        }
+        :root .stock-opname-sheet .so-linkbtn:hover { color: var(--accent); background: var(--accent-light-bg); }
+        :root .stock-opname-sheet .so-multi { display: flex; flex-direction: column; gap: 6px; max-width: 280px; }
+        :root .stock-opname-sheet .v2-input.so-note { width: 100%; max-width: 360px; height: 30px; font-size: 12px; }
+        :root .stock-opname-sheet .so-var {
+          display: inline-block; min-width: 36px; padding: 2px 8px; border-radius: 999px; text-align: center;
+          font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--foreground-subtle);
+        }
+        :root .stock-opname-sheet .so-var[data-tone="zero"] { color: var(--success); }
+        :root .stock-opname-sheet .so-var[data-tone="plus"] { color: var(--success); background: var(--success-bg); }
+        :root .stock-opname-sheet .so-var[data-tone="minus"] { color: var(--destructive); background: var(--destructive-bg); }
+        :root .stock-opname-sheet .so-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; }
+        :root .stock-opname-sheet .v2-icon-btn[data-active="true"] { color: var(--accent); background: var(--accent-light-bg); }
+        :root .stock-opname-sheet .v2-icon-btn[data-active="true"]:disabled { opacity: 1; cursor: default; }
+
+        /* Tombol */
+        :root .stock-opname-sheet .v2-btn.so-soft { background: var(--accent-light-bg); color: var(--accent); border: 1px solid transparent; }
+        :root .stock-opname-sheet .v2-btn.so-soft:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--accent-light-bg) 75%, var(--accent-light)); border-color: transparent;
+        }
+        :root .stock-opname-sheet .v2-btn.so-danger { color: var(--destructive); }
+        :root .stock-opname-sheet .v2-btn.so-danger:hover:not(:disabled) { background: var(--destructive-bg); border-color: var(--destructive-bg); }
+        :root .stock-opname-sheet .v2-btn.so-success { background: var(--success); border: 1px solid var(--success); color: #fff; }
+        :root .stock-opname-sheet .v2-btn.so-success:hover:not(:disabled) { background: color-mix(in srgb, var(--success) 88%, #000); }
+        :root .stock-opname-sheet .so-seg > button { white-space: nowrap; }
+        :root .stock-opname-sheet .so-seg .so-seg-n { margin-left: 5px; font-variant-numeric: tabular-nums; color: var(--foreground-subtle); }
+        :root .stock-opname-sheet .so-seg > button[aria-selected="true"] .so-seg-n { color: var(--foreground-muted); }
       `}</style>
 
       {/* Back to list — confirms first when there are unsaved counts */}
       <div
         className="print-hidden"
-        style={{ alignSelf: 'flex-start' }}
+        style={{ alignSelf: 'flex-start', marginBottom: -6 }}
         onClickCapture={(e) => {
           if (dirty && !confirm('Ada hitungan yang belum disimpan. Tetap keluar dari halaman ini?')) {
             e.preventDefault()
@@ -988,86 +1664,37 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         <BackLink href="/products/product-inventory/stock-opname" label="Stock Opnames" />
       </div>
 
-      {/* Header: judul + tombol */}
-      <div
-        className="print-hidden"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-          flexWrap: 'wrap',
-          paddingBottom: 6,
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--foreground)' }}>
-                Stock Opname {item.code}
-              </h1>
-              <span
-                style={{
-                  padding: '1px 7px',
-                  borderRadius: 'var(--radius-full)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: statusMeta.color,
-                  backgroundColor: statusMeta.bg,
-                  border: '1px solid var(--border)',
-                }}
-              >
-                {statusMeta.label}
-              </span>
-            </div>
-            <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--foreground-muted)' }}>
-              {formatDate(item.date)} · {item.branch?.name || '—'}
-              {item.created_by?.name ? ` · ${item.created_by.name}` : ''}
-            </p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button
-            className="so-btn"
-            onClick={() => window.print()}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '5px 10px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 12,
-              fontWeight: 500,
-              color: 'var(--foreground)',
-              cursor: 'pointer',
-            }}
-          >
-            <Printer size={13} /> Cetak
-          </button>
-          {!isReadOnly && (
-            <button
-              className="so-btn"
-              onClick={handleCancel}
-              disabled={isBusy}
+      {/* Header: judul + status + aksi */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0, color: 'var(--foreground)' }}>Stock Opname {item.code}</h1>
+            <span
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '5px 8px',
-                background: 'transparent',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: 12,
+                padding: '2px 9px',
+                borderRadius: 999,
+                fontSize: 11.5,
                 fontWeight: 500,
-                color: 'var(--destructive)',
-                cursor: 'pointer',
+                color: statusMeta.color,
+                background: status === 'draft' ? 'var(--surface-muted)' : statusMeta.bg,
               }}
             >
-              <XCircle size={13} /> Batalkan
+              {statusMeta.label}
+            </span>
+          </div>
+          <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--foreground-muted)' }}>
+            {formatDate(item.date)} · {item.branch?.name || '—'}
+            {item.created_by?.name ? ` · ${item.created_by.name}` : ''}
+          </p>
+        </div>
+
+        <div className="print-hidden" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="v2-btn v2-btn-ghost" onClick={() => window.print()}>
+            <Printer size={14} /> Cetak
+          </button>
+          {!isReadOnly && (
+            <button type="button" className="v2-btn v2-btn-ghost so-danger" onClick={handleCancel} disabled={isBusy}>
+              <XCircle size={14} /> Batalkan
             </button>
           )}
         </div>
@@ -1077,11 +1704,11 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         <div
           className="print-hidden"
           style={{
-            padding: '6px 10px',
-            borderRadius: 'var(--radius-sm)',
+            padding: '8px 12px',
+            borderRadius: 'var(--radius-md)',
             background: status === 'completed' ? 'var(--success-bg)' : 'var(--destructive-bg)',
             color: status === 'completed' ? 'var(--success)' : 'var(--destructive)',
-            fontSize: 12,
+            fontSize: 12.5,
             fontWeight: 500,
           }}
         >
@@ -1091,731 +1718,289 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         </div>
       )}
 
-      {/* Panduan 1 baris */}
-      {!isReadOnly && (
-        <div
-          className="print-hidden"
-          style={{
-            padding: '5px 10px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: 12,
-            color: 'var(--foreground-muted)',
-            lineHeight: 1.4,
-          }}
-        >
-          <strong style={{ color: 'var(--foreground)', fontWeight: 600 }}>Cara hitung:</strong>{' '}
-          Lihat stok sistem → ketik jumlah asli di kolom hitungan → klik Simpan (boleh berkali-kali).
-        </div>
-      )}
-
-      {/* Progres + tanggal + catatan (1 baris rapat) */}
-      <div
-        className="print-hidden"
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)',
-          padding: '8px 10px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 13, color: 'var(--foreground)' }}>
-            <strong style={{ fontSize: 15, color: isAllCounted ? 'var(--success)' : 'var(--accent)' }}>{countedLines}</strong>
-            <span style={{ color: 'var(--foreground-muted)' }}> dari {totalLines} barang dihitung</span>
-            <span style={{ color: 'var(--foreground-muted)', marginLeft: 12 }}>
-              Selisih: <strong style={{ color: varianceLines > 0 ? 'var(--warning)' : 'var(--foreground)' }}>{varianceLines}</strong>
-            </span>
-            <span style={{ color: 'var(--foreground-muted)', marginLeft: 12, fontWeight: 600 }}>
-              {progressPercent}%
-            </span>
+      {/* Ringkasan progres + tanggal/catatan */}
+      <div className="v2-card so-card print-hidden" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <span style={{ fontSize: 20, fontWeight: 600, color: isAllCounted ? 'var(--success)' : 'var(--foreground)', fontVariantNumeric: 'tabular-nums' }}>
+                {countedLines}
+                <span style={{ color: 'var(--foreground-subtle)', fontWeight: 500 }}> / {totalLines}</span>
+              </span>
+              <span style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>barang dihitung</span>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>
+              Selisih{' '}
+              <strong style={{ fontWeight: 600, color: varianceLines > 0 ? 'var(--warning)' : 'var(--foreground)' }}>{varianceLines}</strong>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>
+              <strong style={{ fontWeight: 600, color: 'var(--foreground)' }}>{progressPercent}%</strong> selesai
+            </div>
           </div>
           {!isReadOnly && remainingLines > 0 && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button
-                className="so-btn"
+                type="button"
+                className="v2-btn v2-btn-ghost v2-btn-sm"
                 onClick={() => handleBulkFillEmpty('system')}
                 title="Isi semua hitungan yang masih kosong dengan stok sistem"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 8px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--foreground-muted)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
               >
-                Isi Sesuai Sistem
+                Isi sesuai sistem
               </button>
               <button
-                className="so-btn"
+                type="button"
+                className="v2-btn v2-btn-ghost v2-btn-sm"
                 onClick={() => handleBulkFillEmpty('zero')}
                 title="Isi semua hitungan yang masih kosong dengan 0"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 8px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--foreground-muted)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
               >
-                Isi Semua 0
+                Isi semua 0
               </button>
-              <button
-                className="so-btn"
-                onClick={jumpToFirstPending}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 8px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--accent)',
-                  color: 'var(--accent)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                <ArrowDown size={12} /> Ke yang belum dihitung
+              <button type="button" className="v2-btn v2-btn-sm so-soft" onClick={jumpToFirstPending}>
+                <ArrowDown size={13} /> Ke yang belum dihitung
               </button>
             </div>
           )}
         </div>
-        <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ height: 6, background: 'var(--surface-muted)', borderRadius: 999, overflow: 'hidden' }}>
           <div
             style={{
               height: '100%',
               width: `${progressPercent}%`,
-              background: isAllCounted ? 'var(--success)' : 'var(--accent)',
+              background: isAllCounted ? 'var(--success)' : 'var(--accent-light)',
+              borderRadius: 999,
               transition: 'width 0.3s ease',
             }}
           />
         </div>
 
         {!isReadOnly && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <div style={{ width: 140 }}>
-              <input
-                type="date"
-                value={headerDate}
-                onChange={(e) => {
-                  setHeaderDate(e.target.value)
-                  setDirty(true)
-                }}
-                style={{ ...inputStyle, padding: '4px 8px', fontSize: 12 }}
-              />
-            </div>
-            <div style={{ flex: 1, minWidth: 180 }}>
-              <input
-                type="text"
-                placeholder="Catatan (opsional)..."
-                value={headerDescription}
-                onChange={(e) => {
-                  setHeaderDescription(e.target.value)
-                  setDirty(true)
-                }}
-                style={{ ...inputStyle, padding: '4px 8px', fontSize: 12 }}
-              />
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              type="date"
+              className="v2-input"
+              aria-label="Tanggal opname"
+              value={headerDate}
+              onChange={(e) => {
+                setHeaderDate(e.target.value)
+                setDirty(true)
+              }}
+              style={{ width: 150 }}
+            />
+            <input
+              type="text"
+              className="v2-input"
+              aria-label="Catatan opname"
+              placeholder="Catatan opname (opsional)"
+              value={headerDescription}
+              onChange={(e) => {
+                setHeaderDescription(e.target.value)
+                setDirty(true)
+              }}
+              style={{ flex: 1, minWidth: 200 }}
+            />
+            <span
+              title="Lihat stok sistem → ketik jumlah asli di kolom hitungan (Enter untuk lanjut ke barang berikutnya) → klik Simpan. Boleh disimpan berkali-kali."
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--foreground-subtle)', cursor: 'help' }}
+            >
+              <Info size={14} /> Cara hitung
+            </span>
           </div>
         )}
       </div>
 
-      {/* Cari + filter */}
-      <div
-        className="print-hidden"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}
-      >
-        <div style={{ position: 'relative', flex: 1, minWidth: 180, maxWidth: 280 }}>
-          <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)' }} />
-          <input
-            type="text"
-            placeholder="Cari produk / batch..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ ...inputStyle, padding: '5px 26px 5px 28px', fontSize: 12, background: 'var(--surface)' }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              title="Hapus pencarian"
-              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--foreground-muted)', cursor: 'pointer', padding: 2 }}
-            >
-              <X size={12} />
-            </button>
-          )}
+      {/* Daftar hitung */}
+      <div className="v2-card so-card">
+        <div
+          className="print-hidden"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+            flexWrap: 'wrap',
+            padding: '12px 14px',
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 320 }}>
+            <Search
+              size={14}
+              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-subtle)', pointerEvents: 'none' }}
+            />
+            <input
+              type="text"
+              className="v2-input"
+              placeholder="Cari produk / batch..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ width: '100%', paddingLeft: 32, paddingRight: 30 }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="v2-icon-btn"
+                onClick={() => setSearchQuery('')}
+                title="Hapus pencarian"
+                aria-label="Hapus pencarian"
+                style={{ position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24 }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <div className="v2-seg so-seg" role="tablist">
+            {(
+              [
+                { id: 'all', label: 'Semua', n: totalLines },
+                { id: 'pending', label: 'Belum', n: remainingLines },
+                { id: 'counted', label: 'Sudah', n: countedLines },
+                { id: 'variance', label: 'Selisih', n: varianceLines },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={filterMode === tab.id}
+                data-fast-click
+                onClick={() => setFilterMode(tab.id)}
+              >
+                {tab.label}
+                <span className="so-seg-n">{tab.n}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {(
-            [
-              { id: 'all', label: `Semua (${totalLines})` },
-              { id: 'pending', label: `Belum (${remainingLines})` },
-              { id: 'counted', label: `Sudah (${countedLines})` },
-              { id: 'variance', label: `Selisih (${varianceLines})` },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              className="so-btn"
-              onClick={() => setFilterMode(tab.id)}
-              style={{
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-full)',
-                fontSize: 11,
-                fontWeight: 500,
-                cursor: 'pointer',
-                border: filterMode === tab.id ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: filterMode === tab.id ? 'var(--accent)' : 'var(--surface)',
-                color: filterMode === tab.id ? '#fff' : 'var(--foreground-muted)',
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
-      {/* Daftar produk */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {filteredGroups.length === 0 ? (
-          <div
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              padding: 28,
-              textAlign: 'center',
-              color: 'var(--foreground-muted)',
-              fontSize: 13,
-            }}
-          >
-            {totalLines === 0
-              ? 'Tidak ada barang yang perlu dihitung.'
-              : filterMode === 'pending' && remainingLines === 0
-              ? 'Hebat! Semua barang sudah dihitung.'
-              : 'Tidak ada barang yang cocok. Coba ubah kata pencarian atau filter.'}
+          <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
+            {totalLines === 0 ? (
+              <>
+                <Search size={22} style={{ color: 'var(--foreground-subtle)', marginBottom: 8 }} />
+                <div>Tidak ada barang yang perlu dihitung.</div>
+              </>
+            ) : filterMode === 'pending' && remainingLines === 0 ? (
+              <>
+                <CheckCircle2 size={22} style={{ color: 'var(--success)', marginBottom: 8 }} />
+                <div>Hebat! Semua barang sudah dihitung.</div>
+              </>
+            ) : (
+              <>
+                <Search size={22} style={{ color: 'var(--foreground-subtle)', marginBottom: 8 }} />
+                <div>Tidak ada barang yang cocok. Coba ubah kata pencarian atau filter.</div>
+              </>
+            )}
           </div>
         ) : (
-          filteredGroups.map((group, groupIdx) => {
-            const uomLabel =
-              group.product_uom?.uom?.name || group.product_uom?.uom?.code || group.product_uom?.product?.base_uom?.name || ''
-            const groupCounted = group.displayLines.filter((d) => isCountedState(lineCounts[getLineKey(d)])).length
-            const groupComplete = groupCounted === group.displayLines.length
+          <table className="v2-table so-table">
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'center', width: 44 }}>No.</th>
+                <th>Produk / Batch</th>
+                <th style={{ textAlign: 'right', width: 130 }}>Stok sistem</th>
+                <th style={{ minWidth: 260 }}>Hitungan</th>
+                <th style={{ textAlign: 'right', width: 90 }}>Selisih</th>
+                {!isReadOnly && <th className="print-hidden" style={{ width: 128 }} aria-label="Aksi" />}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredGroups.map((group, groupIdx) => {
+                const uomLabel =
+                  group.product_uom?.uom?.name || group.product_uom?.uom?.code || group.product_uom?.product?.base_uom?.name || ''
+                const offset = groupRowOffsets[groupIdx] ?? 0
+                const single = group.displayLines.length === 1
 
-            return (
-              <div
-                key={group.product_uom_id}
-                className="product-group-card"
-                style={{
-                  background: 'var(--surface)',
-                  border: `1px solid ${groupComplete ? 'var(--success)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius-md)',
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Judul produk — compact 1 baris */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    padding: '4px 8px',
-                    background: groupComplete ? 'var(--success-bg)' : 'var(--background)',
-                    borderBottom: '1px solid var(--border)',
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
-                    {groupComplete ? (
-                      <CheckCircle2 size={13} style={{ color: 'var(--success)', flexShrink: 0 }} />
-                    ) : (
-                      <Circle size={13} style={{ color: 'var(--foreground-muted)', flexShrink: 0 }} />
-                    )}
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>{group.productName}</span>
-                    {group.productCode && (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontFamily: 'monospace',
-                          padding: '0 4px',
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-sm)',
-                          color: 'var(--foreground-muted)',
-                        }}
-                      >
-                        {group.productCode}
-                      </span>
-                    )}
-                    {uomLabel && (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          padding: '0 5px',
-                          background: 'var(--accent-light-bg, rgba(44,24,16,0.08))',
-                          color: 'var(--accent)',
-                          borderRadius: 'var(--radius-full)',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {uomLabel}
-                      </span>
-                    )}
-                    {group.displayLines.length > 1 && (
-                      <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                        {groupCounted}/{group.displayLines.length}
-                      </span>
-                    )}
-                  </div>
-                  {!isReadOnly && (
-                    <button
-                      type="button"
-                      className="so-btn"
-                      onClick={() => setModalAddBatchGroup(group)}
-                      title="Tambahkan batch lain dari produk ini"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 3,
-                        padding: '3px 7px',
-                        background: 'var(--surface)',
-                        border: '1px dashed var(--accent)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: 'var(--accent)',
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Plus size={12} /> Batch
-                    </button>
-                  )}
-                </div>
+                if (single) return renderLine(group, group.displayLines[0], offset + 1, true, uomLabel)
 
-                {/* Tabel baris hitung — dense */}
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                        <th style={{ ...thStyle, width: 28, textAlign: 'center', padding: '3px 4px' }}></th>
-                        <th style={{ ...thStyle, width: 50, textAlign: 'center', padding: '3px 6px' }}>No.</th>
-                        <th style={{ ...thStyle, padding: '3px 6px' }}>Kode Batch</th>
-                        <th style={{ ...thStyle, textAlign: 'right', padding: '3px 6px' }}>Stok Sistem</th>
-                        <th style={{ ...thStyle, minWidth: 220, padding: '3px 6px' }}>Hitungan Anda</th>
-                        <th style={{ ...thStyle, textAlign: 'right', padding: '3px 6px' }}>Selisih</th>
-                        {!isReadOnly && <th style={{ ...thStyle, width: 28, padding: '3px 4px' }}></th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.displayLines.map((detail, lineIdx) => {
-                        const lineKey = getLineKey(detail)
-                        const state = lineCounts[lineKey] || emptyState()
-                        const counted = isCountedState(state)
-                        const isNew = detail.id != null && detail.id < 0
-                        const batchCode = detail.product_inventory?.product_uom_batch?.batch_code || '—'
-                        const expiry = detail.product_inventory?.product_uom_batch?.expiry_date
-                        const isExpired = expiry && new Date(expiry).getTime() < Date.now()
-                        const uomOptions = uomOptionsByKey[lineKey] ?? []
-                        const noteVisible = !!state.description || !!openNotes[lineKey]
-
-                        // Konversi tampilan branch type: stok sistem (base) →
-                        // satuan branch; hitungan user dikonversi balik saat save.
-                        const disp = lineDisplayByKey[lineKey] ?? null
-                        const systemShown = disp
-                          ? convertBetween(Number(detail.system_qty) || 0, disp.sourceUomCode, disp.branchUomCode, disp.conversions)
-                          : null
-                        const lineUomLabel = systemShown !== null && disp ? disp.branchUomCode : uomLabel
-                        const varianceBase = getVariance(detail, state, countedBaseOf(detail))
-                        const variance =
-                          varianceBase !== null && disp
-                            ? convertBetween(varianceBase, disp.sourceUomCode, disp.branchUomCode, disp.conversions) ?? varianceBase
-                            : varianceBase
-
-                        let varianceText = '—'
-                        let varianceColor = 'var(--foreground-muted)'
-                        let varianceBg = 'transparent'
-                        if (variance !== null) {
-                          if (variance > 0) {
-                            varianceText = `+${variance}`
-                            varianceColor = 'var(--success)'
-                            varianceBg = 'var(--success-bg)'
-                          } else if (variance < 0) {
-                            varianceText = `${variance}`
-                            varianceColor = 'var(--destructive)'
-                            varianceBg = 'var(--destructive-bg)'
-                          } else {
-                            varianceText = '0'
-                            varianceColor = 'var(--success)'
-                          }
-                        }
-
-                        return (
-                          <tr
-                            key={lineKey}
-                            data-line-key={lineKey}
-                            style={{
-                              borderBottom: '1px solid var(--border)',
-                              background: isNew ? 'rgba(44,24,16,0.04)' : counted ? 'transparent' : 'var(--warning-bg)',
-                            }}
-                          >
-                            <td style={{ ...tdStyle, textAlign: 'center', width: 28, padding: '3px 4px' }}>
-                              {counted ? (
-                                <CheckCircle2 size={13} style={{ color: 'var(--success)' }} aria-label="Sudah dihitung" />
-                              ) : (
-                                <Circle size={13} style={{ color: 'var(--foreground-muted)' }} aria-label="Belum dihitung" />
-                              )}
-                            </td>
-                            <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', padding: '3px 6px' }}>
-                              {(groupRowOffsets[groupIdx] ?? 0) + lineIdx + 1}
-                            </td>
-                            <td style={{ ...tdStyle, padding: '3px 6px' }}>
-                              <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 600, lineHeight: 1.3 }}>
-                                {batchCode}
-                                {isNew && (
-                                  <span
-                                    style={{
-                                      marginLeft: 4,
-                                      fontSize: 9,
-                                      fontWeight: 700,
-                                      color: 'var(--accent)',
-                                      background: 'var(--accent-light-bg, rgba(44,24,16,0.08))',
-                                      padding: '0 4px',
-                                      borderRadius: 2,
-                                    }}
-                                  >
-                                    BARU
-                                  </span>
-                                )}
-                              </div>
-                              {expiry && (
-                                <div style={{ fontSize: 10, color: isExpired ? 'var(--destructive)' : 'var(--foreground-muted)', lineHeight: 1.2 }}>
-                                  Exp: {formatDate(expiry)}
-                                </div>
-                              )}
-                            </td>
-                            <td style={{ ...tdStyle, textAlign: 'right', padding: '3px 6px' }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)', lineHeight: 1.2 }}>
-                                {systemShown !== null ? fmtQty(systemShown) : detail.system_qty}
-                              </div>
-                              {lineUomLabel && <div style={{ fontSize: 10, color: 'var(--foreground-muted)', lineHeight: 1.2 }}>{lineUomLabel}</div>}
-                            </td>
-                            <td style={{ ...tdStyle, padding: '3px 6px' }}>
-                              {isReadOnly ? (
-                                <div style={{ fontSize: 13, fontWeight: 600 }}>
-                                  {state.isMultiUom && state.count_items.length > 0
-                                    ? state.count_items.map((ci) => `${ci.counted_qty} ${allKnownUomsMap.get(Number(ci.uom_id))?.code || uomLabel}`).join(' + ')
-                                    : counted
-                                    ? `${state.counted_qty}${lineUomLabel ? ` ${lineUomLabel}` : ''}`
-                                    : '—'}
-                                  {state.description && (
-                                    <div style={{ fontSize: 10, color: 'var(--foreground-muted)', fontStyle: 'italic' }}>
-                                      {state.description}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                  {!state.isMultiUom ? (
-                                    <>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                                        <input
-                                          type="number"
-                                          inputMode="decimal"
-                                          data-count-input="true"
-                                          className="so-count-input"
-                                          step="any"
-                                          min={0}
-                                          placeholder="Ketik jumlah"
-                                          value={state.counted_qty === null || state.counted_qty === undefined ? '' : state.counted_qty}
-                                          onChange={(e) => updateLineSingleQty(lineKey, e.target.value)}
-                                          onKeyDown={handleCountKeyDown}
-                                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                                          style={{
-                                            width: 100,
-                                            padding: '4px 6px',
-                                            background: 'var(--background)',
-                                            border: `1px solid ${counted ? 'var(--success)' : 'var(--border)'}`,
-                                            borderRadius: 'var(--radius-sm)',
-                                            fontSize: 13,
-                                            fontWeight: 700,
-                                            color: 'var(--foreground)',
-                                            outline: 'none',
-                                          }}
-                                        />
-                                        {lineUomLabel && <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontWeight: 500 }}>{lineUomLabel}</span>}
-                                        <button
-                                          type="button"
-                                          className="so-btn"
-                                          onClick={() =>
-                                            updateLineSingleQty(
-                                              lineKey,
-                                              String(systemShown !== null ? Math.round(systemShown * 10000) / 10000 : detail.system_qty),
-                                            )
-                                          }
-                                          style={miniBtnStyle}
-                                          title="Isi hitungan sama dengan stok sistem"
-                                        >
-                                          Sama
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="so-btn"
-                                          onClick={() => updateLineSingleQty(lineKey, '0')}
-                                          style={miniBtnStyle}
-                                          title="Barang tidak ada / kosong"
-                                        >
-                                          0
-                                        </button>
-                                      </div>
-                                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                        {!noteVisible && (
-                                          <button
-                                            type="button"
-                                            className="so-link"
-                                            onClick={() => setOpenNotes((p) => ({ ...p, [lineKey]: true }))}
-                                            style={linkBtnStyle}
-                                          >
-                                            <MessageSquarePlus size={10} /> Catatan
-                                          </button>
-                                        )}
-                                        <button
-                                          type="button"
-                                          className="so-link"
-                                          onClick={() => toggleMultiUom(lineKey, detail, group)}
-                                          style={linkBtnStyle}
-                                          title="Hitung dengan satuan berbeda (dus + pcs)"
-                                        >
-                                          <Plus size={10} /> Satuan lain
-                                        </button>
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>Beberapa satuan</span>
-                                        <button
-                                          type="button"
-                                          className="so-link"
-                                          onClick={() => toggleMultiUom(lineKey, detail, group)}
-                                          style={{ ...linkBtnStyle, color: 'var(--foreground-muted)', textDecoration: 'underline' }}
-                                        >
-                                          Satuan tunggal
-                                        </button>
-                                      </div>
-                                      {state.count_items.map((ci, ciIdx) => (
-                                        <div key={ciIdx} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                          <input
-                                            type="number"
-                                            inputMode="decimal"
-                                            className="so-count-input"
-                                            step="any"
-                                            placeholder="Jumlah"
-                                            value={ci.counted_qty}
-                                            onChange={(e) => updateCountItem(lineKey, ciIdx, 'counted_qty', e.target.value)}
-                                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                                            style={{
-                                              width: 70,
-                                              padding: '3px 6px',
-                                              background: 'var(--background)',
-                                              border: '1px solid var(--border)',
-                                              borderRadius: 'var(--radius-sm)',
-                                              fontSize: 12,
-                                              fontWeight: 600,
-                                              color: 'var(--foreground)',
-                                              outline: 'none',
-                                            }}
-                                          />
-                                          <select
-                                            value={ci.uom_id}
-                                            onChange={(e) => updateCountItem(lineKey, ciIdx, 'uom_id', e.target.value)}
-                                            style={{
-                                              width: 100,
-                                              padding: '3px 4px',
-                                              background: 'var(--background)',
-                                              border: '1px solid var(--border)',
-                                              borderRadius: 'var(--radius-sm)',
-                                              fontSize: 11,
-                                              color: 'var(--foreground)',
-                                              outline: 'none',
-                                            }}
-                                          >
-                                            {uomOptions.map((u) => (
-                                              <option key={u.id} value={u.id}>
-                                                {u.code || u.name}
-                                              </option>
-                                            ))}
-                                          </select>
-                                          <button
-                                            type="button"
-                                            className="so-btn"
-                                            onClick={() => removeCountItem(lineKey, ciIdx)}
-                                            title="Hapus baris satuan ini"
-                                            style={{ background: 'transparent', border: 'none', color: 'var(--destructive)', cursor: 'pointer', padding: 3 }}
-                                          >
-                                            <Trash2 size={12} />
-                                          </button>
-                                        </div>
-                                      ))}
-                                      <button
-                                        type="button"
-                                        className="so-link"
-                                        onClick={() => addCountItem(lineKey, group)}
-                                        style={{ ...linkBtnStyle, fontWeight: 600 }}
-                                      >
-                                        <Plus size={10} /> Tambah satuan
-                                      </button>
-                                    </div>
-                                  )}
-                                  {noteVisible && (
-                                    <input
-                                      type="text"
-                                      placeholder="Catatan, mis. ditemukan di laci, rusak..."
-                                      value={state.description}
-                                      onChange={(e) => updateLineDescription(lineKey, e.target.value)}
-                                      style={{
-                                        width: '100%',
-                                        padding: '7px 10px',
-                                        background: 'transparent',
-                                        border: '1px dashed var(--border)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        fontSize: 12,
-                                        color: 'var(--foreground)',
-                                        outline: 'none',
-                                      }}
-                                    />
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                            <td style={{ ...tdStyle, textAlign: 'right' }}>
-                              <span
-                                style={{
-                                  display: 'inline-block',
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  color: varianceColor,
-                                  padding: '1px 6px',
-                                  borderRadius: 'var(--radius-sm)',
-                                  background: varianceBg,
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {varianceText}
-                              </span>
-                            </td>
-                            {!isReadOnly && (
-                              <td style={{ ...tdStyle, textAlign: 'center', width: 28, padding: '3px 4px' }}>
-                                {isNew && (
-                                  <button
-                                    type="button"
-                                    className="so-btn"
-                                    onClick={() => handleRemoveExtra(group.product_uom_id, lineKey)}
-                                    style={{ background: 'transparent', border: 'none', color: 'var(--destructive)', cursor: 'pointer', padding: 2 }}
-                                    title="Hapus batch yang baru ditambahkan ini"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                )}
-                              </td>
-                            )}
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )
-          })
+                const groupCounted = group.displayLines.filter((d) => isCountedState(lineCounts[getLineKey(d)])).length
+                const groupComplete = groupCounted === group.displayLines.length
+                return (
+                  <React.Fragment key={group.product_uom_id}>
+                    <tr className="so-group">
+                      <td className="so-no">
+                        {groupComplete ? (
+                          <CheckCircle2 size={14} style={{ color: 'var(--success)', verticalAlign: 'middle' }} aria-label="Semua batch sudah dihitung" />
+                        ) : null}
+                      </td>
+                      <td colSpan={4}>
+                        {renderProductName(group)}
+                        <div className="so-meta">
+                          {renderProductCodes(group)}
+                          <span className="so-sub">
+                            {groupCounted}/{group.displayLines.length} batch dihitung
+                          </span>
+                        </div>
+                      </td>
+                      {!isReadOnly && (
+                        <td className="print-hidden" style={{ textAlign: 'right' }}>
+                          <div className="so-actions">
+                            <button
+                              type="button"
+                              className="v2-icon-btn"
+                              onClick={() => handleAddNewBatch(group)}
+                              title="Tambah batch baru (belum tercatat di sistem)"
+                              aria-label="Tambah batch baru"
+                            >
+                              <PackagePlus size={15} />
+                            </button>
+                            <span style={{ width: 90, flexShrink: 0 }} />
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                    {group.displayLines.map((detail, lineIdx) => renderLine(group, detail, offset + lineIdx + 1, false, uomLabel))}
+                  </React.Fragment>
+                )
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
       {/* Bar aksi utama — sticky di bawah */}
       {!isReadOnly && (
         <div
-          className="print-hidden"
+          className="v2-card print-hidden"
           style={{
             position: 'sticky',
-            bottom: 0,
+            bottom: 12,
             zIndex: 30,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 8,
+            gap: 10,
             flexWrap: 'wrap',
-            padding: '6px 10px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: '0 -2px 8px rgba(0,0,0,0.06)',
+            padding: '10px 14px',
+            boxShadow: 'var(--shadow-lg)',
           }}
         >
-          <div style={{ minWidth: 160, fontSize: 12 }}>
-            <span style={{ fontWeight: 600, color: dirty ? 'var(--warning)' : 'var(--foreground)' }}>
-              {dirty ? 'Belum disimpan' : 'Tersimpan'}
-            </span>
-            <span style={{ color: 'var(--foreground-muted)', marginLeft: 8 }}>{completeHint}</span>
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button
-              className="so-btn"
-              onClick={handleSaveProgress}
-              disabled={isBusy || !dirty}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, fontSize: 12.5 }}>
+            <span
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: 5,
-                padding: '6px 14px',
-                background: dirty ? 'var(--accent)' : 'var(--surface)',
-                border: `1px solid ${dirty ? 'var(--accent)' : 'var(--border)'}`,
-                borderRadius: 'var(--radius-sm)',
-                fontSize: 13,
-                fontWeight: 700,
-                color: dirty ? '#fff' : 'var(--foreground-muted)',
-                cursor: dirty && !isBusy ? 'pointer' : 'not-allowed',
+                gap: 6,
+                fontWeight: 500,
+                color: dirty ? 'var(--warning)' : 'var(--success)',
+                whiteSpace: 'nowrap',
               }}
             >
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: 'currentColor' }} />
+              {dirty ? 'Belum disimpan' : 'Tersimpan'}
+            </span>
+            <span style={{ color: 'var(--foreground-muted)' }}>{completeHint}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="v2-btn v2-btn-primary" onClick={handleSaveProgress} disabled={isBusy || !dirty}>
               {updateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Simpan
             </button>
             <button
-              className="so-btn"
+              type="button"
+              className={`v2-btn ${isAllCounted && !dirty ? 'so-success' : 'v2-btn-ghost'}`}
               onClick={handleComplete}
               disabled={!isAllCounted || dirty || isBusy}
-              title={!isAllCounted ? 'Count all items first' : dirty ? 'Save your changes first' : 'Complete'}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '6px 14px',
-                background: isAllCounted && !dirty ? 'var(--success)' : 'var(--surface)',
-                border: `1px solid ${isAllCounted && !dirty ? 'var(--success)' : 'var(--border)'}`,
-                borderRadius: 'var(--radius-sm)',
-                fontSize: 13,
-                fontWeight: 700,
-                color: isAllCounted && !dirty ? '#fff' : 'var(--foreground-muted)',
-                cursor: isAllCounted && !dirty && !isBusy ? 'pointer' : 'not-allowed',
-                opacity: isAllCounted && !dirty ? 1 : 0.6,
-              }}
+              title={!isAllCounted ? 'Hitung semua barang dulu' : dirty ? 'Simpan perubahan dulu' : 'Selesaikan Stock Opname'}
             >
               {completeMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
               Selesai
@@ -1824,96 +2009,61 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         </div>
       )}
 
-      {/* Modal tambah batch */}
-      {modalAddBatchGroup && (
-        <AddBatchModal
-          branchId={item.branch_id}
-          group={modalAddBatchGroup}
-          existingInventoryIds={
-            modalAddBatchGroup.allLines?.map((d) => getInventoryId(d)).filter((v): v is number => v != null) || []
-          }
-          onClose={() => setModalAddBatchGroup(null)}
-          onSelect={(inv) => handleSelectBatch(modalAddBatchGroup, inv)}
-        />
-      )}
+
+      {/* Modal tambah satuan (product_uom lain → baris baru) */}
+      {modalAddUnitGroup && (() => {
+        const g = modalAddUnitGroup
+        const pid = Number(g.product_uom?.product_id || g.product_uom?.product?.id || 0)
+        const onSheet = new Set(groupsWithLines.map((x) => x.product_uom_id))
+        const options = (productUomsByProductId.get(pid) ?? []).filter((pu) => pu.id !== g.product_uom_id)
+        return (
+          <AddUnitModal
+            productName={getProductUomName(g.product_uom, g.product_uom?.product?.name) || g.product_uom?.code || `Produk #${g.product_uom_id}`}
+            currentUom={g.product_uom?.uom?.code || g.product_uom?.uom?.name || ''}
+            options={options}
+            onSheet={onSheet}
+            loadingPuId={addingUnitPuId}
+            onClose={() => setModalAddUnitGroup(null)}
+            onSelect={(pu) => handleSelectUnit(g, pu)}
+          />
+        )
+      })()}
     </div>
   )
 }
 
-function AddBatchModal({
-  branchId,
-  group,
-  existingInventoryIds,
+function AddUnitModal({
+  productName,
+  currentUom,
+  options,
+  onSheet,
+  loadingPuId,
   onClose,
   onSelect,
 }: {
-  branchId?: number
-  group: StockOpnameProductGroup & { allLines?: StockOpnameDetailItem[] }
-  existingInventoryIds: number[]
+  productName: string
+  currentUom: string
+  options: any[]
+  onSheet: Set<number>
+  loadingPuId: number | null
   onClose: () => void
-  onSelect: (inventory: any) => void
+  onSelect: (pu: any) => void
 }) {
-  const [search, setSearch] = useState('')
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['available-batches-for-opname', branchId, group.product_uom_id],
-    queryFn: () =>
-      productInventoriesService
-        .list({
-          per_page: 200,
-          include: 'product_uom_batch',
-          'filter[branch_id]': branchId ? String(branchId) : undefined,
-          'filter[product_uom_ids]': String(group.product_uom_id),
-          'filter[status]': 'active',
-        } as any)
-        .then((r) => {
-          const body = (r.data as any)?.data ?? (r.data as any)
-          // list may be { data: [] } or { success, data: { data: [] } }
-          const list = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : []
-          return list
-        }),
-    enabled: !!group.product_uom_id,
-  })
-
-  const rawList: any[] = data || []
-  const availableList = useMemo(() => {
-    return rawList
-      .filter((inv) => !existingInventoryIds.includes(inv.id))
-      .filter((inv) => {
-        if (!search) return true
-        const s = search.toLowerCase()
-        const batch = inv.product_uom_batch?.batch_code?.toLowerCase() || ''
-        return batch.includes(s)
-      })
-  }, [rawList, existingInventoryIds, search])
-
-  const productName =
-    getProductUomName(group.product_uom, group.product_uom?.product?.name) ||
-    group.product_uom?.code ||
-    `Produk #${group.product_uom_id}`
-
   return (
     <div
       onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        padding: 20,
-      }}
+      className="v2-overlay"
+      style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20, background: 'rgba(0, 0, 0, 0.45)' }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        className="v2-dialog"
         style={{
           background: 'var(--surface)',
           borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--border)',
           width: '100%',
-          maxWidth: 520,
+          maxWidth: 460,
           maxHeight: '78vh',
           display: 'flex',
           flexDirection: 'column',
@@ -1921,172 +2071,66 @@ function AddBatchModal({
           overflow: 'hidden',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 16px',
-            borderBottom: '1px solid var(--border)',
-          }}
-        >
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--foreground)' }}>Tambah Batch</h3>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--foreground-muted)' }}>
-              Batch <strong>{productName}</strong> yang belum ada di lembar hitung. Klik salah satu untuk menambahkan.
+            <h3 style={{ margin: 0, fontSize: 15, color: 'var(--foreground)' }}>Tambah satuan lain</h3>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--foreground-muted)', lineHeight: 1.45 }}>
+              Pilih satuan <strong style={{ fontWeight: 500, color: 'var(--foreground)' }}>{productName}</strong> selain {currentUom || 'satuan ini'}.
+              Satuan itu jadi baris hitung sendiri, lengkap dengan batch-nya di cabang ini.
             </p>
           </div>
-          <button onClick={onClose} title="Tutup" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--foreground-muted)', padding: 4 }}>
-            <X size={18} />
+          <button type="button" className="v2-icon-btn" onClick={onClose} title="Tutup" aria-label="Tutup">
+            <X size={16} />
           </button>
         </div>
 
-        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)' }} />
-            <input
-              type="text"
-              placeholder="Cari kode batch..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoFocus
-              style={{ ...inputStyle, padding: '8px 10px 8px 30px' }}
-            />
-          </div>
-        </div>
-
-        <div style={{ padding: '10px 16px', overflowY: 'auto', flex: 1 }}>
-          {isLoading ? (
-            <div style={{ padding: 36, textAlign: 'center' }}>
-              <Loader2 size={22} className="animate-spin" style={{ color: 'var(--foreground-muted)' }} />
-            </div>
-          ) : availableList.length === 0 ? (
+        <div style={{ padding: 10, overflowY: 'auto', flex: 1 }}>
+          {options.length === 0 ? (
             <div style={{ padding: 28, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
-              Tidak ada batch lain untuk produk ini.
+              Tidak ada satuan lain untuk produk ini di tipe cabang Anda.
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {availableList.map((inv) => {
-                const batchCode = inv.product_uom_batch?.batch_code || `INV-${inv.id}`
-                const expiry = inv.product_uom_batch?.expiry_date
-                const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
-                const pu = inv.product_uom_batch?.product_uom || inv.product_uom
-                const uom = inv.display_uom_code || pu?.uom?.name || pu?.uom?.code || ''
-
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {options.map((pu) => {
+                const exists = onSheet.has(pu.id)
+                const loading = loadingPuId === pu.id
                 return (
                   <button
-                    key={inv.id}
+                    key={pu.id}
                     type="button"
-                    onClick={() => onSelect(inv)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border)',
-                      background: 'var(--background)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      width: '100%',
-                    }}
+                    className="so-unit-option"
+                    disabled={loadingPuId != null}
+                    onClick={() => onSelect(pu)}
                   >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--foreground)', fontFamily: 'monospace' }}>{batchCode}</div>
-                      <div style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 1 }}>
-                        {expiry ? `Kedaluwarsa: ${formatDate(expiry)}` : 'Tanpa tanggal kedaluwarsa'}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>{stock}</div>
-                      {uom && <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{uom}</div>}
-                    </div>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>{pu.uom?.code || pu.uom?.name || `#${pu.id}`}</span>
+                      {pu.uom?.name && pu.uom?.code && pu.uom.name !== pu.uom.code && (
+                        <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{pu.uom.name}</span>
+                      )}
+                      {pu.code && (
+                        <span style={{ fontSize: 11, fontFamily: 'ui-monospace, monospace', color: 'var(--foreground-subtle)' }}>{pu.code}</span>
+                      )}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: exists ? 'var(--foreground-muted)' : 'var(--accent)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {loading ? <Loader2 size={13} className="animate-spin" /> : null}
+                      {exists ? 'Sudah di daftar — lihat' : 'Tambah baris'}
+                    </span>
                   </button>
                 )
               })}
             </div>
           )}
         </div>
-
-        <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '7px 14px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              cursor: 'pointer',
-              color: 'var(--foreground)',
-            }}
-          >
-            Tutup
-          </button>
-        </div>
+        <style>{`
+          .so-unit-option {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+            padding: 10px 12px; border: 1px solid transparent; border-radius: var(--radius-md);
+            background: transparent; cursor: pointer; text-align: left; transition: background 120ms ease, border-color 120ms ease;
+          }
+          .so-unit-option:hover:not(:disabled) { background: var(--surface-muted); border-color: var(--border); }
+          .so-unit-option:disabled { cursor: progress; opacity: 0.7; }
+        `}</style>
       </div>
     </div>
   )
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--foreground-muted)',
-  marginBottom: 2,
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '5px 8px',
-  background: 'var(--background)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-sm)',
-  fontSize: 12,
-  color: 'var(--foreground)',
-  outline: 'none',
-}
-
-const thStyle: React.CSSProperties = {
-  padding: '4px 8px',
-  textAlign: 'left',
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--foreground-muted)',
-  whiteSpace: 'nowrap',
-  background: 'var(--background)',
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: '4px 8px',
-  fontSize: 12,
-  color: 'var(--foreground)',
-  verticalAlign: 'middle',
-}
-
-const miniBtnStyle: React.CSSProperties = {
-  padding: '3px 7px',
-  fontSize: 11,
-  fontWeight: 500,
-  borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--border)',
-  background: 'var(--surface)',
-  color: 'var(--foreground)',
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-}
-
-const linkBtnStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 3,
-  background: 'transparent',
-  border: 'none',
-  color: 'var(--accent)',
-  fontSize: 11,
-  cursor: 'pointer',
-  padding: 0,
-  width: 'fit-content',
 }

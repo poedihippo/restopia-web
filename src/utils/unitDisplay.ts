@@ -229,3 +229,46 @@ export function formatSignedMovementQty(
   const sign = direction === 'out' ? '−' : '+'
   return `${sign}${formatQtyInMode(baseQty, qty, baseUomCode, conversions, mode)}`
 }
+
+/** Normalize API conversions (flat codes or nested uom objects). */
+export function toConversionEntries(source?: any[] | null): ConversionEntry[] {
+  if (!Array.isArray(source)) return []
+  return source
+    .map((c: any): ConversionEntry => ({
+      uom_code: c.uom_code ?? c.uom?.code ?? '',
+      uom_name: c.uom_name ?? c.uom?.name ?? '',
+      target_uom_code: c.target_uom_code ?? c.target_uom?.code ?? '',
+      target_uom_name: c.target_uom_name ?? c.target_uom?.name ?? '',
+      amount: Number(c.amount ?? 0),
+    }))
+    .filter((c) => c.uom_code && c.target_uom_code && c.amount > 0)
+}
+
+/**
+ * Build packaging chains from the largest unit down, multiplying amounts
+ * along the way: PACK→PCS (6), PCS→KG (2), KG→GR (1000) gives
+ * "1 PACK → 6 PCS → 12 KG → 12.000 GR". A product with several top units
+ * gets one chain per top unit.
+ */
+export function packagingChains(conversions?: any[] | null): string[] {
+  const entries = toConversionEntries(conversions)
+  if (entries.length === 0) return []
+  const fmt = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
+  const bySource = new Map<string, ConversionEntry>()
+  for (const c of entries) if (!bySource.has(c.uom_code)) bySource.set(c.uom_code, c)
+  const targets = new Set(entries.map((c) => c.target_uom_code))
+  const roots = [...bySource.keys()].filter((code) => !targets.has(code))
+  return roots.map((root) => {
+    const parts = [`1 ${root}`]
+    const seen = new Set([root])
+    let qty = 1
+    let step = bySource.get(root)
+    while (step && !seen.has(step.target_uom_code)) {
+      qty *= Number(step.amount)
+      parts.push(`${fmt(qty)} ${step.target_uom_code}`)
+      seen.add(step.target_uom_code)
+      step = bySource.get(step.target_uom_code)
+    }
+    return parts.join(' → ')
+  })
+}

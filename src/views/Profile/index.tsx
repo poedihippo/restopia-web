@@ -210,7 +210,7 @@ export default function ProfileView() {
   const isSuperadmin = user?.type === 'superadmin';
 
   return (
-    <div style={{ padding: '24px 28px 40px', maxWidth: 1200, margin: '0 auto', width: '100%' }}>
+    <div className="profile-page" style={{ padding: '24px 28px 40px', maxWidth: 1200, margin: '0 auto', width: '100%' }}>
       <style>{`
         .profile-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
         :root[data-ui="v2"] .profile-tab[aria-pressed="true"] { background: var(--accent-light-bg); color: var(--accent); border-color: transparent; font-weight: 600; }
@@ -230,7 +230,19 @@ export default function ProfileView() {
         .profile-details > .profile-detail-row:nth-last-child(-n + 2) { border-bottom: none; }
         @media (max-width: 900px) { .profile-details { grid-template-columns: minmax(0, 1fr); } .profile-details > .profile-detail-row:nth-last-child(2) { border-bottom: 1px solid var(--border); } }
         @media (max-width: 760px) { .profile-top { grid-template-columns: minmax(0, 1fr); } .profile-idcard { max-width: 320px; } }
-        @media (max-width: 560px) { .profile-fields { grid-template-columns: minmax(0, 1fr); } .profile-identity { flex-direction: column; align-items: flex-start !important; } }
+        @media (max-width: 560px) {
+          .profile-fields { grid-template-columns: minmax(0, 1fr); }
+          .profile-page { padding: 4px 0 32px !important; }
+          .profile-idcard { width: 100%; max-width: 280px; margin: 0 auto; }
+          .profile-identity { flex-direction: column; align-items: stretch !important; padding: 18px !important; }
+          /* Stacked: the 280px basis would become a height and leave a gap. */
+          .profile-who { flex: 0 0 auto !important; width: 100%; }
+          .profile-tabs { flex-direction: column; flex-shrink: 1 !important; width: 100%; }
+          .profile-tabs > .profile-tab { width: 100%; justify-content: center; }
+          .profile-details { padding: 4px 18px 10px; }
+          .profile-detail-row { gap: 12px; }
+          .profile-detail-row dd { min-width: 0; }
+        }
       `}</style>
 
       {/* Page header */}
@@ -286,7 +298,7 @@ export default function ProfileView() {
             >
               {initial}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, flex: '1 1 280px' }}>
+            <div className="profile-who" style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, flex: '1 1 280px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--foreground)' }}>{user?.name ?? '—'}</span>
                 <Chip tone={isSuperadmin ? 'warning' : 'accent'}>{isSuperadmin ? 'Superadmin' : 'User'}</Chip>

@@ -1,4 +1,5 @@
 import { downloadExcel, money, reportHeader, type ExcelRow, type ExcelSheet } from '@/utils/excelExport'
+import { apiLabel } from './DashboardCharts'
 import type { ChartBreakdown, ChartTimeSeries, DashboardChartKey, DashboardChartsResponse } from '@/types/api'
 
 /*
@@ -8,18 +9,18 @@ import type { ChartBreakdown, ChartTimeSeries, DashboardChartKey, DashboardChart
  */
 
 const CHART_TITLES: Record<DashboardChartKey, string> = {
-  sales_trend: 'Sales Trend',
-  sales_by_channel: 'Sales by Channel',
-  payment_methods: 'Payment Methods',
-  top_products: 'Top Products',
-  sales_by_hour: 'Sales by Hour',
-  production_trend: 'Production Trend',
-  top_produced_products: 'Top Produced Products',
-  purchase_trend: 'Purchase Trend',
-  top_suppliers: 'Top Suppliers',
-  stock_flow: 'Stock Flow',
-  stock_health: 'Stock Health',
-  branch_comparison: 'Branch Comparison',
+  sales_trend: 'Tren Penjualan',
+  sales_by_channel: 'Penjualan per Channel',
+  payment_methods: 'Metode Pembayaran',
+  top_products: 'Produk Terlaris',
+  sales_by_hour: 'Penjualan per Jam',
+  production_trend: 'Tren Produksi',
+  top_produced_products: 'Produk Terbanyak Diproduksi',
+  purchase_trend: 'Tren Pembelian',
+  top_suppliers: 'Supplier Teratas',
+  stock_flow: 'Arus Stok',
+  stock_health: 'Kesehatan Stok',
+  branch_comparison: 'Perbandingan Cabang',
 }
 
 // Breakdowns whose value is money; the rest are quantities or counts.
@@ -32,7 +33,7 @@ function timeSeriesRows(key: DashboardChartKey, chart: ChartTimeSeries): ExcelRo
   const hourly = key === 'sales_by_hour'
   const cell = (v: number, seriesKey: string) => (MONEY_SERIES.has(seriesKey) ? money(v) : v)
   return [
-    [hourly ? 'Hour' : 'Period', ...chart.series.map((s) => s.label)],
+    [hourly ? 'Jam' : 'Periode', ...chart.series.map((s) => apiLabel(s.label))],
     ...chart.labels.map((label, i) => [
       hourly ? `${label}:00` : label,
       ...chart.series.map((s) => cell(s.data[i] ?? 0, s.key)),
@@ -42,22 +43,22 @@ function timeSeriesRows(key: DashboardChartKey, chart: ChartTimeSeries): ExcelRo
     ...(hourly
       ? []
       : [
-          ['Previous period', ...chart.series.map((s) => (s.previous_total == null ? '' : cell(s.previous_total, s.key)))],
-          ['Change %', ...chart.series.map((s) => (s.change_pct == null ? '' : s.change_pct))],
+          ['Periode sebelumnya', ...chart.series.map((s) => (s.previous_total == null ? '' : cell(s.previous_total, s.key)))],
+          ['Perubahan %', ...chart.series.map((s) => (s.change_pct == null ? '' : s.change_pct))],
         ]),
   ]
 }
 
 function breakdownRows(key: DashboardChartKey, chart: ChartBreakdown): ExcelRow[] {
   const isMoney = MONEY_BREAKDOWNS.has(key)
-  const valueHead = isMoney ? 'Amount' : key === 'stock_health' ? 'Items' : 'Quantity'
-  const countHead = key === 'stock_health' ? null : key.startsWith('top_') && !isMoney ? 'Orders' : 'Transactions'
+  const valueHead = isMoney ? 'Nilai' : key === 'stock_health' ? 'Item' : 'Kuantitas'
+  const countHead = key === 'stock_health' ? null : key.startsWith('top_') && !isMoney ? 'Pesanan' : 'Transaksi'
   const total = chart.total || chart.items.reduce((a, i) => a + i.value, 0)
   return [
-    ['#', 'Name', valueHead, ...(countHead ? [countHead] : []), 'Share %'],
+    ['#', 'Nama', valueHead, ...(countHead ? [countHead] : []), 'Porsi %'],
     ...chart.items.map((it, i) => [
       i + 1,
-      it.label,
+      apiLabel(it.label),
       isMoney ? money(it.value) : it.value,
       ...(countHead ? [it.count] : []),
       pct(it.value, total),
@@ -78,8 +79,8 @@ export function exportDashboardExcel(input: {
 
   const sheets: ExcelSheet[] = [
     {
-      name: 'Summary',
-      rows: [...header('Dashboard Summary'), ['Metric', 'Value'], ...input.kpis.map(([k, v]) => [k, v])],
+      name: 'Ringkasan',
+      rows: [...header('Ringkasan Dashboard'), ['Metrik', 'Nilai'], ...input.kpis.map(([k, v]) => [k, v])],
       cols: [28, 22],
     },
   ]
@@ -95,8 +96,8 @@ export function exportDashboardExcel(input: {
   for (const list of input.lists) {
     sheets.push({
       name: list.name,
-      rows: [...header(list.name), list.head, ...(list.rows.length ? list.rows : [['No data']])],
-      cols: list.head.map((h) => Math.max(12, h.length + 4, h === 'Name' || h === 'Customer' ? 30 : 0)),
+      rows: [...header(list.name), list.head, ...(list.rows.length ? list.rows : [['Tidak ada data']])],
+      cols: list.head.map((h) => Math.max(12, h.length + 4, h === 'Nama' || h === 'Pelanggan' ? 30 : 0)),
     })
   }
 
