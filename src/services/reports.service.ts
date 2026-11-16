@@ -109,6 +109,28 @@ export interface ArAgingResponse {
   grand_total_outstanding: number
 }
 
+// GET /v1/reports/supplier-statements — the AP aging lines still unpaid on
+// as_of_date (same data as /supplier-statements/exports).
+export interface ApAgingLine {
+  purchase_order_id: number
+  code: string
+  date: string
+  due_date: string | null
+  supplier_name: string
+  total_price: number
+  total_payment: number
+  outstanding: number
+  age_days: number
+  bucket: AgingBucket | string
+}
+
+export interface ApAgingResponse {
+  as_of_date: string
+  lines: ApAgingLine[]
+  buckets: ArAgingResponse['buckets']
+  grand_total_outstanding: number
+}
+
 // GET /v1/reports/cash-flow
 export interface CashFlowLine {
   activity: string
@@ -243,6 +265,14 @@ export const reportsService = {
 
   exportApAging: (params?: { as_of_date?: string; 'filter[search]'?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/ap-aging/exports', { params, responseType: 'blob' }),
+
+  /** JSON twin of exportCustomerStatements (open receivables of one customer). */
+  getCustomerStatement: (params: { customer_id: number; as_of_date?: string }): Promise<AxiosResponse<{ success: boolean; message: string; data: ArAgingResponse }>> =>
+    api.get('/reports/customer-statements', { params }),
+
+  /** JSON twin of exportSupplierStatements; `supplier` = name contains (case-insensitive). */
+  getSupplierStatement: (params: { supplier?: string; as_of_date?: string }): Promise<AxiosResponse<{ success: boolean; message: string; data: ApAgingResponse }>> =>
+    api.get('/reports/supplier-statements', { params }),
 
   exportCustomerStatements: (params: { customer_id: number; as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/customer-statements/exports', { params, responseType: 'blob' }),

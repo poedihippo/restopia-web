@@ -754,13 +754,97 @@
   animation: v2-pop-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Phones: wide tables scroll sideways instead of being clipped. */
-@media (max-width: 767px) {
-  :root[data-ui="v2"] main div:has(> table) {
-    overflow-x: auto !important;
-  }
+/* ── Responsive tables + frozen actions column ────────────────────────────────
+ * Every table scrolls sideways inside its own container; the page never does.
+ * Tables whose last body cells hold buttons (the View / Edit / Delete column)
+ * freeze that column at the right edge. Opt in explicitly with
+ * data-sticky-actions on the <table>; opt out with data-sticky-actions="off".
+ */
+:root[data-ui="v2"] main.app-main {
+  overflow-x: hidden;
+}
+:root[data-ui="v2"] main div:has(> table) {
+  overflow-x: auto !important;
+}
+/* Narrow screens: keep columns readable and scroll instead of squashing.
+   Tables inside sheets / dialogs (fixed overlays) keep their natural width. */
+@media (max-width: 1023px) {
   :root[data-ui="v2"] main table {
     min-width: 640px;
+  }
+  :root[data-ui="v2"] main [style*="position: fixed"] table {
+    min-width: 0;
+  }
+}
+
+/* Rows get a solid base colour (zero specificity: inline row styles and the
+   .v2-table hover rule still win) so the frozen cell can inherit it. */
+:where(:root[data-ui="v2"] main table:is([data-sticky-actions], :has(> tbody > tr > td:last-child:not([colspan]) :is(button, [role="button"]))):not([data-sticky-actions="off"])) > :is(tbody, tfoot) > tr {
+  background-color: var(--surface);
+}
+:root[data-ui="v2"] main table:is([data-sticky-actions], :has(> tbody > tr > td:last-child:not([colspan]) :is(button, [role="button"]))):not([data-sticky-actions="off"]) > :is(thead, tbody, tfoot) > tr > :is(th, td):last-child:not([colspan]) {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background-color: inherit;
+  white-space: nowrap;
+}
+/* Row styled transparent inline (hover handlers): fall back to the surface. */
+:root[data-ui="v2"] main table:is([data-sticky-actions], :has(> tbody > tr > td:last-child:not([colspan]) :is(button, [role="button"]))):not([data-sticky-actions="off"]) > :is(tbody, tfoot) > tr:is([style*="background: transparent"], [style*="background-color: transparent"]) > td:last-child:not([colspan]) {
+  background-color: var(--surface);
+}
+/* …except where a stylesheet colours the row (v2 hover). */
+:root[data-ui="v2"] main table.v2-table:is([data-sticky-actions], :has(> tbody > tr > td:last-child:not([colspan]) :is(button, [role="button"]))):not([data-sticky-actions="off"]) > tbody > tr[data-row]:hover > td:last-child:not([colspan]) {
+  background-color: var(--surface-muted);
+}
+/* Header cell: above the body cells, solid header colour. */
+:root[data-ui="v2"] main table:is([data-sticky-actions], :has(> tbody > tr > td:last-child:not([colspan]) :is(button, [role="button"]))):not([data-sticky-actions="off"]) > thead > tr > th:last-child:not([colspan]) {
+  z-index: 3;
+  background-color: var(--surface-muted);
+}
+/* Edge shadow while columns are scrolled under the frozen column. Drawn as a
+   horizontal gradient strip on each cell's ::before (full cell height), so
+   the strips join into one continuous column shadow instead of per-row
+   blurs. Fades out at the scroll end; never shows when the table fits
+   (inactive scroll timeline). */
+:root[data-ui="v2"] main table:is([data-sticky-actions], :has(> tbody > tr > td:last-child:not([colspan]) :is(button, [role="button"]))):not([data-sticky-actions="off"]) > :is(thead, tbody, tfoot) > tr > :is(th, td):last-child:not([colspan])::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -12px;
+  width: 12px;
+  box-sizing: border-box;
+  pointer-events: none;
+  background: linear-gradient(to left, rgba(20, 22, 40, 0.08), rgba(20, 22, 40, 0));
+  border-right: 1px solid var(--border);
+  opacity: 0;
+}
+@supports (animation-timeline: scroll()) {
+  :root[data-ui="v2"] main table:is([data-sticky-actions], :has(> tbody > tr > td:last-child:not([colspan]) :is(button, [role="button"]))):not([data-sticky-actions="off"]) > :is(thead, tbody, tfoot) > tr > :is(th, td):last-child:not([colspan])::before {
+    animation: v2-sticky-edge linear both;
+    animation-timeline: scroll(nearest inline);
+  }
+}
+@supports not (animation-timeline: scroll()) {
+  :root[data-ui="v2"] main table:is([data-sticky-actions], :has(> tbody > tr > td:last-child:not([colspan]) :is(button, [role="button"]))):not([data-sticky-actions="off"]) > :is(thead, tbody, tfoot) > tr > :is(th, td):last-child:not([colspan]) {
+    box-shadow: inset 1px 0 0 var(--border);
+  }
+}
+@keyframes v2-sticky-edge {
+  0%, 97% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media print {
+  :root[data-ui="v2"] main div:has(> table) { overflow: visible !important; }
+  :root[data-ui="v2"] main table { min-width: 0 !important; }
+  :root[data-ui="v2"] main table > :is(thead, tbody, tfoot) > tr > :is(th, td) {
+    position: static !important;
+    box-shadow: none !important;
+    animation: none !important;
+  }
+  :root[data-ui="v2"] main table > :is(thead, tbody, tfoot) > tr > :is(th, td)::before {
+    display: none !important;
   }
 }
 

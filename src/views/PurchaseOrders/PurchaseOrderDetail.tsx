@@ -2,6 +2,7 @@
 import { formatCurrency } from '@/utils/price';
 import { formatDate, formatDateTime } from '@/utils/date';
 import { getProductUomName } from '@/utils/productUomName';
+import { useProductPackaging } from '@/hooks/useProductPackaging';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
@@ -171,6 +172,9 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   })
 
   const details = (order?.purchase_order_details as any[]) ?? []
+  const packagingByProductId = useProductPackaging(
+    details.map((d: any) => d.product_uom?.product_id ?? d.product_uom?.product?.id),
+  )
   const statusMeta = STATUS_META[order?.status as keyof typeof STATUS_META] ?? STATUS_META.pending
 
   // Print document party resolution: a supplier PO sources from a supplier;
@@ -594,6 +598,11 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                           </span>
                         )}
                       </div>
+                      {packagingByProductId.get(Number((detail.product_uom as any)?.product_id)) && (
+                        <div style={{ marginTop: 2, fontSize: 11.5, fontWeight: 400, color: 'var(--foreground-muted)' }}>
+                          {packagingByProductId.get(Number((detail.product_uom as any)?.product_id))}
+                        </div>
+                      )}
                     </td>
                     <td style={{ ...tdStyle, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
                       {detail.product_uom?.uom?.name ?? detail.product_uom?.uom?.code ?? '—'}

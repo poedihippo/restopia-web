@@ -12,11 +12,12 @@ import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { fetchAllPages } from '@/utils/salesReport'
 import { branchesService } from '@/services/branches.service'
 import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
-import { formatDate } from '@/utils/date'
+import { formatDate, parseApiDate } from '@/utils/date'
 import { formatCurrency } from '@/utils/price'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
-import { ArrowUpRight, ChevronRight, Wallet } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, Download, Wallet } from 'lucide-react'
+import { downloadExcel, money, reportHeader } from '@/utils/excelExport'
 import { FilterBar, countActive } from '@/components/ListFilters'
 
 interface Supplier {
@@ -49,7 +50,14 @@ interface SupplierDebt {
   purchaseOrders: Array<PurchaseOrder & { totalPaid: number; outstanding: number }>
 }
 
-export default function SupplierDebtsView() {
+// 'purchase' = working page under Purchase Orders (detail can record payments);
+// 'report'   = read-only report under Accounting › AR/AP.
+export type SupplierDebtsMode = 'purchase' | 'report'
+
+export const supplierDebtsBasePath = (mode: SupplierDebtsMode) =>
+  mode === 'purchase' ? '/purchase/supplier-debts' : '/accounting/reports/supplier-debts'
+
+export default function SupplierDebtsView({ mode = 'report' }: { mode?: SupplierDebtsMode }) {
   const { hasPermission, isSuperadmin } = useAuth()
   const canRead = isSuperadmin || hasPermission('report.read') || hasPermission('purchase-order.read')
 
@@ -189,7 +197,7 @@ export default function SupplierDebtsView() {
         existing.totalOutstanding += outstanding
         existing.unpaidCount += 1
         existing.purchaseOrders.push(enrichedPo)
-        if (po.date && (!existing.oldestDate || po.date < existing.oldestDate)) {
+        if (po.date && (!existing.oldestDate || dateMs(po.date) < dateMs(existing.oldestDate))) {
           existing.oldestDate = po.date
         }
       } else {
@@ -236,8 +244,58 @@ export default function SupplierDebtsView() {
     )
   }
 
+  const exportExcel = () => {
+    const buyerName = buyerOptions.find((o) => o.value === buyerId)?.label
+    const branchName = branchOptions.find((o) => o.value === branchId)?.label
+    const today = new Date().toISOString().slice(0, 10)
+    downloadExcel(`kartu-hutang-supplier-${today}.xlsx`, [
+      {
+        name: 'Rekap Supplier',
+        cols: [6, 36, 14, 18, 14, 20],
+        rows: [
+          ...reportHeader({
+            title: 'Kartu Hutang Supplier',
+            branch: branchId > 0 ? branchName : undefined,
+            extra: [
+              ...(buyerId > 0 && buyerName ? [`Buyer : ${buyerName}`] : []),
+              ...(debouncedSearch.trim() ? [`Pencarian : ${debouncedSearch.trim()}`] : []),
+            ],
+          }),
+          ['No', 'Supplier', 'Kode', 'Invoice Belum Lunas', 'Invoice Terlama', 'Total Hutang'],
+          ...filteredDebts.map((d, i) => [
+            i + 1,
+            d.supplier.name,
+            d.supplier.code,
+            d.unpaidCount,
+            d.oldestDate ? formatDate(d.oldestDate) : '',
+            money(d.totalOutstanding),
+          ]),
+          ['', 'Total', '', totalUnpaidInvoices, '', money(grandTotal)],
+        ],
+      },
+      {
+        name: 'Detail Invoice',
+        cols: [36, 14, 20, 14, 18, 18, 18],
+        rows: [
+          ['Supplier', 'Kode', 'No. PO', 'Tanggal', 'Total', 'Dibayar', 'Sisa'],
+          ...filteredDebts.flatMap((d) =>
+            d.purchaseOrders.map((po) => [
+              d.supplier.name,
+              d.supplier.code,
+              po.code,
+              po.date ? formatDate(po.date) : '',
+              money(po.total_price),
+              money(po.totalPaid),
+              money(po.outstanding),
+            ]),
+          ),
+        ],
+      },
+    ])
+  }
+
   const detailHref = (id: number) => ({
-    pathname: `/accounting/reports/supplier-debts/${id}`,
+    pathname: `${supplierDebtsBasePath(mode)}/${id}`,
     query: {
       ...(buyerId > 0 ? { buyer_id: buyerId } : {}),
       ...(branchId > 0 ? { branch_id: branchId } : {}),
@@ -262,7 +320,9 @@ export default function SupplierDebtsView() {
           Kartu Hutang Supplier
         </h1>
         <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: '2px 0 0 0' }}>
-          Rekap hutang supplier yang belum lunas
+          {mode === 'report'
+            ? 'Laporan rekap hutang supplier yang belum lunas'
+            : 'Rekap hutang supplier yang belum lunas — buka supplier untuk mencatat pembayaran'}
         </p>
       </div>
 
@@ -292,6 +352,11 @@ export default function SupplierDebtsView() {
         onSearchChange={setSearch}
         searchPlaceholder="Cari supplier atau kode..."
         activeCount={countActive(buyerId > 0, branchId > 0)}
+        actions={
+          <button type="button" className="v2-btn" onClick={exportExcel} disabled={isLoading || filteredDebts.length === 0}>
+            <Download size={15} /> Export Excel
+          </button>
+        }
         onClear={() => {
           const { buyer_id: _b, branch_id: _c, ...rest } = router.query
           router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true })
@@ -443,9 +508,12 @@ export default function SupplierDebtsView() {
   )
 }
 
+const dateMs = (date?: string) => parseApiDate(date)?.getTime() ?? 0
+
 function daysSince(date?: string): number | null {
   if (!date) return null
-  const t = new Date(date).getTime()
-  if (Number.isNaN(t)) return null
+  // API dates are DD-MM-YYYY; new Date() would misread them.
+  const t = parseApiDate(date)?.getTime()
+  if (t == null || Number.isNaN(t)) return null
   return Math.max(0, Math.floor((Date.now() - t) / 86_400_000))
 }

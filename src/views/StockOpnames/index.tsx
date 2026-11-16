@@ -241,6 +241,7 @@ export default function StockOpnamesView() {
               <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={thStyle}>Date</th>
               <th style={thStyle}>Document Code</th>
+              <th style={thStyle}>Description</th>
               <th style={thStyle}>Branch</th>
               <th style={thStyle}>Created By</th>
               <th style={thStyle}>Status</th>
@@ -250,7 +251,7 @@ export default function StockOpnamesView() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={7} style={{ padding: 48, textAlign: 'center' }}>
+                <td colSpan={8} style={{ padding: 48, textAlign: 'center' }}>
                   <div
                     style={{
                       width: 24,
@@ -266,7 +267,7 @@ export default function StockOpnamesView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ padding: 48, textAlign: 'center' }}>
+                <td colSpan={8} style={{ padding: 48, textAlign: 'center' }}>
                   <p style={{ margin: 0, fontSize: 13, color: 'var(--foreground-muted)' }}>
                     No stock opnames found.
                   </p>
@@ -287,6 +288,24 @@ export default function StockOpnamesView() {
                     <td style={tdStyle}>{formatDate(item.date)}</td>
                     <td style={tdStyle}>
                       <span style={{ fontWeight: 500 }}>{item.code}</span>
+                    </td>
+                    <td style={{ ...tdStyle, maxWidth: 320 }}>
+                      {item.description?.trim() ? (
+                        <span
+                          title={item.description}
+                          style={{
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            color: 'var(--foreground-muted)',
+                          }}
+                        >
+                          {item.description}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--foreground-subtle)' }}>—</span>
+                      )}
                     </td>
                     <td style={tdStyle}>{item.branch?.name || '—'}</td>
                     <td style={tdStyle}>{item.created_by?.name || '—'}</td>
