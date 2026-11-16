@@ -59,7 +59,7 @@ export const supplierDebtsBasePath = (mode: SupplierDebtsMode) =>
 
 export default function SupplierDebtsView({ mode = 'report' }: { mode?: SupplierDebtsMode }) {
   const { hasPermission, isSuperadmin } = useAuth()
-  const canRead = isSuperadmin || hasPermission('report.read') || hasPermission('purchase-order.read')
+  const canRead = isSuperadmin || hasPermission('kartu-hutang-supplier.read')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
