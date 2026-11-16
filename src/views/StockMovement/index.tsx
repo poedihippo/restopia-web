@@ -1,5 +1,5 @@
 'use client'
-import { formatDateTime, parseApiDate } from '@/utils/date';
+import { formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
@@ -8,13 +8,13 @@ import { useRouter } from 'next/router'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { deliveriesService } from '@/services/deliveries.service'
 import { stockMovementsService } from '@/services/stock-movements.service'
-import { productsService } from '@/services/products.service'
-import { getProductUomName, withProductType } from '@/utils/productUomName'
+import { getProductUomName } from '@/utils/productUomName'
+import { productInventoriesService } from '@/services/product-inventories.service'
+import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useAuth } from '@/hooks/useAuth'
 import StockMovementSheet from './StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import SearchableSelect from '@/components/SearchableSelect'
-import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import {
   formatSignedMovementQty,
   convertUp,
@@ -450,18 +450,16 @@ export default function StockMovementView() {
   // terutama di menu Stock Movements Raw & WIP.
   const [refTypeFilter, setRefTypeFilter] = useState('')
   const [productId, setProductId] = useState<number>(0)
-  // Set only from the URL (Stock → "Show Stock Movement"): one inventory row / batch.
+  // One inventory row / batch (filter[product_inventory_id]): picked in
+  // Filters, or set from the URL (Stock → "Show Stock Movement").
   const [productInventoryId, setProductInventoryId] = useState<number>(0)
-  const [productSearch, setProductSearch] = useState('')
-  const [productSearchDebounced, setProductSearchDebounced] = useState('')
+  const [inventorySearch, setInventorySearch] = useState('')
+  const [inventorySearchDebounced, setInventorySearchDebounced] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   // Filter tipe produk — dipakai menu "Stock Movements Raw"/"WIP".
   // Backend belum punya filter[product_types]; parameter sudah dikirim dari FE.
   const [productTypes, setProductTypes] = useState('')
-  // Single product type (filter[product_type]) — only offered when the menu
-  // hasn't already pinned filter[product_types] via the URL.
-  const [productTypeFilter, setProductTypeFilter] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   // No., Tanggal/Dokumen, Produk, Batch, In, Out, Balance
@@ -491,59 +489,69 @@ export default function StockMovementView() {
   }, [search])
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setProductSearchDebounced(productSearch)
-    }, 400)
+    const timer = setTimeout(() => setInventorySearchDebounced(inventorySearch), 400)
     return () => clearTimeout(timer)
-  }, [productSearch])
+  }, [inventorySearch])
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, directionFilter, refTypeFilter, productId, productInventoryId, startDate, endDate, productTypeFilter])
+  }, [debouncedSearch, directionFilter, refTypeFilter, productId, productInventoryId, startDate, endDate])
 
 
-  const productsOpts = useInfiniteOptions<any>({
-    queryKey: ['stock-movements-product-search', productSearchDebounced],
-    enabled: productSearchDebounced.length >= 2,
-    fetchPage: (page) =>
-      productsService
-        .list({ page, per_page: 50, sort: 'name', 'filter[search]': productSearchDebounced } as any)
+  // Product Inventory picker: 20 rows a page, server-side search, more on
+  // scroll. Limited to the menu's product type when it is a single one (the
+  // inventory API only takes one filter[product_type] value).
+  const singleMenuType = productTypes && !productTypes.includes(',') ? productTypes : undefined
+  const inventoryOpts = useInfiniteOptions<any>({
+    queryKey: ['stock-movements-inventory-options', inventorySearchDebounced, singleMenuType],
+    fetchPage: (p) =>
+      productInventoriesService
+        .list({
+          page: p,
+          per_page: 20,
+          sort: '-id',
+          include: 'product_uom_batch,product_uom,product,uom',
+          'filter[search]': inventorySearchDebounced || undefined,
+          'filter[product_type]': singleMenuType,
+        } as any)
         .then((r) => r.data),
   })
-  // Product terpilih lewat URL (tombol "Show Stock Movement" di Product
-  // Inventory) belum tentu ada di opsi pencarian, jadi diambil sendiri agar
-  // chip filter menampilkan namanya — bukan "Semua Produk".
-  const { data: selectedProductData } = useQuery({
-    queryKey: ['stock-movements-selected-product', productId],
-    enabled: productId > 0,
-    queryFn: () => productsService.findById(productId).then((r) => r.data),
+  // The picked row (e.g. from the URL) may not be on the loaded pages.
+  const { data: pickedInventoryData } = useQuery({
+    queryKey: ['stock-movements-inventory-picked', productInventoryId],
+    enabled: productInventoryId > 0,
+    queryFn: () =>
+      productInventoriesService
+        .findById(productInventoryId, { include: 'product_uom_batch,product_uom,product,uom' })
+        .then((r) => r.data),
   })
-  const searchProductList = productsOpts.items as any[]
-  const selectedProduct = (selectedProductData as any)?.data
-  const selectedInList = searchProductList.some((p: any) => Number(p.id) === productId)
-  const productOptions = [
-    { value: 0, label: 'Semua Produk' },
-    ...searchProductList.map((p: any) => ({
-      value: p.id as number,
-      label: withProductType((p.name as string) ?? `Product #${p.id}`, p.type),
-      sublabel: p.code as string | undefined,
-    })),
-    ...(productId > 0 && selectedProduct && !selectedInList
-      ? [
-          {
-            value: productId,
-            label: withProductType(
-              (selectedProduct.name as string) ?? `Product #${productId}`,
-              selectedProduct.type,
-            ),
-            sublabel: selectedProduct.code as string | undefined,
-          },
-        ]
+  const pickedInventory = (pickedInventoryData as any)?.data?.data ?? (pickedInventoryData as any)?.data
+  const inventoryOption = (row: any) => {
+    const pu = row?.product_uom_batch?.product_uom ?? row?.product_uom
+    const name = getProductUomName(pu, pu?.product?.name) || `Inventory #${row?.id}`
+    const batch = row?.product_uom_batch?.batch_code ?? row?.batch_code ?? row?.code
+    const stock = Number(row?.stock ?? row?.qty)
+    return {
+      value: Number(row.id),
+      label: name,
+      sublabel: [
+        `#${row.id}`,
+        batch,
+        row?.stage && row.stage !== 'GENERAL' ? row.stage : null,
+        Number.isFinite(stock) ? `Stok ${stock.toLocaleString('id-ID', { maximumFractionDigits: 2 })}` : null,
+      ].filter(Boolean).join(' · '),
+    }
+  }
+  const inventoryOptions = [
+    { value: 0, label: 'Semua Product Inventory' },
+    ...(pickedInventory?.id && !inventoryOpts.items.some((r: any) => Number(r.id) === Number(pickedInventory.id))
+      ? [inventoryOption(pickedInventory)]
       : []),
+    ...inventoryOpts.items.map(inventoryOption),
   ]
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
-    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, refTypeFilter, productId, productInventoryId, productTypes, productTypeFilter],
+    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, refTypeFilter, productId, productInventoryId, productTypes, startDate, endDate],
     queryFn: () =>
       stockMovementsService
         .list({
@@ -558,7 +566,9 @@ export default function StockMovementView() {
           // Filter tipe produk untuk menu Stock Movements Raw / WIP
           // (filter[product_types] sudah didukung backend).
           'filter[product_types]': productTypes || undefined,
-          'filter[product_type]': (!productTypes && productTypeFilter) || undefined,
+          // Date range on the server (YYYY-MM-DD; the API covers the whole day).
+          'filter[created_at_gte]': startDate || undefined,
+          'filter[created_at_lte]': endDate || undefined,
           include:
             'branch,product_inventory,' +
             'product_inventory.product_uom_batch,' +
@@ -638,16 +648,9 @@ export default function StockMovementView() {
         .filter(Boolean)
     : []
 
-  // Client-side date filter — backend /v1/stock-movements doesn't support
-  // filter[start_date]/filter[end_date], so we narrow the already-fetched page.
-  const filteredItems = items.filter((item) => {
-    if (!startDate && !endDate) return true
-    const d = parseApiDate(item.created_at)
-    if (!d) return true
-    if (startDate && d < new Date(startDate + 'T00:00:00')) return false
-    if (endDate && d > new Date(endDate + 'T23:59:59')) return false
-    return true
-  })
+  // Dates are filtered by the API (filter[created_at_gte|lte]), so every page
+  // and meta.total already match the range.
+  const filteredItems = items
 
   const columns: { label: string; width?: number }[] = [
     { label: 'No.', width: 50 },
@@ -723,14 +726,13 @@ export default function StockMovementView() {
         onSearchChange={setSearch}
         searchPlaceholder="Cari pergerakan..."
         activeCount={countActive(
-          directionFilter, refTypeFilter, productId, productInventoryId, productTypeFilter, startDate, endDate,
+          directionFilter, refTypeFilter, productId, productInventoryId, startDate, endDate,
         )}
         onClear={() => {
           setDirectionFilter('')
           setRefTypeFilter('')
           setProductId(0)
           clearProductInventoryFilter()
-          setProductTypeFilter('')
           setStartDate('')
           setEndDate('')
           setPage(1)
@@ -797,37 +799,23 @@ export default function StockMovementView() {
         }
       >
         <FilterGroup title="Product">
-          <FilterField label="Produk">
+          <FilterField label="Product Inventory">
             <SearchableSelect
-              value={productId}
-              onChange={(val) => setProductId(Number(val))}
-              options={productOptions}
-              placeholder="Semua Produk"
-              searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
-              loading={productsOpts.loading}
-              {...productsOpts.selectProps}
-              onSearchChange={setProductSearch}
+              value={productInventoryId}
+              onChange={(v) => {
+                const id = Number(v) || 0
+                if (id === 0) clearProductInventoryFilter()
+                else setProductInventoryId(id)
+              }}
+              options={inventoryOptions}
+              placeholder="Semua Product Inventory"
+              searchPlaceholder="Cari produk / batch..."
+              loading={inventoryOpts.loading}
+              {...inventoryOpts.selectProps}
+              onSearchChange={setInventorySearch}
+              triggerStyle={{ height: 36, padding: '0 12px', fontSize: 13, borderRadius: 'var(--radius-md)' }}
             />
           </FilterField>
-          {/* Filter tipe produk (filter[product_type]) — disembunyikan bila menu
-              sudah mengunci product_types lewat URL (Raw / WIP). */}
-          {!productTypes && (
-            <FilterField label="Tipe produk">
-              <FilterSelect
-                block
-                value={productTypeFilter}
-                onChange={(e) => setProductTypeFilter(e.target.value)}
-                title="Filter tipe produk"
-              >
-                <option value="">Semua Tipe Produk</option>
-                {Object.entries(PRODUCT_TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </FilterSelect>
-            </FilterField>
-          )}
         </FilterGroup>
         <FilterGroup title="Dates">
           {/* Date range (client-side) */}

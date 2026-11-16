@@ -116,7 +116,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'PORTIONING',
     items: [
       { label: 'Portioning', href: '/production/portioning', icon: PieChart, permission: ['production.menu', 'portioning.menu'] },
-      { label: 'Product Cuts', href: '/products/product-cuts', icon: Scissors, permission: ['product-cut.menu', 'product.menu'] },
+      { label: 'Product Cuts', href: '/products/product-cuts', icon: Scissors, permission: 'product-cut.menu' },
     ],
   },
   {
