@@ -635,6 +635,45 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 12px !important;
+  }
+  /* Right cluster: keep it on one line, the branch pill gives way first. */
+  :root[data-ui="v2"] .topbar-actions {
+    gap: 6px !important;
+    flex-shrink: 1;
+  }
+  :root[data-ui="v2"] .topbar-actions > * {
+    flex-shrink: 0;
+  }
+  :root[data-ui="v2"] .topbar-actions > .topbar-branch {
+    flex-shrink: 1;
+  }
+  :root[data-ui="v2"] .branch-pill {
+    height: 34px;
+    max-width: 100%;
+    gap: 7px !important;
+    padding: 0 8px 0 3px !important;
+  }
+  :root[data-ui="v2"] .branch-pill-icon {
+    width: 26px;
+    height: 26px;
+  }
+  :root[data-ui="v2"] .branch-pill-text {
+    min-width: 0;
+  }
+  /* User menu collapses to its avatar; the name is in the dropdown header. */
+  :root[data-ui="v2"] .topbar-divider,
+  :root[data-ui="v2"] .topbar-user-name,
+  :root[data-ui="v2"] .topbar-user-chev {
+    display: none !important;
+  }
+  :root[data-ui="v2"] [data-tour="user-menu"] {
+    padding: 4px !important;
+  }
+}
+@media (max-width: 400px) {
+  :root[data-ui="v2"] .branch-pill-name {
+    max-width: 84px;
   }
 }
 

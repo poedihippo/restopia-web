@@ -23,6 +23,12 @@ export interface UpdateStockOpnameCountItemRequest {
 }
 
 export interface UpdateStockOpnameDetailLineRequest {
+  /** stock opname detail id — targets an existing line, incl. one without a batch */
+  id?: number
+  /** only used when the API creates a new batch for the line */
+  batch_code?: string
+  /** YYYY-MM-DD, only used when the API creates a new batch for the line */
+  expiry_date?: string
   product_inventory_id?: number
   product_uom_id?: number
   counted_qty?: number
