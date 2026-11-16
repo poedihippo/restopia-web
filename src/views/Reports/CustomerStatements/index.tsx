@@ -1,77 +1,99 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { Download } from 'lucide-react'
-import { reportsService } from '@/services/reports.service'
-import { downloadFileFromResponse } from '@/utils/file'
+import { useQuery } from '@tanstack/react-query'
 import api from '@/hooks/useApi'
+import { reportsService } from '@/services/reports.service'
+import SearchableSelect from '@/components/SearchableSelect'
 import FinancePeriodSelect from '../FinancePeriodSelect'
+import StatementReport from '../StatementReport'
 
 export default function CustomerStatementsView() {
-  const [customerId, setCustomerId] = useState('')
+  const [customerId, setCustomerId] = useState(0)
   const [asOfDate, setAsOfDate] = useState('')
 
-  const { data: customersData } = useQuery({
+  const { data: customersData, isLoading: customersLoading } = useQuery({
     queryKey: ['customers-all'],
     queryFn: () => api.get('/customers', { params: { per_page: 1000, sort: 'name' } }).then(r => r.data),
   })
-  const customers: any[] = (customersData as any)?.data ?? []
-
-  const { mutate: exportExcel, isPending } = useMutation({
-    mutationFn: () => reportsService.exportCustomerStatements({
-      customer_id: Number(customerId),
-      ...(asOfDate ? { as_of_date: asOfDate } : {}),
-    }),
-    onSuccess: (res) => {
-      downloadFileFromResponse(res, `customer-statement.xlsx`)
-    },
-    onError: () => toast.error('Gagal mengekspor data.')
-  })
+  const raw = (customersData as any)?.data
+  const customers: any[] = Array.isArray(raw) ? raw : raw?.data ?? []
+  const customerOptions = [
+    { value: 0, label: 'Pilih customer' },
+    ...customers.map((c: any) => ({ value: c.id as number, label: c.name as string, sublabel: c.code ?? c.phone })),
+  ]
 
   return (
-    <div style={{ padding: '32px 32px 64px', maxWidth: 600, margin: '0 auto' }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Customer Statements</h1>
-        <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Export Customer Statement report to Excel</p>
-      </div>
-
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500 }}>Customer *</label>
-            <select
+    <StatementReport
+      title="Customer Statements"
+      subtitle="Lihat statement piutang per customer, lalu ekspor ke Excel"
+      filename="customer-statement.xlsx"
+      partyLabel="Customer"
+      queryKey="customer-statements-preview"
+      emptyHint="Customer wajib dipilih."
+      value={{ customerId, asOfDate }}
+      validate={(v) => (v.customerId > 0 ? null : 'Pilih customer terlebih dahulu')}
+      fetchData={(v) =>
+        reportsService
+          .getCustomerStatement({
+            customer_id: v.customerId,
+            ...(v.asOfDate ? { as_of_date: v.asOfDate } : {}),
+          })
+          .then((r) => {
+            const d = r.data.data
+            return {
+              asOf: d.end_date,
+              buckets: d.buckets,
+              total: d.grand_total_outstanding,
+              lines: (d.lines ?? []).map((l) => ({
+                key: `${l.source_type}-${l.source_id}`,
+                code: l.code,
+                date: l.date,
+                due_date: l.due_date,
+                party: l.customer_name ?? '',
+                total: l.total_price,
+                paid: l.total_payment,
+                outstanding: l.outstanding,
+                age_days: l.age_days,
+                href:
+                  l.source_type === 'invoice'
+                    ? `/transfer/invoices/${l.source_id}`
+                    : l.source_type === 'sales_order'
+                      ? `/sales/sales-orders/${l.source_id}/detail`
+                      : undefined,
+              })),
+            }
+          })
+      }
+      fetchExport={(v) =>
+        reportsService.exportCustomerStatements({
+          customer_id: v.customerId,
+          ...(v.asOfDate ? { as_of_date: v.asOfDate } : {}),
+        })
+      }
+      filters={
+        <>
+          <div style={{ flex: '1 1 220px', maxWidth: 300 }}>
+            <SearchableSelect
               value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              style={{ padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', fontSize: 14 }}
-            >
-              <option value="">-- Select Customer --</option>
-              {customers.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+              onChange={(v) => setCustomerId(Number(v) || 0)}
+              options={customerOptions}
+              placeholder="Pilih customer"
+              searchPlaceholder="Cari customer..."
+              loading={customersLoading}
+            />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500 }}>Period end (Optional)</label>
-            <FinancePeriodSelect asOf={asOfDate} onChange={(p) => setAsOfDate(p.end_date)} style={{ padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 'var(--radius-md)', background: '#ffffff', color: '#111827', outline: 'none' }} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500 }}>As Of Date (Optional)</label>
-            <input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} style={{ padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 'var(--radius-md)', background: '#ffffff', color: '#111827', outline: 'none' }} />
-          </div>
-          <button
-            onClick={() => {
-              if (!customerId) return toast.error('Please select a customer')
-              exportExcel()
-            }}
-            disabled={isPending}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 500, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1, marginTop: 8 }}
-          >
-            <Download size={16} /> {isPending ? 'Exporting...' : 'Export Excel'}
-          </button>
-        </div>
-      </div>
-    </div>
+          <FinancePeriodSelect className="v2-select" asOf={asOfDate} onChange={(p) => setAsOfDate(p.end_date)} />
+          <input
+            className="v2-input"
+            type="date"
+            value={asOfDate}
+            onChange={(e) => setAsOfDate(e.target.value)}
+            aria-label="Per tanggal"
+            title="Per tanggal (kosong = hari ini)"
+          />
+        </>
+      }
+    />
   )
 }

@@ -23,9 +23,10 @@ import MultiSearchableSelect from '@/components/MultiSearchableSelect'
 import { ActiveSegment, FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, DateRange, countActive } from '@/components/ListFilters'
 import api from '@/hooks/useApi'
 import {
-  loadStoredMode,
-  persistMode,
   convertUp,
+  convertDown,
+  packagingChains,
+  toConversionEntries,
   type ConversionEntry,
   type UnitDisplayMode,
 } from '@/utils/unitDisplay'
@@ -92,32 +93,6 @@ interface ProductInventory {
     }
   }
   branch?: { id: number; name: string; code?: string }
-}
-
-// Build packaging chains from the largest unit down, multiplying amounts
-// along the way: PACK→PCS (6), PCS→KG (2), KG→GR (1000) gives
-// "1 PACK → 6 PCS → 12 KG → 12.000 GR". A product with several top units
-// gets one chain per top unit.
-function packagingChains(conversions?: ConversionEntry[]): string[] {
-  if (!conversions || conversions.length === 0) return []
-  const fmt = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
-  const bySource = new Map<string, ConversionEntry>()
-  for (const c of conversions) if (!bySource.has(c.uom_code)) bySource.set(c.uom_code, c)
-  const targets = new Set(conversions.map((c) => c.target_uom_code))
-  const roots = [...bySource.keys()].filter((code) => !targets.has(code))
-  return roots.map((root) => {
-    const parts = [`1 ${root}`]
-    const seen = new Set([root])
-    let qty = 1
-    let step = bySource.get(root)
-    while (step && !seen.has(step.target_uom_code)) {
-      qty *= Number(step.amount)
-      parts.push(`${fmt(qty)} ${step.target_uom_code}`)
-      seen.add(step.target_uom_code)
-      step = bySource.get(step.target_uom_code)
-    }
-    return parts.join(' → ')
-  })
 }
 
 // Product id untuk filter "Show Stock Movement" — product bisa datang dari
@@ -211,17 +186,16 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [isExporting, setIsExporting] = useState(false)
-  // Dedicated key: product inventory has its own mode default ('branch' —
-  // stock shown in the product-UOM matching the user's branch.type).
-  const PRODUCT_INVENTORY_QTY_MODE_KEY = 'product_inventory_qty_mode'
+  // Not persisted: every visit opens in 'branch' mode (stock shown in the
+  // product-UOM matching the user's branch.type). Smallest/Largest only
+  // apply until the user leaves the page.
   const userBranchType = ((user as any)?.branch?.type as string | undefined) ?? ''
-  const [unitMode, setUnitMode] = useState<UnitDisplayMode>(() =>
-    loadStoredMode(userBranchType, 'branch', PRODUCT_INVENTORY_QTY_MODE_KEY),
-  )
-
+  const [unitMode, setUnitMode] = useState<UnitDisplayMode>('branch')
+  // Switching Stock submenus (Raw / WIP / Final / Supplies) only changes
+  // ?type=, so this view stays mounted — reset the mode on each switch.
   useEffect(() => {
-    persistMode(unitMode, PRODUCT_INVENTORY_QTY_MODE_KEY)
-  }, [unitMode])
+    setUnitMode('branch')
+  }, [defaultType])
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -411,24 +385,51 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const getProductUom = (id: number) =>
     productUomsAll.find((pu: any) => pu.id === id)
 
+  // Product-UOMs tagged with the user's branch.type. Fetched separately with
+  // filter[branch_type] and paged through: the backend caps per_page at 200,
+  // so the global `productUomsAll` list above rarely contains them.
+  const { data: branchPuoms = [] } = useQuery({
+    queryKey: ['product-uoms', 'branch-type-display', userBranchType],
+    enabled: !!userBranchType,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const rows: any[] = []
+      for (let p = 1; p <= 50; p++) {
+        const body = await productUomsService
+          .list({
+            page: p,
+            per_page: 200,
+            include: 'product,product.conversions,uom',
+            'filter[branch_type]': userBranchType,
+          } as any)
+          .then((r) => r.data as any)
+        rows.push(...(body?.data ?? []))
+        if (p >= Number(body?.meta?.last_page ?? 1)) break
+      }
+      return rows
+    },
+  })
+
   // Branch-type display: for each product, pick ONE product-UOM whose
   // branch_types includes the logged-in user's branch.type (from auth/me).
   // Stock (base_stock in base unit) is converted into that UOM, e.g.
   // 50.000 GR → 50 KG when the user's branch type is "production" and
   // the KG product-UOM has branch_types containing "production".
-  const branchUomByProductId = new Map<number, { uomCode: string; conversions?: ConversionEntry[] }>()
-  if (userBranchType) {
-    for (const pu of productUomsAll) {
-      if (!pu?.branch_types || !pu?.product_id) continue
-      if (!Array.isArray(pu.branch_types)) continue
-      if (!pu.branch_types.some((bt: string) => String(bt).toLowerCase() === userBranchType.toLowerCase())) continue
-      if (branchUomByProductId.has(Number(pu.product_id))) continue
-      branchUomByProductId.set(Number(pu.product_id), {
-        uomCode: pu.uom?.code ?? '',
-        conversions: pu.product?.conversions,
-      })
+  const branchUomByProductId = useMemo(() => {
+    const map = new Map<number, { uomCode: string; conversions: ConversionEntry[] }>()
+    const t = userBranchType.toLowerCase()
+    if (!t) return map
+    for (const pu of [...branchPuoms, ...productUomsAll]) {
+      const pid = Number(pu?.product_id)
+      if (!pid || map.has(pid)) continue
+      if (!Array.isArray(pu?.branch_types)) continue
+      if (!pu.branch_types.some((bt: string) => String(bt).toLowerCase() === t)) continue
+      const uomCode = pu.uom?.code ?? ''
+      if (!uomCode) continue
+      map.set(pid, { uomCode, conversions: toConversionEntries(pu.product?.conversions) })
     }
-  }
+    return map
+  }, [branchPuoms, productUomsAll, userBranchType])
 
   const filteredItems = items.filter((i) => {
     const currentStock = Number(i.stock ?? i.qty ?? 0)
@@ -936,7 +937,16 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                       puFallback?.product?.id
                     const target = productId ? branchUomByProductId.get(Number(productId)) : undefined
                     if (target?.uomCode) {
-                      const converted = convertUp(value, baseUomCode, target.uomCode, conversions ?? target.conversions)
+                      // Row conversions may be missing (include `product`
+                      // does not always nest them) — fall back to the ones
+                      // loaded with the branch product-UOM. The branch UOM
+                      // can sit above or below the base unit, so try both
+                      // directions.
+                      const rowConvs = toConversionEntries(conversions)
+                      const convs = rowConvs.length > 0 ? rowConvs : target.conversions
+                      const converted =
+                        convertUp(value, baseUomCode, target.uomCode, convs) ??
+                        convertDown(value, baseUomCode, target.uomCode, convs)
                       if (converted !== null) return { qty: converted, unit: target.uomCode }
                     }
                   }

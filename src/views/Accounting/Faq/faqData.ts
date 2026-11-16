@@ -251,7 +251,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: 'laporan',
     question: 'Bagaimana cara melihat laporan untuk satu periode tertentu?',
     answer: [
-      'Hampir setiap laporan akuntansi memiliki pilihan Period (Kartu Hutang Supplier tidak). Memilih periode akan mengisi tanggal mulai dan tanggal akhir secara otomatis. Untuk laporan "per tanggal" (Neraca, AP Aging, Customer/Supplier Statements), tanggalnya diisi dengan tanggal akhir periode. Comparative Reports memakai tahun buku. Jika tanggal diubah manual, pilihan kembali ke "Rentang tanggal sendiri".',
+      'Hampir setiap laporan akuntansi memiliki pilihan Period (Kartu Hutang Supplier tidak). Memilih periode akan mengisi tanggal mulai dan tanggal akhir secara otomatis. Untuk laporan "per tanggal" (Neraca, AP Aging, Customer Statements), tanggalnya diisi dengan tanggal akhir periode. Comparative Reports memakai tahun buku. Jika tanggal diubah manual, pilihan kembali ke "Rentang tanggal sendiri".',
     ],
   },
   {

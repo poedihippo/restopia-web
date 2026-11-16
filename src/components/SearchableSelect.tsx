@@ -10,6 +10,8 @@ export interface SearchableSelectOption {
   label: string
   sublabel?: string
   description?: string
+  /** Optional extra line under the sublabel (e.g. packaging chain). */
+  meta?: string
 }
 
 export interface SearchableSelectProps {
@@ -435,6 +437,22 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
                         {option.description && (
                           <span style={{ fontStyle: 'italic' }}>{option.description}</span>
                         )}
+                      </span>
+                    )}
+                    {option.meta && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          color: 'var(--foreground-subtle)',
+                          marginTop: 1,
+                          maxWidth: '100%',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={option.meta}
+                      >
+                        {option.meta}
                       </span>
                     )}
                   </button>

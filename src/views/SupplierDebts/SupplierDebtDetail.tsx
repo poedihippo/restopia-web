@@ -17,9 +17,11 @@ import { bankAccountsService } from '@/services/bank-accounts.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import SearchableSelect from '@/components/SearchableSelect'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
-import { formatDate } from '@/utils/date'
+import { formatDate, parseApiDate } from '@/utils/date'
 import { formatCurrency } from '@/utils/price'
-import { Building2, FileText, AlertCircle, Loader2, ExternalLink, Wallet, X } from 'lucide-react'
+import { supplierDebtsBasePath, type SupplierDebtsMode } from './index'
+import { AlertCircle, ArrowUpRight, Download, Info, Lock, Receipt, Wallet, X } from 'lucide-react'
+import { downloadExcel, money, reportHeader } from '@/utils/excelExport'
 
 interface Supplier {
   id: number
@@ -57,38 +59,92 @@ interface DisbursePayment {
   allocations?: { purchase_order_id?: number; amount: number }[]
 }
 
-const sectionStyle: React.CSSProperties = {
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-lg)',
-  padding: 24,
+// v2 detail-page building blocks (same look as Receipts / PO detail).
+const containerStyle: React.CSSProperties = {
+  padding: '28px 24px 48px',
+  width: '100%',
+  margin: '0 auto',
+  display: 'flex',
+  flexDirection: 'column',
+}
+
+const cardHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  padding: '14px 20px',
+  borderBottom: '1px solid var(--border)',
+}
+
+const cardTitleStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: 'var(--foreground)',
+  margin: 0,
 }
 
 const thStyle: React.CSSProperties = {
-  padding: '10px 16px',
-  textAlign: 'left',
-  fontSize: 11,
-  fontWeight: 700,
-  color: 'var(--foreground-muted)',
+  height: 'auto',
+  padding: '10px 14px',
+  fontSize: 11.5,
+  fontWeight: 600,
   textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-  borderBottom: '1px solid var(--border)',
-  background: 'var(--background)',
+  letterSpacing: '0.04em',
+  color: 'var(--foreground-muted)',
+  background: 'var(--surface-muted)',
   whiteSpace: 'nowrap',
+  textAlign: 'left',
 }
 
 const tdStyle: React.CSSProperties = {
-  padding: '12px 16px',
-  borderBottom: '1px solid var(--border)',
+  height: 'auto',
+  padding: '12px 14px',
+  fontSize: 13.5,
+  color: 'var(--foreground)',
   verticalAlign: 'middle',
-  fontSize: 13,
 }
 
 const amountTdStyle: React.CSSProperties = {
   ...tdStyle,
   textAlign: 'right',
   fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap',
 }
+
+// First / last columns keep the 20px card gutter.
+const edgeL: React.CSSProperties = { paddingLeft: 20 }
+const edgeR: React.CSSProperties = { paddingRight: 20 }
+
+const monoStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)',
+  fontSize: 12.5,
+}
+
+const pillStyle = (color: string, bg: string): React.CSSProperties => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '3px 10px',
+  borderRadius: 999,
+  fontSize: 11.5,
+  fontWeight: 600,
+  background: bg,
+  color,
+  whiteSpace: 'nowrap',
+})
+
+const sharedCss = `
+  .sd-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .sd-summary-cell { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; min-width: 0; }
+  .sd-summary-cell + .sd-summary-cell { border-left: 1px solid var(--border); }
+  @media (max-width: 720px) {
+    .sd-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sd-summary-cell:nth-child(3) { border-left: none; }
+    .sd-summary-cell:nth-child(n + 3) { border-top: 1px solid var(--border); }
+  }
+  :root[data-ui="v2"] .v2-table tbody tr.sd-locked td { color: var(--foreground-muted); }
+  :root[data-ui="v2"] .v2-table tbody tr.sd-total td { background: var(--surface-muted); border-bottom: none; }
+`
 
 const todayInputDate = () => new Date().toLocaleDateString('en-CA')
 
@@ -346,7 +402,7 @@ function PayModal({
   )
 }
 
-export default function SupplierDebtDetailView() {
+export default function SupplierDebtDetailView({ mode = 'report' }: { mode?: SupplierDebtsMode }) {
   const router = useRouter()
   const supplierId = Number(router.query.id)
   // Filter buyer dari halaman Kartu Hutang (?buyer_id=).
@@ -354,9 +410,12 @@ export default function SupplierDebtDetailView() {
   const [payTargets, setPayTargets] = useState<PayTarget[] | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
-  const { hasPermission, isSuperadmin } = useAuth()
+  const { user, hasPermission, isSuperadmin } = useAuth()
+  const activeBranchName = ((user as any)?.branch?.name as string | undefined) ?? ''
   const canRead = isSuperadmin || hasPermission('report.read') || hasPermission('purchase-order.read')
-  const canPay = isSuperadmin || hasPermission('payment.create')
+  // The accounting copy is a report only; payments are recorded from the
+  // Purchase Orders › Kartu Hutang Supplier page.
+  const canPay = mode === 'purchase' && (isSuperadmin || hasPermission('payment.create'))
   // Warehouse / production read the company's debts (?branch_id= narrows), but
   // pay only their own branch's POs: a payment is recorded at the PO's branch.
   const { isCentral, activeBranchId, scopeParams } = useCentralCompanyScope()
@@ -442,14 +501,14 @@ export default function SupplierDebtDetailView() {
         return { ...po, totalPaid, outstanding }
       })
       .filter((row) => row.outstanding > 0)
-      .sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime())
+      .sort((a, b) => (parseApiDate(a.date)?.getTime() ?? 0) - (parseApiDate(b.date)?.getTime() ?? 0))
   }, [pos])
 
   const supplierPayments = useMemo(() => {
     return payments
       .filter((p) => !p.is_reversed)
       .filter((p) => p.allocations?.some((a) => a.purchase_order_id != null && poRows.some((row) => row.id === a.purchase_order_id)))
-      .sort((a, b) => new Date(b.date ?? b.created_at ?? 0).getTime() - new Date(a.date ?? a.created_at ?? 0).getTime())
+      .sort((a, b) => (parseApiDate(b.date ?? b.created_at)?.getTime() ?? 0) - (parseApiDate(a.date ?? a.created_at)?.getTime() ?? 0))
   }, [payments, poRows])
 
   const totalOutstanding = useMemo(() => poRows.reduce((sum, row) => sum + row.outstanding, 0), [poRows])
@@ -472,10 +531,75 @@ export default function SupplierDebtDetailView() {
 
   const isLoading = supplierLoading || posLoading || paymentsLoading
 
+  const totalPaidAll = poRows.reduce((sum, row) => sum + row.totalPaid, 0)
+  const oldestDate = poRows[0]?.date
+  // Invoices this branch can't pay (they belong to another branch's PO).
+  const lockedRows = poRows.filter((r) => !isOwnPo(r))
+  const lockedBranchNames = Array.from(new Set(lockedRows.map((r) => r.branch?.name).filter(Boolean))) as string[]
+  const showSelect = canPay && payableRows.length > 0
+  const colCount = 8 + (showSelect ? 1 : 0)
+
+  const backHref = `${supplierDebtsBasePath(mode)}${(() => {
+    const qs = new URLSearchParams({
+      ...(buyerId > 0 ? { buyer_id: String(buyerId) } : {}),
+      ...(branchId > 0 ? { branch_id: String(branchId) } : {}),
+    }).toString()
+    return qs ? `?${qs}` : ''
+  })()}`
+
+  const exportExcel = () => {
+    if (!supplier) return
+    const today = new Date().toISOString().slice(0, 10)
+    downloadExcel(`kartu-hutang-${supplier.code || supplier.id}-${today}.xlsx`, [
+      {
+        name: 'Invoice Belum Lunas',
+        cols: [6, 20, 14, 18, 18, 18, 22],
+        rows: [
+          ...reportHeader({
+            title: 'Kartu Hutang Supplier',
+            branch: activeBranchName || undefined,
+            extra: [`Supplier : ${supplier.name}${supplier.code ? ` (${supplier.code})` : ''}`],
+          }),
+          ['No', 'No. PO', 'Tanggal', 'Total', 'Dibayar', 'Sisa', ...(isCentral ? ['Cabang'] : [])],
+          ...poRows.map((r, i) => [
+            i + 1,
+            r.code,
+            r.date ? formatDate(r.date) : '',
+            money(r.total_price),
+            money(r.totalPaid),
+            money(r.outstanding),
+            ...(isCentral ? [r.branch?.name ?? ''] : []),
+          ]),
+          ['', 'Total', '', money(poRows.reduce((s, r) => s + Number(r.total_price ?? 0), 0)), money(totalPaidAll), money(totalOutstanding)],
+        ],
+      },
+      {
+        name: 'Riwayat Pembayaran',
+        cols: [6, 14, 22, 28, 18, 40],
+        rows: [
+          ['No', 'Tanggal', 'No. Pembayaran', 'Kas/Bank', 'Jumlah', 'PO yang Dibayar'],
+          ...supplierPayments.map((p, i) => [
+            i + 1,
+            formatDate(p.date ?? p.created_at),
+            p.payment_number ?? `PMT-${p.id}`,
+            p.bank_account
+              ? `${p.bank_account.bank_name ?? 'Bank'} ${p.bank_account.account_number ?? ''}`.trim()
+              : p.payment_method?.name ?? '',
+            money(p.amount),
+            (p.allocations ?? [])
+              .filter((a) => a.purchase_order_id != null)
+              .map((a) => `${poCodeById.get(Number(a.purchase_order_id)) ?? `PO #${a.purchase_order_id}`} (${Number(a.amount).toLocaleString('id-ID')})`)
+              .join(', '),
+          ]),
+        ],
+      },
+    ])
+  }
+
   if (!canRead) {
     return (
-      <div style={{ padding: '32px 32px 64px', margin: '0 auto' }}>
-        <div style={{ ...sectionStyle, color: 'var(--warning)', background: 'var(--warning-bg)', borderColor: 'var(--warning)', fontSize: 13 }}>
+      <div style={containerStyle}>
+        <div className="v2-card" style={{ padding: 16, color: 'var(--warning)', background: 'var(--warning-bg)', borderColor: 'var(--warning)', fontSize: 13 }}>
           You do not have permission to view supplier debt details.
         </div>
       </div>
@@ -483,271 +607,213 @@ export default function SupplierDebtDetailView() {
   }
 
   return (
-    <div style={{ padding: '32px 32px 64px', margin: '0 auto' }}>
-      {/* Back link — keeps the list's buyer/branch filter */}
-      <BackLink
-        href={`/accounting/reports/supplier-debts${(() => {
-          const qs = new URLSearchParams({
-            ...(buyerId > 0 ? { buyer_id: String(buyerId) } : {}),
-            ...(branchId > 0 ? { branch_id: String(branchId) } : {}),
-          }).toString()
-          return qs ? `?${qs}` : ''
-        })()}`}
-        label="Kartu Hutang Supplier"
-        style={{ marginBottom: 20 }}
-      />
+    <div style={containerStyle}>
+      <style>{sharedCss}</style>
 
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--accent-light-bg)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--accent)',
-            }}
-          >
-            <Building2 size={24} />
-          </div>
-          <div>
-            <h1
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 24,
-                fontWeight: 600,
-                color: 'var(--foreground)',
-                margin: 0,
-              }}
-            >
-              {supplier?.name ?? 'Supplier'}
-            </h1>
-            <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-              {supplier?.code ? `Kode: ${supplier.code}` : '—'}
-              {supplier?.phone ? ` · Telp: ${supplier.phone}` : ''}
-            </p>
-          </div>
+      {/* Back link — keeps the list's buyer/branch filter */}
+      <BackLink href={backHref} label="Kartu Hutang Supplier" />
+
+      {/* Title row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginTop: 14 }}>
+        <div style={{ minWidth: 0 }}>
+          {supplierLoading ? (
+            <div className="v2-skeleton" style={{ width: 220, height: 22 }} />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 style={{ fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', margin: 0, color: 'var(--foreground)' }}>
+                {supplier?.name ?? 'Supplier'}
+              </h1>
+              {mode === 'report' && <span style={pillStyle('var(--foreground-muted)', 'var(--surface-muted)')}>Laporan</span>}
+            </div>
+          )}
+          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '6px 0 0' }}>
+            {supplier?.code ? (
+              <>Kode <span style={{ ...monoStyle, color: 'var(--foreground)' }}>{supplier.code}</span></>
+            ) : '—'}
+            {supplier?.phone ? <> · Telp <span style={{ color: 'var(--foreground)' }}>{supplier.phone}</span></> : null}
+          </p>
         </div>
-        <div style={sectionStyle}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Total Hutang
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>
-            {formatCurrency(totalOutstanding)}
-          </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" className="v2-btn" onClick={exportExcel} disabled={isLoading || !supplier}>
+          <Download size={15} /> Export Excel
+        </button>
+        {showSelect && (
+          <button
+            type="button"
+            className="v2-btn v2-btn-primary"
+            disabled={selectedRows.length === 0}
+            title={selectedRows.length === 0 ? 'Centang invoice yang ingin dibayar' : undefined}
+            onClick={() => setPayTargets(selectedRows.map(toPayTarget))}
+          >
+            <Wallet size={15} />
+            {selectedRows.length > 0 ? `Bayar Terpilih (${selectedRows.length})` : 'Bayar Terpilih'}
+          </button>
+        )}
         </div>
       </div>
 
-      {/* Outstanding invoices table */}
-      <div style={{ ...sectionStyle, marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileText size={18} color="var(--accent)" />
-            <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>
-              Invoice Belum Lunas
-            </span>
-          </div>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            {canPay && selectedRows.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setPayTargets(selectedRows.map(toPayTarget))}
-                style={{
-                  marginRight: 12,
-                  padding: '6px 12px',
-                  background: 'var(--accent)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Bayar Terpilih ({selectedRows.length})
-              </button>
+      {/* Summary */}
+      <div className="v2-card sd-summary" style={{ marginTop: 20, overflow: 'hidden' }}>
+        {[
+          { label: 'Total Hutang', value: formatCurrency(totalOutstanding), color: 'var(--destructive)' },
+          { label: 'Invoice Belum Lunas', value: poRows.length.toLocaleString('id-ID'), color: 'var(--foreground)' },
+          { label: 'Sudah Dibayar', value: formatCurrency(totalPaidAll), color: 'var(--success)' },
+          { label: 'Invoice Terlama', value: oldestDate ? formatDate(oldestDate) : '—', color: 'var(--foreground)' },
+        ].map((s) => (
+          <div key={s.label} className="sd-summary-cell">
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{s.label}</span>
+            {isLoading ? (
+              <div className="v2-skeleton" style={{ width: '70%', height: 16 }} />
+            ) : (
+              <span style={{ fontSize: 15, fontWeight: 600, color: s.color, fontVariantNumeric: 'tabular-nums' }}>{s.value}</span>
             )}
+          </div>
+        ))}
+      </div>
+
+      {/* Why some invoices can't be selected */}
+      {canPay && !isLoading && lockedRows.length > 0 && (
+        <div
+          className="v2-card"
+          style={{ marginTop: 16, padding: '12px 16px', display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--info-bg)', borderColor: 'var(--info)', fontSize: 13, color: 'var(--foreground)' }}
+        >
+          <Info size={16} style={{ color: 'var(--info)', flexShrink: 0, marginTop: 1 }} />
+          <div>
+            {lockedRows.length === poRows.length ? 'Invoice di sini' : `${lockedRows.length} invoice`} milik
+            {' '}<strong>{lockedBranchNames.join(', ') || 'cabang lain'}</strong>, jadi hanya bisa dibayar dari cabang tersebut.
+            {' '}Ganti cabang aktif{activeBranchName ? <> (sekarang <strong>{activeBranchName}</strong>)</> : null} ke cabang pemilik PO untuk mencatat pembayaran.
+          </div>
+        </div>
+      )}
+
+      {/* Outstanding invoices */}
+      <div className="v2-card" style={{ marginTop: 16, overflow: 'hidden' }}>
+        <div style={cardHeaderStyle}>
+          <h2 style={cardTitleStyle}>Invoice Belum Lunas</h2>
+          <span style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>
+            {showSelect && selectedRows.length > 0 ? `${selectedRows.length} dipilih · ` : ''}
             {poRows.length} invoice
           </span>
         </div>
 
         {isLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48, gap: 10, color: 'var(--foreground-muted)' }}>
-            <Loader2 size={18} className="animate-spin" />
-            <span style={{ fontSize: 14 }}>Memuat rincian...</span>
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="v2-skeleton" style={{ height: 14, width: `${90 - i * 15}%` }} />
+            ))}
           </div>
         ) : poRows.length === 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 48,
-              gap: 12,
-              textAlign: 'center',
-              border: '1px dashed var(--border)',
-              borderRadius: 'var(--radius-lg)',
-            }}
-          >
-            <AlertCircle size={36} style={{ opacity: 0.4, color: 'var(--foreground-muted)' }} />
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)' }}>
-                Tidak ada invoice belum lunas
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--foreground-muted)', marginTop: 4 }}>
-                Semua purchase order untuk supplier ini sudah lunas.
-              </div>
+          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <AlertCircle size={28} style={{ color: 'var(--foreground-subtle)', margin: '0 auto 8px', display: 'block' }} />
+            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Tidak ada invoice belum lunas</div>
+            <div style={{ fontSize: 12.5, color: 'var(--foreground-muted)', marginTop: 2 }}>
+              Semua purchase order untuk supplier ini sudah lunas.
             </div>
           </div>
         ) : (
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v2-table">
               <thead>
                 <tr>
-                  {canPay && (
-                    <th style={{ ...thStyle, width: 40 }}>
+                  {showSelect && (
+                    <th style={{ ...thStyle, ...edgeL, width: 44 }}>
                       <input
                         type="checkbox"
+                        aria-label="Pilih semua invoice"
                         checked={allSelected}
-                        onChange={() =>
-                          setSelected(allSelected ? new Set() : new Set(payableRows.map((r) => r.id)))
-                        }
+                        onChange={() => setSelected(allSelected ? new Set() : new Set(payableRows.map((r) => r.id)))}
                       />
                     </th>
                   )}
-                  <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
-                  <th style={thStyle}>No. Invoice / PO</th>
+                  <th style={{ ...thStyle, ...(showSelect ? {} : edgeL), width: 44 }}>#</th>
+                  <th style={thStyle}>No. PO</th>
                   <th style={thStyle}>Tanggal</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>Sudah Dibayar</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>Sisa Hutang</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Dibayar</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Sisa</th>
                   <th style={thStyle}>Status</th>
-                  <th style={{ ...thStyle, width: canPay ? 150 : 60 }} />
+                  <th style={{ ...thStyle, ...edgeR, width: canPay ? 120 : 48 }} />
                 </tr>
               </thead>
               <tbody>
                 {poRows.map((row, rowIdx) => {
-                  const isPartial = row.totalPaid > 0
-                  const badge = isPartial
-                    ? { label: 'Partial', color: 'var(--warning)', bg: 'var(--warning-bg)' }
-                    : { label: 'Unpaid', color: 'var(--destructive)', bg: 'var(--destructive-bg)' }
+                  const own = isOwnPo(row)
+                  const badge = row.totalPaid > 0
+                    ? { label: 'Sebagian', color: 'var(--warning)', bg: 'var(--warning-bg)' }
+                    : { label: 'Belum Bayar', color: 'var(--destructive)', bg: 'var(--destructive-bg)' }
+                  const age = daysSince(row.date)
                   return (
-                    <tr key={row.id}>
-                      {canPay && (
-                        <td style={tdStyle}>
-                          <input
-                            type="checkbox"
-                            checked={selected.has(row.id)}
-                            disabled={!isOwnPo(row)}
-                            title={isOwnPo(row) ? undefined : 'Dibayar oleh cabang pemilik PO'}
-                            onChange={() => toggleOne(row.id)}
-                          />
+                    <tr
+                      key={row.id}
+                      data-row
+                      className={own ? undefined : 'sd-locked'}
+                      style={{ cursor: showSelect && own ? 'pointer' : undefined }}
+                      onClick={showSelect && own ? () => toggleOne(row.id) : undefined}
+                    >
+                      {showSelect && (
+                        <td style={{ ...tdStyle, ...edgeL }} onClick={(e) => e.stopPropagation()}>
+                          {own ? (
+                            <input type="checkbox" aria-label={`Pilih ${row.code}`} checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} />
+                          ) : (
+                            <span title={`Dibayar oleh ${row.branch?.name ?? 'cabang pemilik PO'}`} style={{ display: 'inline-flex', color: 'var(--foreground-subtle)' }}>
+                              <Lock size={13} />
+                            </span>
+                          )}
                         </td>
                       )}
-                      <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
-                        {rowIdx + 1}
-                      </td>
+                      <td style={{ ...tdStyle, ...(showSelect ? {} : edgeL), fontSize: 12, color: 'var(--foreground-subtle)' }}>{rowIdx + 1}</td>
                       <td style={tdStyle}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--foreground)' }}>
-                          {row.code}
-                        </span>
+                        {own ? (
+                          <Link
+                            href={`/purchase/purchase-orders/${row.id}/detail`}
+                            className="v2-link"
+                            style={{ ...monoStyle, fontWeight: 600 }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {row.code}
+                            <ArrowUpRight size={12} />
+                          </Link>
+                        ) : (
+                          <span style={{ ...monoStyle, fontWeight: 600, color: 'var(--foreground)' }}>{row.code}</span>
+                        )}
                         {isCentral && row.branch?.name && (
-                          <div style={{ fontSize: 11.5, color: 'var(--foreground-muted)', marginTop: 2 }}>
-                            {row.branch.name}
+                          <div style={{ fontSize: 11.5, color: 'var(--foreground-subtle)', marginTop: 2 }}>{row.branch.name}</div>
+                        )}
+                      </td>
+                      <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
+                        {row.date ? formatDate(row.date) : '—'}
+                        {age != null && (
+                          <div style={{ fontSize: 11.5, marginTop: 2, color: age > 60 ? 'var(--destructive)' : age > 30 ? 'var(--warning)' : 'var(--foreground-subtle)' }}>
+                            {age} hari
                           </div>
                         )}
                       </td>
-                      <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
-                        {row.date ? formatDate(row.date) : '—'}
-                      </td>
                       <td style={amountTdStyle}>{formatCurrency(row.total_price)}</td>
-                      <td style={{ ...amountTdStyle, color: 'var(--success)' }}>{formatCurrency(row.totalPaid)}</td>
-                      <td style={{ ...amountTdStyle, fontWeight: 600, color: 'var(--destructive)' }}>
-                        {formatCurrency(row.outstanding)}
+                      <td style={{ ...amountTdStyle, color: row.totalPaid > 0 ? 'var(--success)' : 'var(--foreground-subtle)' }}>
+                        {formatCurrency(row.totalPaid)}
                       </td>
+                      <td style={{ ...amountTdStyle, fontWeight: 600 }}>{formatCurrency(row.outstanding)}</td>
                       <td style={tdStyle}>
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            padding: '3px 10px',
-                            borderRadius: 99,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: badge.bg,
-                            color: badge.color,
-                          }}
-                        >
-                          {badge.label}
-                        </span>
+                        <span style={pillStyle(badge.color, badge.bg)}>{badge.label}</span>
                       </td>
-                      <td style={tdStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                        {canPay && isOwnPo(row) && (
-                          <button
-                            type="button"
-                            onClick={() => setPayTargets([toPayTarget(row)])}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '6px 12px',
-                              background: 'var(--accent)',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: 'var(--radius-md)',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                            }}
-                          >
+                      <td style={{ ...tdStyle, ...edgeR, textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                        {canPay && own ? (
+                          <button type="button" className="v2-btn v2-btn-outline v2-btn-sm" onClick={() => setPayTargets([toPayTarget(row)])}>
                             <Wallet size={13} />
                             Bayar
                           </button>
-                        )}
-                        {isOwnPo(row) && (
-                        <Link
-                          href={`/purchase/purchase-orders/${row.id}/detail`}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: 6,
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--foreground-muted)',
-                          }}
-                          title="Lihat PO"
-                        >
-                          <ExternalLink size={14} />
-                        </Link>
-                        )}
-                        </div>
+                        ) : canPay ? (
+                          <span style={{ fontSize: 11.5, color: 'var(--foreground-subtle)', whiteSpace: 'nowrap' }}>Cabang lain</span>
+                        ) : null}
                       </td>
                     </tr>
                   )
                 })}
-                <tr style={{ background: 'var(--accent-light-bg)' }}>
-                  <td colSpan={canPay ? 6 : 5} style={{ ...tdStyle, fontWeight: 700, color: 'var(--foreground)' }}>
-                    Total Sisa Hutang
-                  </td>
-                  <td style={{ ...amountTdStyle, fontWeight: 700, color: 'var(--accent)', fontSize: 14 }}>
-                    {formatCurrency(totalOutstanding)}
-                  </td>
-                  <td colSpan={2} />
+                <tr className="sd-total">
+                  <td colSpan={colCount - 3} style={{ ...tdStyle, ...edgeL, fontWeight: 600 }}>Total Sisa Hutang</td>
+                  <td style={{ ...amountTdStyle, fontWeight: 700, color: 'var(--destructive)' }}>{formatCurrency(totalOutstanding)}</td>
+                  <td colSpan={2} style={tdStyle} />
                 </tr>
               </tbody>
             </table>
@@ -756,78 +822,54 @@ export default function SupplierDebtDetailView() {
       </div>
 
       {/* Payment history */}
-      <div style={sectionStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileText size={18} color="var(--success)" />
-            <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>
-              Riwayat Pembayaran
-            </span>
-          </div>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            {supplierPayments.length} pembayaran
-          </span>
+      <div className="v2-card" style={{ marginTop: 16, overflow: 'hidden' }}>
+        <div style={cardHeaderStyle}>
+          <h2 style={cardTitleStyle}>Riwayat Pembayaran</h2>
+          <span style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>{supplierPayments.length} pembayaran</span>
         </div>
 
         {isLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48, gap: 10, color: 'var(--foreground-muted)' }}>
-            <Loader2 size={18} className="animate-spin" />
-            <span style={{ fontSize: 14 }}>Memuat riwayat pembayaran...</span>
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[0, 1].map((i) => (
+              <div key={i} className="v2-skeleton" style={{ height: 14, width: `${80 - i * 20}%` }} />
+            ))}
           </div>
         ) : supplierPayments.length === 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 40,
-              gap: 10,
-              textAlign: 'center',
-              border: '1px dashed var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              color: 'var(--foreground-muted)',
-            }}
-          >
-            <div style={{ fontSize: 14 }}>Belum ada pembayaran untuk invoice-invoice ini</div>
+          <div style={{ padding: '36px 20px', textAlign: 'center' }}>
+            <Receipt size={28} style={{ color: 'var(--foreground-subtle)', margin: '0 auto 8px', display: 'block' }} />
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: 0 }}>Belum ada pembayaran untuk invoice-invoice ini</p>
           </div>
         ) : (
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v2-table">
               <thead>
                 <tr>
-                  <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
+                  <th style={{ ...thStyle, ...edgeL, width: 44 }}>#</th>
                   <th style={thStyle}>Tanggal</th>
                   <th style={thStyle}>No. Pembayaran</th>
                   <th style={thStyle}>Kas/Bank</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Jumlah</th>
-                  <th style={thStyle}>PO yang Dibayar</th>
+                  <th style={{ ...thStyle, ...edgeR }}>PO yang Dibayar</th>
                 </tr>
               </thead>
               <tbody>
                 {supplierPayments.map((p, pIdx) => (
                   <tr key={p.id}>
-                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
-                      {pIdx + 1}
-                    </td>
-                    <td style={tdStyle}>{p.date ? formatDate(p.date) : formatDate(p.created_at)}</td>
-                    <td style={{ ...tdStyle, fontFamily: 'monospace' }}>
-                      {p.payment_number ?? `PMT-${p.id}`}
-                    </td>
+                    <td style={{ ...tdStyle, ...edgeL, fontSize: 12, color: 'var(--foreground-subtle)' }}>{pIdx + 1}</td>
+                    <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{p.date ? formatDate(p.date) : formatDate(p.created_at)}</td>
+                    <td style={{ ...tdStyle, ...monoStyle }}>{p.payment_number ?? `PMT-${p.id}`}</td>
                     <td style={tdStyle}>
                       {p.bank_account
                         ? `${p.bank_account.bank_name ?? 'Bank'} ${p.bank_account.account_number ?? ''}`.trim()
                         : p.payment_method?.name ?? '—'}
                     </td>
-                    <td style={{ ...amountTdStyle, fontWeight: 600, color: 'var(--success)' }}>
-                      {formatCurrency(p.amount)}
-                    </td>
-                    <td style={tdStyle}>
+                    <td style={{ ...amountTdStyle, fontWeight: 600, color: 'var(--success)' }}>{formatCurrency(p.amount)}</td>
+                    <td style={{ ...tdStyle, ...edgeR }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         {(p.allocations ?? [])
                           .filter((a) => a.purchase_order_id != null)
                           .map((a, idx) => (
-                            <span key={idx} style={{ fontSize: 12 }}>
+                            <span key={idx} style={{ fontSize: 12.5 }}>
                               <ReferenceLink type="purchase_orders" id={a.purchase_order_id}>
                                 {poCodeById.get(Number(a.purchase_order_id)) ?? 'Purchase order'}
                                 <span style={{ color: 'var(--foreground-muted)', fontWeight: 400 }}> · {formatCurrency(a.amount)}</span>
@@ -854,11 +896,14 @@ export default function SupplierDebtDetailView() {
           }}
         />
       )}
-
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-      `}</style>
     </div>
   )
+}
+
+function daysSince(date?: string): number | null {
+  if (!date) return null
+  // API dates are DD-MM-YYYY; new Date() would misread them.
+  const t = parseApiDate(date)?.getTime()
+  if (t == null || Number.isNaN(t)) return null
+  return Math.max(0, Math.floor((Date.now() - t) / 86_400_000))
 }
