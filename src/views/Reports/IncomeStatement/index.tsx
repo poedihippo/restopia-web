@@ -177,7 +177,8 @@ function emptyTier(): StatementTier {
 
 export default function IncomeStatementView() {
   const { hasPermission, isSuperadmin } = useAuth()
-  const canRead = isSuperadmin || hasPermission('journal.read')
+  // GET /reports/* is guarded by report.read (report_route.go RBACMiddleware).
+  const canRead = isSuperadmin || hasPermission('report.read')
 
   const [startDate, setStartDate] = useState<string>(firstOfYear())
   const [endDate, setEndDate] = useState<string>(today())

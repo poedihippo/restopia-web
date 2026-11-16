@@ -835,6 +835,26 @@
   0%, 97% { opacity: 1; }
   100% { opacity: 0; }
 }
+/* Second scrollbar under the header row (src/lib/tableTopScrollbar.ts). */
+.v2-top-scroll {
+  position: relative;
+  z-index: 5;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.v2-top-scroll-spacer {
+  height: 1px;
+}
+:root[data-ui="v2"] main table.v2-top-scroll-on > thead > tr:last-child > th {
+  padding-bottom: calc(var(--v2-top-scroll-h, 10px) + 10px) !important;
+}
+:root[data-ui="v2"] main table.v2-table.v2-top-scroll-on > thead > tr:last-child > th {
+  height: calc(38px + var(--v2-top-scroll-h, 10px));
+  padding-top: 10px;
+  vertical-align: top;
+}
 @media print {
   :root[data-ui="v2"] main div:has(> table) { overflow: visible !important; }
   :root[data-ui="v2"] main table { min-width: 0 !important; }
@@ -843,8 +863,12 @@
     box-shadow: none !important;
     animation: none !important;
   }
-  :root[data-ui="v2"] main table > :is(thead, tbody, tfoot) > tr > :is(th, td)::before {
+  :root[data-ui="v2"] main table > :is(thead, tbody, tfoot) > tr > :is(th, td)::before,
+  .v2-top-scroll {
     display: none !important;
+  }
+  :root[data-ui="v2"] main table.v2-top-scroll-on > thead > tr:last-child > th {
+    padding-bottom: 9px !important;
   }
 }
 

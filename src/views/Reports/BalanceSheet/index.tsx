@@ -38,6 +38,9 @@ interface BalanceSheet {
   as_of_date?: string
 }
 
+// balance_sheet_usecase.go balanceSheetCurrentYearEarningsCode
+const CURRENT_YEAR_EARNINGS_CODE = '32-02-000'
+
 const sectionStyle: React.CSSProperties = {
   background: 'var(--surface)',
   border: '1px solid var(--border)',
@@ -161,7 +164,8 @@ const SECTION_LABELS: Record<string, string> = {
 
 export default function BalanceSheetView() {
   const { hasPermission, isSuperadmin } = useAuth()
-  const canRead = isSuperadmin || hasPermission('journal.read')
+  // GET /reports/* is guarded by report.read (report_route.go RBACMiddleware).
+  const canRead = isSuperadmin || hasPermission('report.read')
 
   const [asOfDate, setAsOfDate] = useState<string>(today())
   const [branchScope, setBranchScope] = useState<FinanceBranchScope>('')
@@ -218,7 +222,20 @@ export default function BalanceSheetView() {
             <td style={amountCellStyle}>{formatCurrency(0)}</td>
           </tr>
         ) : (
-          accounts.map((acc) => (
+          accounts.map((acc) =>
+            // Computed by the API (balance_sheet_usecase.go), not a ledger account:
+            // the General Ledger has no lines for it, so no drill-down.
+            acc.code === CURRENT_YEAR_EARNINGS_CODE ? (
+              <tr key={acc.code} title="Net profit of the current year (computed — see Income Statement)">
+                <td style={accountRowCellStyle}>
+                  <span style={{ fontFamily: 'monospace', fontSize: 11, marginRight: 8, color: 'var(--foreground-muted)' }}>
+                    {acc.code}
+                  </span>
+                  {acc.name}
+                </td>
+                <td style={amountCellStyle}>{formatCurrency(acc.balance)}</td>
+              </tr>
+            ) : (
             <tr
               key={acc.code}
               data-click
@@ -236,7 +253,8 @@ export default function BalanceSheetView() {
               </td>
               <td style={amountCellStyle}>{formatCurrency(acc.balance)}</td>
             </tr>
-          ))
+            ),
+          )
         )}
         <tr style={subtotalRowStyle}>
           <td style={subtotalCellStyle}>Subtotal {SECTION_LABELS[key]}</td>

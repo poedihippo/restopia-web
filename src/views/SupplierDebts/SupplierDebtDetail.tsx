@@ -549,7 +549,7 @@ export default function SupplierDebtDetailView({ mode = 'report' }: { mode?: Sup
 
   const exportExcel = () => {
     if (!supplier) return
-    const today = new Date().toISOString().slice(0, 10)
+    const today = new Date().toLocaleDateString('en-CA') // local YYYY-MM-DD (not UTC)
     downloadExcel(`kartu-hutang-${supplier.code || supplier.id}-${today}.xlsx`, [
       {
         name: 'Invoice Belum Lunas',
