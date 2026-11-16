@@ -291,17 +291,21 @@ const monthStart = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
 const DATE_PRESETS: { key: string; label: string; from: () => string; to: () => string }[] = [
-  { key: 'today', label: 'Hari ini', from: () => isoDay(0), to: () => isoDay(0) },
-  { key: '7d', label: '7 hari', from: () => isoDay(6), to: () => isoDay(0) },
-  { key: 'month', label: 'Bulan ini', from: monthStart, to: () => isoDay(0) },
-  { key: '30d', label: '30 hari', from: () => isoDay(29), to: () => isoDay(0) },
+  { key: 'today', label: 'Today', from: () => isoDay(0), to: () => isoDay(0) },
+  { key: '7d', label: '7 days', from: () => isoDay(6), to: () => isoDay(0) },
+  { key: 'month', label: 'This month', from: monthStart, to: () => isoDay(0) },
+  { key: '30d', label: '30 days', from: () => isoDay(29), to: () => isoDay(0) },
 ]
 
 /**
- * From–to date filter with quick presets (Hari ini / 7 hari / Bulan ini /
- * 30 hari) above the two date inputs. A preset just fills both inputs, so
+ * From–to date filter with quick presets (Today / 7 days / This month /
+ * 30 days) above the two date inputs. A preset just fills both inputs, so
  * every page keeps its own from/to state and API params unchanged.
  */
+/** "16 Nov 2026" from YYYY-MM-DD (local, no timezone shift). */
+const humanDay = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+
 export function DateRange({
   from,
   to,
@@ -316,12 +320,21 @@ export function DateRange({
   /** Hide the preset chips (e.g. where only one end of the range makes sense). */
   presets?: boolean
 }) {
-  const dateStyle: React.CSSProperties = { ...filterControlStyle, flex: 1, minWidth: 0, padding: '0 8px', fontSize: 12 }
+  const dateStyle: React.CSSProperties = { ...filterControlStyle, width: '100%', minWidth: 0, padding: '0 8px', fontSize: 12 }
+  const miniLabel: React.CSSProperties = { fontSize: 11, color: 'var(--foreground-subtle)', marginBottom: 4, display: 'block' }
   const activePreset = DATE_PRESETS.find((p) => p.from() === from && p.to() === to)?.key
+  const hasValue = Boolean(from || to)
+  // Plain-language read-back of what is being filtered.
+  const summary = !hasValue
+    ? 'All dates'
+    : from && to && from === to
+      ? humanDay(from)
+      : `${from ? humanDay(from) : '…'} – ${to ? humanDay(to) : '…'}`
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {presets && (
-        <div className="v2-seg" role="group" aria-label="Periode" style={{ display: 'flex', width: '100%', boxSizing: 'border-box' }}>
+        <div className="v2-seg" role="group" aria-label="Quick ranges" style={{ display: 'flex', width: '100%', boxSizing: 'border-box' }}>
           {DATE_PRESETS.map((p) => (
             <button
               key={p.key}
@@ -338,10 +351,58 @@ export function DateRange({
           ))}
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <input type="date" aria-label="From" value={from} max={to || undefined} onChange={(e) => onFromChange(e.target.value)} style={dateStyle} />
-        <span style={{ color: 'var(--foreground-subtle)', fontSize: 12 }}>–</span>
-        <input type="date" aria-label="To" value={to} min={from || undefined} onChange={(e) => onToChange(e.target.value)} style={dateStyle} />
+      {/* Picking only one end filters that single day: the empty end takes the
+          same date, so pages send the same *_gte / *_lte value to the API. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8 }}>
+        <label style={{ minWidth: 0 }}>
+          <span style={miniLabel}>From</span>
+          <input
+            type="date"
+            value={from}
+            max={to || undefined}
+            onChange={(e) => {
+              const v = e.target.value
+              onFromChange(v)
+              if (v && !to) onToChange(v)
+            }}
+            style={dateStyle}
+          />
+        </label>
+        <label style={{ minWidth: 0 }}>
+          <span style={miniLabel}>To</span>
+          <input
+            type="date"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => {
+              const v = e.target.value
+              onToChange(v)
+              if (v && !from) onFromChange(v)
+            }}
+            style={dateStyle}
+          />
+        </label>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+        <span style={{ color: hasValue ? 'var(--foreground)' : 'var(--foreground-subtle)' }}>
+          <span style={{ color: 'var(--foreground-subtle)' }}>Showing: </span>
+          <span style={{ fontWeight: hasValue ? 500 : 400 }}>{summary}</span>
+        </span>
+        {hasValue && (
+          <button
+            type="button"
+            onClick={() => {
+              onFromChange('')
+              onToChange('')
+            }}
+            style={{
+              padding: 0, border: 'none', background: 'none', cursor: 'pointer',
+              fontSize: 12, color: 'var(--accent)', fontFamily: 'var(--font-sans)',
+            }}
+          >
+            Clear
+          </button>
+        )}
       </div>
     </div>
   )

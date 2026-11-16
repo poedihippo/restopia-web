@@ -12,6 +12,7 @@ import { getProductUomName } from '@/utils/productUomName'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
+import { useBranchUomDisplay } from '@/hooks/useBranchUomDisplay'
 import { useAuth } from '@/hooks/useAuth'
 import StockMovementSheet from './StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -439,6 +440,8 @@ const REFERENCE_TYPE_OPTIONS: { value: string; label: string }[] = [
 export default function StockMovementView() {
   const router = useRouter()
   const { hasPermission } = useAuth()
+  // Balance follows Stock's "Branch Type" unit (e.g. 2.400 GR → 2,4 KG).
+  const { toBranchUnit } = useBranchUomDisplay()
   const canRead = hasPermission("stock-movement.read");
   const canCreate = hasPermission('stock-movement.create')
   const [search, setSearch] = useState('')
@@ -1074,7 +1077,19 @@ export default function StockMovementView() {
                       {/* Balance (stok sesudah pergerakan) */}
                       <td style={cellBase}>
                         {canRead ? (
-                          <StockValueCell value={item.stock_after} uomCode={getBaseUomCode(item)} />
+                          (() => {
+                            if (item.stock_after == null) return <StockValueCell />
+                            const productId =
+                              item.product_inventory?.product_uom_batch?.product_uom?.product?.id ??
+                              item.product_inventory?.product_uom?.product?.id
+                            const bal = toBranchUnit(
+                              Number(item.stock_after),
+                              getBaseUomCode(item),
+                              productId,
+                              getConversions(item),
+                            )
+                            return <StockValueCell value={bal.qty} uomCode={bal.unit} />
+                          })()
                         ) : (
                           '***'
                         )}

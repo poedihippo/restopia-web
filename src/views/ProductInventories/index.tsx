@@ -13,6 +13,7 @@ import { getProductUomName } from '@/utils/productUomName'
 import { availableStockOf } from '@/utils/inventoryStock'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
+import { useBranchUomDisplay } from '@/hooks/useBranchUomDisplay'
 import ProductInventorySheet from './ProductInventorySheet'
 import ChangeDimensionModal from './ChangeDimensionModal'
 import StockMovementSheet from '../StockMovement/StockMovementSheet'
@@ -21,10 +22,7 @@ import MultiSearchableSelect from '@/components/MultiSearchableSelect'
 import { ActiveSegment, FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, DateRange, countActive } from '@/components/ListFilters'
 import api from '@/hooks/useApi'
 import {
-  convertUp,
-  convertDown,
   packagingChains,
-  toConversionEntries,
   type ConversionEntry,
   type UnitDisplayMode,
 } from '@/utils/unitDisplay'
@@ -355,51 +353,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const getProductUom = (id: number) =>
     productUomsAll.find((pu: any) => pu.id === id)
 
-  // Product-UOMs tagged with the user's branch.type. Fetched separately with
-  // filter[branch_type] and paged through: the backend caps per_page at 200,
-  // so the global `productUomsAll` list above rarely contains them.
-  const { data: branchPuoms = [] } = useQuery({
-    queryKey: ['product-uoms', 'branch-type-display', userBranchType],
-    enabled: !!userBranchType,
-    staleTime: 5 * 60_000,
-    queryFn: async () => {
-      const rows: any[] = []
-      for (let p = 1; p <= 50; p++) {
-        const body = await productUomsService
-          .list({
-            page: p,
-            per_page: 200,
-            include: 'product,product.conversions,uom',
-            'filter[branch_type]': userBranchType,
-          } as any)
-          .then((r) => r.data as any)
-        rows.push(...(body?.data ?? []))
-        if (p >= Number(body?.meta?.last_page ?? 1)) break
-      }
-      return rows
-    },
-  })
-
-  // Branch-type display: for each product, pick ONE product-UOM whose
-  // branch_types includes the logged-in user's branch.type (from auth/me).
-  // Stock (base_stock in base unit) is converted into that UOM, e.g.
-  // 50.000 GR → 50 KG when the user's branch type is "production" and
-  // the KG product-UOM has branch_types containing "production".
-  const branchUomByProductId = useMemo(() => {
-    const map = new Map<number, { uomCode: string; conversions: ConversionEntry[] }>()
-    const t = userBranchType.toLowerCase()
-    if (!t) return map
-    for (const pu of [...branchPuoms, ...productUomsAll]) {
-      const pid = Number(pu?.product_id)
-      if (!pid || map.has(pid)) continue
-      if (!Array.isArray(pu?.branch_types)) continue
-      if (!pu.branch_types.some((bt: string) => String(bt).toLowerCase() === t)) continue
-      const uomCode = pu.uom?.code ?? ''
-      if (!uomCode) continue
-      map.set(pid, { uomCode, conversions: toConversionEntries(pu.product?.conversions) })
-    }
-    return map
-  }, [branchPuoms, productUomsAll, userBranchType])
+  // Branch-type display (shared with Stock Movements' Balance column).
+  const { toBranchUnit } = useBranchUomDisplay(productUomsAll)
 
   const filteredItems = items.filter((i) => {
     const currentStock = Number(i.stock ?? i.qty ?? 0)
@@ -887,20 +842,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                       item.product_uom_batch?.product_uom?.product?.id ??
                       item.product_uom?.product?.id ??
                       puFallback?.product?.id
-                    const target = productId ? branchUomByProductId.get(Number(productId)) : undefined
-                    if (target?.uomCode) {
-                      // Row conversions may be missing (include `product`
-                      // does not always nest them) — fall back to the ones
-                      // loaded with the branch product-UOM. The branch UOM
-                      // can sit above or below the base unit, so try both
-                      // directions.
-                      const rowConvs = toConversionEntries(conversions)
-                      const convs = rowConvs.length > 0 ? rowConvs : target.conversions
-                      const converted =
-                        convertUp(value, baseUomCode, target.uomCode, convs) ??
-                        convertDown(value, baseUomCode, target.uomCode, convs)
-                      if (converted !== null) return { qty: converted, unit: target.uomCode }
-                    }
+                    return toBranchUnit(value, baseUomCode, productId, conversions)
                   }
                   return { qty: value, unit: baseUomCode }
                 }
@@ -1048,15 +990,25 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                     </td>
                     {/* Qty / System Stock */}
                     <td style={{ padding: '12px 16px' }}>
+                      {/* Highlighted pill: bold number + smaller unit; amber when nothing is left. */}
                       <span
+                        title={stockDisplay}
                         style={{
-                          fontSize: 13,
-                          fontWeight: 400,
+                          display: 'inline-flex',
+                          alignItems: 'baseline',
+                          gap: 4,
+                          padding: '4px 10px',
+                          borderRadius: 999,
                           whiteSpace: 'nowrap',
-                          color: isLow ? 'var(--warning)' : 'var(--foreground-muted)',
+                          background: isLow ? 'var(--warning-bg)' : 'var(--accent-light-bg)',
+                          border: `1px solid ${isLow ? 'var(--warning)' : 'rgba(198, 139, 78, 0.3)'}`,
+                          color: isLow ? 'var(--warning)' : 'var(--accent)',
                         }}
                       >
-                        {stockDisplay}
+                        <span style={{ fontSize: 13.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                          {stock.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.02em' }}>{stock.unit}</span>
                       </span>
                     </td>
 
