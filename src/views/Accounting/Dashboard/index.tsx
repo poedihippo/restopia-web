@@ -182,7 +182,7 @@ const QUICK_MENU: { title: string; links: QuickLink[] }[] = [
       { label: 'AR Aging', href: '/accounting/reports/ar-aging', icon: ArrowDownLeft, permission: 'report.menu' },
       { label: 'AP Aging', href: '/accounting/reports/ap-aging', icon: ArrowUpRight, permission: 'journal.menu' },
       { label: 'Kartu Piutang', href: '/accounting/reports/customer-statements', icon: Users, permission: 'report.menu' },
-      { label: 'Kartu Hutang', href: '/accounting/reports/supplier-debts', icon: HandCoins, permission: 'report.menu' },
+      { label: 'Kartu Hutang', href: '/accounting/reports/supplier-debts', icon: HandCoins, permission: 'kartu-hutang-supplier.menu' },
     ],
   },
   {

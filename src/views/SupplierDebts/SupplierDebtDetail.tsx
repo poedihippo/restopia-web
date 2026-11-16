@@ -412,7 +412,7 @@ export default function SupplierDebtDetailView({ mode = 'report' }: { mode?: Sup
 
   const { user, hasPermission, isSuperadmin } = useAuth()
   const activeBranchName = ((user as any)?.branch?.name as string | undefined) ?? ''
-  const canRead = isSuperadmin || hasPermission('report.read') || hasPermission('purchase-order.read')
+  const canRead = isSuperadmin || hasPermission('kartu-hutang-supplier.read')
   // The accounting copy is a report only; payments are recorded from the
   // Purchase Orders › Kartu Hutang Supplier page.
   const canPay = mode === 'purchase' && (isSuperadmin || hasPermission('payment.create'))

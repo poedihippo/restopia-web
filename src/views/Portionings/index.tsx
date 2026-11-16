@@ -6,7 +6,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { portioningsService } from '@/services/portionings.service'
-import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
@@ -14,12 +13,12 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 import type { Portioning } from '@/types/api'
 import {
   Plus,
-  Eye,
   Pencil,
   Trash2,
   Scissors,
   ChevronDown,
   ChevronRight,
+  ArrowRight,
 } from 'lucide-react'
 
 const STATUS_META = {
@@ -71,27 +70,60 @@ const materialName = (m: any): string => {
   return m?.product_inventory_id ? `Inventory #${m.product_inventory_id}` : '—'
 }
 
-function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 12, color: 'var(--foreground)' }}>{value}</span>
-    </div>
-  )
+/** Expiry as dd-mm-yyyy, matching the list's Date column. */
+const fmtDate = (v: unknown): string => {
+  const s = String(v ?? '').slice(0, 10)
+  const [y, m, d] = s.split('-')
+  return y && m && d ? `${d}-${m}-${y}` : '—'
 }
 
-function DetailMaterialList({ title, items }: { title: string; items: any[] }) {
-  if (items.length === 0) return null
+/** Output product name of a detail. */
+const outName = (d: any): string =>
+  d?.product_uom?.product?.name ?? d?.product_uom?.name ?? `Product UOM #${d?.product_uom_id}`
+
+/**
+ * One cut as a sentence: "2 × Choco Monkey Loaf → 4 × Deli Box Choco Monkey",
+ * then a quiet meta line with only what adds information (batch is hidden when
+ * it is just the portioning code, stage when it is the usual "finished").
+ */
+function CutLine({ d, portioningCode }: { d: any; portioningCode?: string }) {
+  const materials: any[] = d.materials ?? []
+  const base = materials.filter((m) => m.role === 'base')
+  const packaging = materials.filter((m) => m.role !== 'base')
+  const meta: React.ReactNode[] = []
+  if (d.yield_qty != null) meta.push(`Yield 1:${qty(d.yield_qty)}`)
+  if (d.expiry_date) meta.push(`Exp ${fmtDate(d.expiry_date)}`)
+  if (d.batch_code && d.batch_code !== portioningCode) meta.push(`Batch ${d.batch_code}`)
+  if (d.stage && d.stage !== 'finished') meta.push(`Stage ${d.stage}`)
+  if (d.owner_ref && d.owner_ref !== 'GENERAL') meta.push(d.owner_ref)
+  if (Number(d.scrap_qty) > 0)
+    meta.push(<span key="scrap" style={{ color: 'var(--warning)' }}>Scrap {qty(d.scrap_qty)}</span>)
+  if (packaging.length > 0)
+    meta.push(`Kemasan ${packaging.map((m) => `${materialName(m)} × ${qty(m.qty_per_unit)}`).join(', ')}`)
+
+  const num: React.CSSProperties = { fontWeight: 600, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums' }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)' }}>{title}</span>
-      {items.map((m, i) => (
-        <span key={m.id ?? i} style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-          • {materialName(m)} — <strong style={{ color: 'var(--foreground)' }}>{qty(m.qty_per_unit)}</strong> per hasil
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13, color: 'var(--foreground-muted)' }}>
+        <span>
+          <span style={num}>{qty(d.source_qty)}</span> × {base.map(materialName).join(', ') || '—'}
         </span>
-      ))}
+        <ArrowRight size={13} style={{ color: 'var(--accent-light)', flex: 'none' }} aria-label="menjadi" />
+        <span>
+          <span style={num}>{qty(d.qty)}</span> ×{' '}
+          <span style={{ fontWeight: 500, color: 'var(--foreground)' }}>{outName(d)}</span>
+        </span>
+      </div>
+      {meta.length > 0 && (
+        <div style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>
+          {meta.map((m, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <span style={{ margin: '0 6px' }}>·</span>}
+              {m}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -99,7 +131,7 @@ function DetailMaterialList({ title, items }: { title: string; items: any[] }) {
 export default function PortioningsView() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission, isSuperadmin, user } = useAuth()
+  const { hasPermission } = useAuth()
   const canRead = hasPermission('production.read')
   const canCreate = hasPermission('production.create')
   const canUpdate = hasPermission('production.update')
@@ -112,7 +144,6 @@ export default function PortioningsView() {
   const [statusFilter, setStatusFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [branchFilter, setBranchFilter] = useState('')
   const [sort, setSort] = useState('-id')
   const [cancelConfirm, setCancelConfirm] = useState<Portioning | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -125,34 +156,23 @@ export default function PortioningsView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter, dateFrom, dateTo, sort, branchFilter])
-
-  // Branch filter options: superadmin sees every branch, other users only
-  // the branches they're assigned to (filter hidden for single-branch users).
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
-    enabled: !!isSuperadmin,
-  })
-  const availableBranches: any[] = isSuperadmin
-    ? (branchesData as any)?.data ?? []
-    : (user as any)?.branches ?? []
-  const showBranchFilter = !!isSuperadmin || availableBranches.length > 1
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo, sort])
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
-    queryKey: ['portionings', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, sort, branchFilter],
+    queryKey: ['portionings', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, sort],
     queryFn: () =>
       portioningsService
         .list({
           page,
           per_page: perPage,
-          include: 'created_by,details',
+          // details.materials too, so every row can render its cuts without
+          // a per-row fetch (single-cut rows are always shown open).
+          include: 'created_by,details,details.materials',
           sort,
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
           'filter[date_gte]': dateFrom || undefined,
           'filter[date_lte]': dateTo || undefined,
-          'filter[branch_id]': branchFilter || undefined,
         } as any)
         .then((r) => r.data),
     enabled: canRead,
@@ -163,20 +183,6 @@ export default function PortioningsView() {
 
   const items: Portioning[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
-
-  const { data: detailData, isFetching: isDetailLoading } = useQuery({
-    queryKey: ['portionings', 'detail', expandedId],
-    queryFn: () =>
-      portioningsService
-        .findById(expandedId!, {
-          include: 'created_by,updated_by,details,details.materials',
-        })
-        .then((r) => r.data),
-    enabled: expandedId !== null,
-  })
-
-  const expandedItem: Portioning | undefined =
-    (detailData as any)?.data?.data ?? (detailData as any)?.data
 
   const cancelMutation = useMutation({
     mutationFn: (id: number) => portioningsService.delete(id),
@@ -245,13 +251,12 @@ export default function PortioningsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search code or description..."
-        activeCount={countActive(statusFilter, branchFilter, dateFrom, dateTo)}
+        activeCount={countActive(statusFilter, dateFrom, dateTo)}
         onClear={() => {
           setSearch('')
           setStatusFilter('')
           setDateFrom('')
           setDateTo('')
-          setBranchFilter('')
           setSort('-id')
           setPage(1)
         }}
@@ -262,21 +267,6 @@ export default function PortioningsView() {
               <option value="pending">Pending</option>
               <option value="final">Final</option>
             </FilterSelect>
-            {showBranchFilter && (
-              <FilterSelect
-                value={branchFilter}
-                onChange={(e) => {
-                  setBranchFilter(e.target.value)
-                }}
-              >
-                <option value="">All Branches</option>
-                {availableBranches.map((b: any) => (
-                  <option key={b.id} value={String(b.id)}>
-                    {b.name}
-                  </option>
-                ))}
-              </FilterSelect>
-            )}
           </>
         }
         actions={
@@ -314,7 +304,7 @@ export default function PortioningsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
-              {['No.', 'Code', 'Branch', 'Date', 'Status', 'Items', 'Source', 'Output', 'Created', ''].map(
+              {['No.', 'Code', 'Potongan', 'Status', 'Created', ''].map(
                 (h, i) => (
                   <th
                     key={i}
@@ -337,7 +327,7 @@ export default function PortioningsView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={10} style={{ padding: '48px 16px', textAlign: 'center' }}>
+                <td colSpan={6} style={{ padding: '48px 16px', textAlign: 'center' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     {[60, 40, 80, 50, 70].map((w, i) => (
                       <div
@@ -352,7 +342,7 @@ export default function PortioningsView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={6}
                   style={{
                     padding: '48px 16px',
                     textAlign: 'center',
@@ -366,7 +356,7 @@ export default function PortioningsView() {
             )}
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={6}>
                   <div
                     style={{
                       padding: 48,
@@ -385,244 +375,96 @@ export default function PortioningsView() {
               </tr>
             )}
             {items.map((item, idx) => {
+              const cuts = item.details ?? []
               const isExpanded = expandedId === item.id
+              const shown = isExpanded ? cuts : cuts.slice(0, 1)
+              const td: React.CSSProperties = { padding: '14px 16px', verticalAlign: 'top' }
               return (
-                <React.Fragment key={item.id}>
-                  <tr
-                    style={{
-                      borderBottom: isExpanded ? 'none' : '1px solid var(--border)',
-                      background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
-                    }}
-                    onMouseEnter={() => setHoveredRow(item.id)}
-                    onMouseLeave={() => setHoveredRow(null)}
-                  >
-                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      <button
-                        onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--foreground-muted)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          padding: 0,
-                          font: 'inherit',
-                        }}
-                        title={isExpanded ? 'Collapse details' : 'Expand details'}
-                      >
-                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        <span>{(page - 1) * perPage + idx + 1}</span>
-                      </button>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span
-                        style={{
-                          fontFamily: 'monospace',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: 'var(--accent)',
-                        }}
-                      >
-                        {item.code}
-                      </span>
-                      {item.description && (
-                        <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 2 }}>
-                          {item.description}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      {item.branch?.name ?? '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      {item.date ?? '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <StatusBadge status={item.status} />
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 16px',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: 'var(--foreground)',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {item.details?.length ?? 0}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      {item.source_stage
-                        ? `${item.source_stage}${item.source_owner_ref && item.source_owner_ref !== item.source_stage ? ` · ${item.source_owner_ref}` : ''}`
-                        : '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      {item.output_stage
-                        ? `${item.output_stage}${item.output_owner_ref && item.output_owner_ref !== item.output_stage ? ` · ${item.output_owner_ref}` : ''}`
-                        : '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      {item.created_by?.name ?? item.created_at ?? '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                          title="View details"
-                        >
-                          <Eye size={14} />
-                        </button>
-                        {canUpdate && item.status === 'pending' && (
+                <tr
+                  key={item.id}
+                  style={{
+                    borderBottom: '1px solid var(--border)',
+                    background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
+                  }}
+                  onMouseEnter={() => setHoveredRow(item.id)}
+                  onMouseLeave={() => setHoveredRow(null)}
+                >
+                  <td style={{ ...td, fontSize: 13, color: 'var(--foreground-subtle)', width: 48 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
+                  <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                    <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
+                      {item.code}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--foreground-subtle)', marginTop: 3 }}>
+                      {item.date ? fmtDate(item.date) : '—'}
+                    </div>
+                  </td>
+                  <td style={{ ...td, width: '100%' }}>
+                    {cuts.length === 0 ? (
+                      <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {shown.map((d) => (
+                          <CutLine key={d.id} d={d} portioningCode={item.code} />
+                        ))}
+                        {cuts.length > 1 && (
                           <button
-                            onClick={() => router.push(`/production/portioning/${item.id}/edit`)}
+                            type="button"
+                            onClick={() => setExpandedId(isExpanded ? null : item.id)}
                             style={{
-                              padding: 6,
-                              background: 'none',
-                              border: 'none',
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              color: 'var(--info)',
-                              display: 'flex',
+                              alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 4,
+                              padding: 0, background: 'none', border: 'none', cursor: 'pointer',
+                              fontSize: 12, fontWeight: 500, color: 'var(--accent)', font: 'inherit',
                             }}
-                            title="Edit draft"
                           >
-                            <Pencil size={14} />
+                            {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                            {isExpanded ? 'Sembunyikan' : `+${cuts.length - 1} potongan lainnya`}
                           </button>
                         )}
-                        {canDelete && (
-                          <button
-                            onClick={() => setCancelConfirm(item)}
-                            title="Cancel portioning"
-                            style={{
-                              padding: 6,
-                              background: 'none',
-                              border: 'none',
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              color: 'var(--destructive)',
-                              display: 'flex',
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                        {item.description && (
+                          <div style={{ fontSize: 12, color: 'var(--foreground-muted)', fontStyle: 'italic' }}>
+                            {item.description}
+                          </div>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                  {isExpanded && (
-                    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
-                      <td colSpan={10} style={{ padding: '4px 16px 16px 48px' }}>
-                        {isDetailLoading && (
-                          <div style={{ fontSize: 12, color: 'var(--foreground-muted)', padding: '8px 0' }}>
-                            Loading details...
-                          </div>
-                        )}
-                        {!isDetailLoading && expandedItem && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 600,
-                                color: 'var(--foreground-muted)',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.6px',
-                              }}
-                            >
-                              Portioning Details
-                            </span>
-                            {(expandedItem.details ?? []).length === 0 && (
-                              <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>
-                                No details
-                              </span>
-                            )}
-                            {(expandedItem.details ?? []).map((d) => {
-                              const materials = d.materials ?? []
-                              return (
-                                <div
-                                  key={d.id}
-                                  style={{
-                                    border: '1px solid var(--border)',
-                                    borderRadius: 'var(--radius-md)',
-                                    background: 'var(--surface)',
-                                    padding: '10px 14px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 10,
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                                      {d.product_uom?.name ?? `Product UOM #${d.product_uom_id}`}
-                                    </span>
-                                    {d.product_uom?.code && (
-                                      <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', fontFamily: 'monospace' }}>
-                                        {d.product_uom.code}
-                                      </span>
-                                    )}
-                                    <StatusBadge status={d.status} />
-                                  </div>
-
-                                  <div
-                                    style={{
-                                      display: 'grid',
-                                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                                      gap: 10,
-                                    }}
-                                  >
-                                    <DetailField label="Qty hasil" value={qty(d.qty)} />
-                                    <DetailField label="Source qty" value={qty(d.source_qty)} />
-                                    <DetailField label="Scrap" value={qty(d.scrap_qty)} />
-                                    <DetailField
-                                      label="Yield"
-                                      value={d.yield_qty == null ? '—' : qty(d.yield_qty)}
-                                    />
-                                    <DetailField
-                                      label="Base cake"
-                                      value={
-                                        materials
-                                          .filter((m) => m.role === 'base')
-                                          .map(materialName)
-                                          .join(', ') || '—'
-                                      }
-                                    />
-                                    <DetailField label="Batch" value={d.batch_code || '—'} />
-                                    <DetailField label="Expired" value={d.expiry_date || '—'} />
-                                    <DetailField label="Stage" value={d.stage || '—'} />
-                                    <DetailField label="Owner" value={d.owner_ref || '—'} />
-                                  </div>
-
-                                  {d.description && (
-                                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{d.description}</span>
-                                  )}
-
-                                  <DetailMaterialList
-                                    title="Base cake yang dipotong (per 1 hasil)"
-                                    items={materials.filter((m) => m.role === 'base')}
-                                  />
-                                  <DetailMaterialList
-                                    title="Kemasan yang dipakai (per 1 hasil)"
-                                    items={materials.filter((m) => m.role !== 'base')}
-                                  />
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
+                    )}
+                  </td>
+                  <td style={td}>
+                    <StatusBadge status={item.status} />
+                  </td>
+                  <td style={{ ...td, fontSize: 13, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
+                    {item.created_by?.name ?? '—'}
+                  </td>
+                  <td style={{ ...td, paddingTop: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                      {canUpdate && item.status === 'pending' && (
+                        <button
+                          onClick={() => router.push(`/production/portioning/${item.id}/edit`)}
+                          style={{
+                            padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer', color: 'var(--info)', display: 'flex',
+                          }}
+                          title="Edit draft"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => setCancelConfirm(item)}
+                          title="Cancel portioning"
+                          style={{
+                            padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer', color: 'var(--destructive)', display: 'flex',
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
               )
             })}
           </tbody>

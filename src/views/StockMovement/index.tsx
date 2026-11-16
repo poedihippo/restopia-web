@@ -9,7 +9,6 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import { deliveriesService } from '@/services/deliveries.service'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { productsService } from '@/services/products.service'
-import { branchesService } from '@/services/branches.service'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import StockMovementSheet from './StockMovementSheet'
@@ -439,7 +438,7 @@ const REFERENCE_TYPE_OPTIONS: { value: string; label: string }[] = [
 
 export default function StockMovementView() {
   const router = useRouter()
-  const { hasPermission, isSuperadmin, user } = useAuth()
+  const { hasPermission } = useAuth()
   const canRead = hasPermission("stock-movement.read");
   const canCreate = hasPermission('stock-movement.create')
   const [search, setSearch] = useState('')
@@ -463,7 +462,6 @@ export default function StockMovementView() {
   // Single product type (filter[product_type]) — only offered when the menu
   // hasn't already pinned filter[product_types] via the URL.
   const [productTypeFilter, setProductTypeFilter] = useState('')
-  const [branchFilter, setBranchFilter] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   // No., Tanggal/Dokumen, Produk, Batch, In, Out, Balance
@@ -501,19 +499,8 @@ export default function StockMovementView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, directionFilter, refTypeFilter, productId, productInventoryId, startDate, endDate, productTypeFilter, branchFilter])
+  }, [debouncedSearch, directionFilter, refTypeFilter, productId, productInventoryId, startDate, endDate, productTypeFilter])
 
-  // Branch filter options: superadmin sees every branch, other users only
-  // the branches they're assigned to (filter hidden for single-branch users).
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
-    enabled: !!isSuperadmin,
-  })
-  const availableBranches: any[] = isSuperadmin
-    ? (branchesData as any)?.data ?? []
-    : (user as any)?.branches ?? []
-  const showBranchFilter = !!isSuperadmin || availableBranches.length > 1
 
   const productsOpts = useInfiniteOptions<any>({
     queryKey: ['stock-movements-product-search', productSearchDebounced],
@@ -556,7 +543,7 @@ export default function StockMovementView() {
   ]
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
-    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, refTypeFilter, productId, productInventoryId, productTypes, productTypeFilter, branchFilter],
+    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, refTypeFilter, productId, productInventoryId, productTypes, productTypeFilter],
     queryFn: () =>
       stockMovementsService
         .list({
@@ -572,7 +559,6 @@ export default function StockMovementView() {
           // (filter[product_types] sudah didukung backend).
           'filter[product_types]': productTypes || undefined,
           'filter[product_type]': (!productTypes && productTypeFilter) || undefined,
-          'filter[branch_id]': branchFilter || undefined,
           include:
             'branch,product_inventory,' +
             'product_inventory.product_uom_batch,' +
@@ -737,7 +723,7 @@ export default function StockMovementView() {
         onSearchChange={setSearch}
         searchPlaceholder="Cari pergerakan..."
         activeCount={countActive(
-          directionFilter, refTypeFilter, productId, productInventoryId, productTypeFilter, branchFilter, startDate, endDate,
+          directionFilter, refTypeFilter, productId, productInventoryId, productTypeFilter, startDate, endDate,
         )}
         onClear={() => {
           setDirectionFilter('')
@@ -745,7 +731,6 @@ export default function StockMovementView() {
           setProductId(0)
           clearProductInventoryFilter()
           setProductTypeFilter('')
-          setBranchFilter('')
           setStartDate('')
           setEndDate('')
           setPage(1)
@@ -844,25 +829,7 @@ export default function StockMovementView() {
             </FilterField>
           )}
         </FilterGroup>
-        <FilterGroup title={showBranchFilter ? 'Branch & dates' : 'Dates'}>
-          {/* Filter cabang (filter[branch_id]) */}
-          {showBranchFilter && (
-            <FilterField label="Cabang">
-              <FilterSelect
-                block
-                value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-                title="Filter cabang"
-              >
-                <option value="">Semua Cabang</option>
-                {availableBranches.map((b: any) => (
-                  <option key={b.id} value={String(b.id)}>
-                    {b.name}
-                  </option>
-                ))}
-              </FilterSelect>
-            </FilterField>
-          )}
+        <FilterGroup title="Dates">
           {/* Date range (client-side) */}
           <FilterField label="Tanggal">
             <DateRange
