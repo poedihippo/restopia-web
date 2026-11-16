@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Trash2, Loader2, Save, Eye, Scissors, ArrowRight, ChevronDown } from 'lucide-react'
+import { Trash2, Loader2, Save, Eye, Scissors, ArrowRight, ChevronDown } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 import { portioningsService } from '@/services/portionings.service'
 import { companiesService } from '@/services/companies.service'
@@ -400,11 +400,12 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
     },
   })
 
-  const { fields: detailFields, append: appendDetail, remove: removeDetail } =
+  const { fields: detailFields, remove: removeDetail } =
     useFieldArray({ control, name: 'details' })
 
-  const handleAddDetail = () => appendDetail(emptyDetail())
-  useFormKeyboardNavigation({ onAddItem: handleAddDetail })
+  // One cut per portioning from the form: no "Tambah Potongan" button and no
+  // add-row shortcut (records saved with several cuts still list them all).
+  useFormKeyboardNavigation({})
 
   const watchedValues = watch()
 
@@ -1056,9 +1057,6 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
           <div style={cardHeaderStyle}>
             <span style={sectionTitleStyle}>
               Potongan (SKU Hasil)
-              <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--foreground-subtle)', fontWeight: 400 }}>
-                {detailFields.length} baris
-              </span>
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
               {canCreateCut && (
@@ -1072,15 +1070,6 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                   Buat Product Cut
                 </button>
               )}
-              <button
-                type="button"
-                className="v2-btn v2-btn-outline v2-btn-sm"
-                onClick={handleAddDetail}
-                style={{ height: 30 }}
-              >
-                <Plus size={13} />
-                Tambah Potongan
-              </button>
             </div>
           </div>
 

@@ -8,7 +8,6 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { productUomsService } from '@/services/product-uoms.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { companiesService } from '@/services/companies.service'
-import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName } from '@/utils/productUomName'
 import { availableStockOf } from '@/utils/inventoryStock'
@@ -18,7 +17,6 @@ import ProductInventorySheet from './ProductInventorySheet'
 import ChangeDimensionModal from './ChangeDimensionModal'
 import StockMovementSheet from '../StockMovement/StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import SearchableSelect from '@/components/SearchableSelect'
 import MultiSearchableSelect from '@/components/MultiSearchableSelect'
 import { ActiveSegment, FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, DateRange, countActive } from '@/components/ListFilters'
 import api from '@/hooks/useApi'
@@ -136,7 +134,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [expiryDateLte, setExpiryDateLte] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | ''>('active')
   const [branchTypeFilter, setBranchTypeFilter] = useState<string>('')
-  const [branchFilter, setBranchFilter] = useState<number>(0)
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [typeFilter, setTypeFilter] = useState<string | ''>(defaultType ?? '')
   const [ownerRefFilter, setOwnerRefFilter] = useState<(number | string)[]>([])
@@ -229,24 +226,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, debouncedExpiryDateLte, categoryFilter, typeFilter, debouncedOwnerRef, debouncedStage, debouncedLocationRef, hideEmpty, statusFilter, branchTypeFilter, branchFilter])
+  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, debouncedExpiryDateLte, categoryFilter, typeFilter, debouncedOwnerRef, debouncedStage, debouncedLocationRef, hideEmpty, statusFilter, branchTypeFilter])
 
-  // Non-superadmins are always scoped to their active branch by the API, so
-  // the branch filter is only offered (and fetched) for superadmins.
-  const isSuperadmin = (user as any)?.type === 'superadmin'
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
-    enabled: isSuperadmin,
-  })
-  const branchOptions = [
-    { value: 0, label: 'All locations' },
-    ...(((branchesData as any)?.data ?? []) as any[]).map((b) => ({
-      value: b.id as number,
-      label: (b.name as string) ?? '',
-      sublabel: b.code as string | undefined,
-    })),
-  ]
 
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -312,7 +293,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     // Default hanya inventori aktif (kolom Status sudah tidak ditampilkan).
     'filter[status]': statusFilter || undefined,
     'filter[branch_type]': branchTypeFilter || undefined,
-    'filter[branch_id]': isSuperadmin && branchFilter ? String(branchFilter) : undefined,
     'filter[stock_gte]': effectiveStockGte || undefined,
     'filter[stock_lte]': debouncedStockLte || undefined,
     'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
@@ -328,7 +308,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   }
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
-    queryKey: ['product-inventories', page, perPage, debouncedSearch, effectiveStockGte, debouncedStockLte, debouncedExpiryDateGte, debouncedExpiryDateLte, categoryFilter, typeFilter, activeProductTypes, debouncedOwnerRef, debouncedStage, debouncedLocationRef, statusFilter, branchTypeFilter, branchFilter],
+    queryKey: ['product-inventories', page, perPage, debouncedSearch, effectiveStockGte, debouncedStockLte, debouncedExpiryDateGte, debouncedExpiryDateLte, categoryFilter, typeFilter, activeProductTypes, debouncedOwnerRef, debouncedStage, debouncedLocationRef, statusFilter, branchTypeFilter],
     queryFn: () =>
       productInventoriesService
         .list({
@@ -523,7 +503,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           statusFilter !== 'active', categoryFilter, defaultType ? '' : typeFilter,
           stockGte, stockLte, expiryDateGte, expiryDateLte,
           ownerRefFilter, stageFilter, locationRefFilter,
-          branchTypeFilter, branchFilter,
+          branchTypeFilter,
         )}
         onClear={() => {
           setStatusFilter('active')
@@ -537,7 +517,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           setStageFilter([])
           setLocationRefFilter([])
           setBranchTypeFilter('')
-          setBranchFilter(0)
           setPage(1)
         }}
         quick={
@@ -733,21 +712,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
               <option value="other">Other</option>
             </FilterSelect>
           </FilterField>
-          {isSuperadmin && (
-            <FilterField label="Branch">
-              <SearchableSelect
-                value={branchFilter}
-                onChange={(v) => {
-                  setBranchFilter(Number(v) || 0)
-                  setPage(1)
-                }}
-                options={branchOptions}
-                placeholder="All locations"
-                searchPlaceholder="Search location..."
-                triggerStyle={{ height: 36, padding: '0 12px', fontSize: 13, borderRadius: 'var(--radius-md)' }}
-              />
-            </FilterField>
-          )}
         </FilterGroup>
       </FilterBar>
       {/* Summary bar */}
@@ -796,9 +760,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 { label: 'UOM', width: 100 },
                 { label: 'Packaging (Largest - Smallest)', width: 150 },
                 { label: 'Batch Code', width: 160 },
-                { label: 'Owner', width: 120 },
                 { label: 'Stage', width: 110 },
-                { label: 'Location', width: 120 },
                 { label: 'Qty', width: 100 },
                 { label: '', width: 110 },
               ].map(({ label, width }, i) => (
@@ -824,7 +786,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -853,7 +815,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             {isError && (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={8}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -868,7 +830,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
             {!isLoading && !isError && filteredItems.length === 0 && (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={8}>
                   <div
                     style={{
                       padding: 48,
@@ -1045,16 +1007,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                     >
                       {canRead ? item.product_uom_batch?.batch_code ?? '—' : "***"}
                     </td>
-                    {/* Owner */}
-                    <td
-                      style={{
-                        padding: '12px 16px',
-                        fontSize: 13,
-                        color: 'var(--foreground-muted)',
-                      }}
-                    >
-                      {item.owner_ref ?? '—'}
-                    </td>
                     {/* Stage */}
                     <td
                       style={{
@@ -1093,16 +1045,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                       ) : (
                         '—'
                       )}
-                    </td>
-                    {/* Location */}
-                    <td
-                      style={{
-                        padding: '12px 16px',
-                        fontSize: 13,
-                        color: 'var(--foreground-muted)',
-                      }}
-                    >
-                      {item.location_ref ?? '—'}
                     </td>
                     {/* Qty / System Stock */}
                     <td style={{ padding: '12px 16px' }}>

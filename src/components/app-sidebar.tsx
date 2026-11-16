@@ -177,7 +177,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Purchase Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.menu' },
           { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-purchase-order.menu' },
           { label: 'Incoming PO Requests', href: '/purchase/requested-orders', permission: 'purchase-order.menu' },
-          { label: 'Kartu Hutang Supplier', href: '/purchase/supplier-debts', permission: ['payment.menu', 'purchase-order.menu'] },
+          { label: 'Kartu Hutang Supplier', href: '/purchase/supplier-debts', permission: 'kartu-hutang-supplier.menu' },
         ],
       },
       {
@@ -277,7 +277,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'AR Aging', href: '/accounting/reports/ar-aging', permission: 'report.menu' },
           { label: 'AP Aging', href: '/accounting/reports/ap-aging', permission: 'journal.menu' },
           { label: 'Customer Statements', href: '/accounting/reports/customer-statements', permission: 'report.menu' },
-          { label: 'Kartu Hutang Supplier', href: '/accounting/reports/supplier-debts', permission: 'report.menu' },
+          { label: 'Kartu Hutang Supplier', href: '/accounting/reports/supplier-debts', permission: 'kartu-hutang-supplier.menu' },
           { label: 'Payments Report', href: '/accounting/reports/payments-report', permission: 'report.menu' },
         ],
       },
