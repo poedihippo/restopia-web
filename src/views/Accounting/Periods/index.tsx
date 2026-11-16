@@ -1,5 +1,5 @@
 'use client'
-import { formatDate, toInputDate } from '@/utils/date';
+import { formatDate, parseApiDate, toInputDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -14,12 +14,12 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { periodEditBlock, blockedStyle } from '@/lib/actionGuards'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Controller } from 'react-hook-form'
 import {
   Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
-  X, Loader2, Calendar, CheckCircle2, Lock, LockOpen, Download,
+  X, Loader2, Calendar, CheckCircle2, Lock, LockOpen, Download, AlertTriangle,
 } from 'lucide-react'
 
 interface Period {
@@ -59,6 +59,39 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
 const fmtDate = (d: string) => formatDate(d)
 
+// Posting only checks is_closed (periodguard.OpenPeriodForDate); is_active is
+// not used by the backend, so the status shown here comes from is_closed + today.
+type PeriodState = 'closed' | 'current' | 'overdue' | 'upcoming'
+
+const dayKey = (d: Date) => d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
+
+function periodState(p: Period): PeriodState {
+  if (p.is_closed) return 'closed'
+  const today = dayKey(new Date())
+  const start = parseApiDate(p.start_date)
+  const end = parseApiDate(p.end_date)
+  if (end && dayKey(end) < today) return 'overdue'
+  if (start && dayKey(start) > today) return 'upcoming'
+  return 'current'
+}
+
+const pill: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '2px 8px', borderRadius: 99, whiteSpace: 'nowrap' }
+
+function PeriodStatus({ period }: { period: Period }) {
+  switch (periodState(period)) {
+    case 'closed':
+      return <span style={{ ...pill, color: 'var(--foreground-muted)', background: 'var(--background)', border: '1px solid var(--border)' }} title="Tidak bisa posting ke periode ini"><Lock size={11} /> Closed</span>
+    case 'current':
+      return <span style={{ ...pill, color: 'var(--success)', background: 'var(--success-bg)' }} title="Periode berjalan — terbuka, bisa posting"><CheckCircle2 size={11} /> Berjalan</span>
+    case 'overdue':
+      return <span style={{ ...pill, color: 'var(--warning)', background: 'var(--warning-bg)' }} title="Sudah lewat tapi masih terbuka — transaksi bertanggal mundur masih bisa masuk"><AlertTriangle size={11} /> Belum ditutup</span>
+    default:
+      return <span style={{ ...pill, color: 'var(--foreground-muted)' }} title="Terbuka — belum dimulai">Terbuka</span>
+  }
+}
+
+const CLOSED_OPTIONS: [string, string][] = [['', 'Semua'], ['0', 'Terbuka'], ['1', 'Closed']]
+
 export default function PeriodsView() {
   const queryClient = useQueryClient()
   const { isSuperadmin, hasPermission } = useAuth()
@@ -68,8 +101,6 @@ export default function PeriodsView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [fiscalYearFilter, setFiscalYearFilter] = useState('')
-  // Default All: is_active marks the current period/year (1 of N), so Active would hide history.
-  const [activeFilter, setActiveFilter] = useState('')
   const [closedFilter, setClosedFilter] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
@@ -85,12 +116,11 @@ export default function PeriodsView() {
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
-    queryKey: ['periods', page, perPage, debouncedSearch, fiscalYearFilter, activeFilter, closedFilter],
+    queryKey: ['periods', page, perPage, debouncedSearch, fiscalYearFilter, closedFilter],
     queryFn: () => periodsService.list({
       page, per_page: perPage, sort: '-id', include: 'fiscal_year',
       'filter[search]': debouncedSearch || undefined,
       'filter[fiscal_year_id]': fiscalYearFilter || undefined,
-      'filter[is_active]': activeFilter || undefined,
       'filter[is_closed]': closedFilter || undefined,
     } as any).then((r) => r.data),
   })
@@ -192,19 +222,20 @@ export default function PeriodsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search periods..."
-        activeCount={countActive(fiscalYearFilter, activeFilter, closedFilter)}
-        onClear={() => { setFiscalYearFilter(''); setActiveFilter(''); setClosedFilter(''); setPage(1) }}
+        activeCount={countActive(fiscalYearFilter, closedFilter)}
+        onClear={() => { setFiscalYearFilter(''); setClosedFilter(''); setPage(1) }}
         quick={
           <>
-            <ActiveSegment value={activeFilter} onChange={(v) => { setActiveFilter(v); setPage(1) }} active="1" inactive="0" label="Period status" />
+            <div role="tablist" aria-label="Status periode" className="v2-seg">
+              {CLOSED_OPTIONS.map(([v, text]) => (
+                <button key={text} type="button" role="tab" aria-selected={closedFilter === v} onClick={() => { setClosedFilter(v); setPage(1) }}>
+                  {text}
+                </button>
+              ))}
+            </div>
             <FilterSelect value={fiscalYearFilter} onChange={(e) => { setFiscalYearFilter(e.target.value); setPage(1) }} style={{ maxWidth: 220 }}>
               <option value="">All Fiscal Years</option>
               {filterFiscalYears.map((f) => <option key={f.id} value={String(f.id)}>{f.name}</option>)}
-            </FilterSelect>
-            <FilterSelect value={closedFilter} onChange={(e) => { setClosedFilter(e.target.value); setPage(1) }}>
-              <option value="">Closed: All</option>
-              <option value="1">Closed: Yes</option>
-              <option value="0">Closed: No</option>
             </FilterSelect>
           </>
         }
@@ -219,7 +250,7 @@ export default function PeriodsView() {
               <th style={{ ...thStyle, width: 180 }}>Fiscal Years</th>
               <th style={{ ...thStyle, width: 140 }}>Start Date</th>
               <th style={{ ...thStyle, width: 140 }}>End Date</th>
-              <th style={{ ...thStyle, width: 100 }}>Status</th>
+              <th style={{ ...thStyle, width: 150 }}>Status</th>
               <th style={{ ...thStyle, width: 80 }} />
             </tr>
           </thead>
@@ -250,12 +281,7 @@ export default function PeriodsView() {
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.start_date ? fmtDate(item.start_date) : '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.end_date ? fmtDate(item.end_date) : '—'}</span></td>
                   <td style={tdStyle}>
-                    {item.is_closed
-                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--foreground-muted)', padding: '2px 8px', borderRadius: 99, background: 'var(--background)', border: '1px solid var(--border)' }}><Lock size={11} /> Closed</span>
-                      : item.is_active
-                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981', padding: '2px 8px', borderRadius: 99, background: 'rgba(16,185,129,0.1)' }}><CheckCircle2 size={11} /> Active</span>
-                        : <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Inactive</span>
-                    }
+                    <PeriodStatus period={item} />
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -365,12 +391,11 @@ export default function PeriodsView() {
                   {errors.end_date && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.end_date.message}</span>}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--foreground)' }}>
-                  <input type="checkbox" {...register('is_active')} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
-                  Active
-                </label>
-              </div>
+              {/* is_active is required by the API but unused by posting — kept as a hidden value. */}
+              <input type="checkbox" {...register('is_active')} hidden />
+              <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: 0, lineHeight: 1.5 }}>
+                Periode baru selalu terbuka. Tutup lewat tombol gembok setelah semua transaksi bulan itu tercatat.
+              </p>
             </form>
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setSheetOpen(false)} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>

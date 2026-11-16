@@ -5,7 +5,8 @@ import React, { useState, useEffect } from 'react'
 import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
+import { deliveriesService } from '@/services/deliveries.service'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { productsService } from '@/services/products.service'
 import { branchesService } from '@/services/branches.service'
@@ -357,7 +358,7 @@ function StockValueCell({
 // Satu kolom "Tanggal / Dokumen":
 //   29 Okt 2026 13:29
 //   0087/KR/10/2026        (link ke dokumen sumber)
-function DateTimeDocCell({ item }: { item: StockMovement }) {
+function DateTimeDocCell({ item, subtitle }: { item: StockMovement; subtitle?: string }) {
   const formatted = item.created_at ? String(formatDateTime(item.created_at)) : ''
   const [datePart, timePart] = formatted ? formatted.split(', ') : []
   // id-ID memisahkan jam dengan titik ("13.29") — tampilkan dengan ":".
@@ -390,6 +391,9 @@ function DateTimeDocCell({ item }: { item: StockMovement }) {
         <span title={label} style={{ ...docStyle, color: 'var(--foreground-muted)', fontWeight: 400 }}>
           {label}
         </span>
+      )}
+      {subtitle && (
+        <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{subtitle}</span>
       )}
     </div>
   )
@@ -447,6 +451,8 @@ export default function StockMovementView() {
   // terutama di menu Stock Movements Raw & WIP.
   const [refTypeFilter, setRefTypeFilter] = useState('')
   const [productId, setProductId] = useState<number>(0)
+  // Set only from the URL (Stock → "Show Stock Movement"): one inventory row / batch.
+  const [productInventoryId, setProductInventoryId] = useState<number>(0)
   const [productSearch, setProductSearch] = useState('')
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -474,6 +480,7 @@ export default function StockMovementView() {
     if (qp.start_date) setStartDate(String(qp.start_date))
     if (qp.end_date) setEndDate(String(qp.end_date))
     setProductId(qp.product_id ? Number(qp.product_id) || 0 : 0)
+    setProductInventoryId(qp.product_inventory_id ? Number(qp.product_inventory_id) || 0 : 0)
     const types = qp.product_types ?? qp.type
     setProductTypes(types ? String(types) : '')
   }, [router.isReady, router.asPath]) // eslint-disable-line react-hooks/exhaustive-deps  react-hooks/set-state-in-effect
@@ -494,7 +501,7 @@ export default function StockMovementView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, directionFilter, refTypeFilter, productId, startDate, endDate, productTypeFilter, branchFilter])
+  }, [debouncedSearch, directionFilter, refTypeFilter, productId, productInventoryId, startDate, endDate, productTypeFilter, branchFilter])
 
   // Branch filter options: superadmin sees every branch, other users only
   // the branches they're assigned to (filter hidden for single-branch users).
@@ -549,7 +556,7 @@ export default function StockMovementView() {
   ]
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
-    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, refTypeFilter, productId, productTypes, productTypeFilter, branchFilter],
+    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, refTypeFilter, productId, productInventoryId, productTypes, productTypeFilter, branchFilter],
     queryFn: () =>
       stockMovementsService
         .list({
@@ -560,6 +567,7 @@ export default function StockMovementView() {
           'filter[direction]': directionFilter || undefined,
           'filter[reference_type]': refTypeFilter || undefined,
           'filter[product_id]': productId || undefined,
+          'filter[product_inventory_id]': productInventoryId || undefined,
           // Filter tipe produk untuk menu Stock Movements Raw / WIP
           // (filter[product_types] sudah didukung backend).
           'filter[product_types]': productTypes || undefined,
@@ -579,6 +587,59 @@ export default function StockMovementView() {
   const isLoading = listFirstLoad || listFetching
 
   const items: StockMovement[] = (data as any)?.data ?? []
+
+  // Delivery rows with source_type po_from_branch show the delivery's target branch
+  // under the document code. Stock movements can't include their reference,
+  // so each delivery on this page is fetched once (cached).
+  const deliveryIds = Array.from(
+    new Set(
+      items
+        .filter((m) => m.reference_type === 'deliveries' && m.reference_id != null)
+        .map((m) => Number(m.reference_id))
+        .filter((n) => n > 0),
+    ),
+  )
+  const deliveryQueries = useQueries({
+    queries: deliveryIds.map((id) => ({
+      queryKey: ['stock-movement-delivery-ref', id],
+      staleTime: 5 * 60_000,
+      queryFn: () =>
+        deliveriesService.findById(id, { include: 'target_branch' }).then((r) => (r.data as any)?.data ?? null),
+    })),
+  })
+  const deliveryTargetById = new Map<number, string>()
+  deliveryIds.forEach((id, i) => {
+    const d: any = deliveryQueries[i]?.data
+    if ((d?.source_type ?? d?.type) === 'po_from_branch' && d?.target_branch?.name) deliveryTargetById.set(id, d.target_branch.name)
+  })
+  const deliveryTargetLabel = (m: StockMovement): string | undefined => {
+    if (m.reference_type !== 'deliveries') return undefined
+    const name = deliveryTargetById.get(Number(m.reference_id))
+    return name ? `To: ${name}` : undefined
+  }
+
+  // Label for the batch filter banner, read from the first returned row.
+  const filteredInventory = productInventoryId > 0 ? items[0]?.product_inventory : undefined
+  const filteredInventoryLabel = filteredInventory
+    ? [
+        getProductUomName(
+          filteredInventory.product_uom_batch?.product_uom as any,
+          filteredInventory.product_uom_batch?.product_uom?.product?.name,
+        ),
+        filteredInventory.product_uom_batch?.batch_code ?? filteredInventory.batch_code ?? filteredInventory.code,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : ''
+  // The batch filter lives in the URL — drop it there so the URL sync
+  // effect doesn't put it back.
+  const clearProductInventoryFilter = () => {
+    setProductInventoryId(0)
+    if (router.query.product_inventory_id) {
+      const { product_inventory_id: _drop, ...rest } = router.query
+      router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true })
+    }
+  }
   const meta = (data as any)?.meta
 
   // Tipe produk dari menu "Stock Movements Raw / WIP". Backend kini mendukung
@@ -676,12 +737,13 @@ export default function StockMovementView() {
         onSearchChange={setSearch}
         searchPlaceholder="Cari pergerakan..."
         activeCount={countActive(
-          directionFilter, refTypeFilter, productId, productTypeFilter, branchFilter, startDate, endDate,
+          directionFilter, refTypeFilter, productId, productInventoryId, productTypeFilter, branchFilter, startDate, endDate,
         )}
         onClear={() => {
           setDirectionFilter('')
           setRefTypeFilter('')
           setProductId(0)
+          clearProductInventoryFilter()
           setProductTypeFilter('')
           setBranchFilter('')
           setStartDate('')
@@ -812,6 +874,48 @@ export default function StockMovementView() {
           </FilterField>
         </FilterGroup>
       </FilterBar>
+
+      {productInventoryId > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            background: 'var(--info-bg)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+          }}
+        >
+          <span style={{ flex: 1 }}>
+            Showing movements of one inventory batch only
+            {filteredInventoryLabel ? (
+              <>
+                : <strong>{filteredInventoryLabel}</strong>
+              </>
+            ) : (
+              ` (#${productInventoryId})`
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={clearProductInventoryFilter}
+            style={{
+              padding: '4px 10px',
+              fontSize: 12,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--foreground)',
+              cursor: 'pointer',
+            }}
+          >
+            Show all
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div
@@ -959,7 +1063,7 @@ export default function StockMovementView() {
                       </td>
                       {/* Tanggal + Dokumen digabung */}
                       <td style={cellBase}>
-                        {canRead ? <DateTimeDocCell item={item} /> : '***'}
+                        {canRead ? <DateTimeDocCell item={item} subtitle={deliveryTargetLabel(item)} /> : '***'}
                       </td>
 
                       {/* Produk (+ catatan jika ada) */}

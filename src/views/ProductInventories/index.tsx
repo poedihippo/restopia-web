@@ -95,16 +95,6 @@ interface ProductInventory {
   branch?: { id: number; name: string; code?: string }
 }
 
-// Product id untuk filter "Show Stock Movement" — product bisa datang dari
-// batch maupun product_uom biasa.
-function productIdOf(item: ProductInventory): number | null {
-  const id =
-    item.product_uom_batch?.product_uom?.product?.id ??
-    item.product_uom?.product?.id ??
-    null
-  return id ?? null
-}
-
 export default function ProductInventoriesView({ defaultType }: { defaultType?: string }) {
   const queryClient = useQueryClient()
   const { user, hasPermission } = useAuth()
@@ -1149,10 +1139,10 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                               <SlidersHorizontal size={14} />
                             </button>
                           )}
-                          {/* Show stock movement — redirect dgn filter product baris ini */}
-                          {canViewStockMovement && productIdOf(item) !== null && (
+                          {/* Show stock movement — redirect dgn filter product inventory (batch) baris ini */}
+                          {canViewStockMovement && (
                             <Link
-                              href={`/products/product-inventory/stock-movements?product_id=${productIdOf(item)}`}
+                              href={`/products/product-inventory/stock-movements?product_inventory_id=${item.id}`}
                               title="Show Stock Movement"
                               style={{ ...actionBtnStyle, color: 'var(--info)' }}
                             >
