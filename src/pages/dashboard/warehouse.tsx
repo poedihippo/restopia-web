@@ -1,4 +1,11 @@
-import WarehouseDashboardView from '@/views/WarehouseDashboard'
+import { useEffect } from 'react'
+import { useRouter } from 'next/router'
 
-const WarehouseDashboardPage = () => <WarehouseDashboardView />
-export default WarehouseDashboardPage
+// Old per-type URL: /dashboard now picks the view from the active branch type.
+export default function LegacyDashboardRedirect() {
+  const router = useRouter()
+  useEffect(() => {
+    router.replace('/dashboard')
+  }, [router])
+  return null
+}

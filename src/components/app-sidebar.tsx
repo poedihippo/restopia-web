@@ -88,19 +88,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'OPERATIONS',
     items: [
-      // One dashboard per branch type. TODO (last step): after login, redirect to
-      // the one matching user.branch.type (outlet → /dashboard, production →
-      // /dashboard/production, warehouse → /dashboard/warehouse). Not wired yet
-      // so all three can be compared side by side.
-      {
-        label: 'Dashboards',
-        icon: LayoutDashboard,
-        children: [
-          { label: 'Outlet', href: '/dashboard', permission: 'dashboard.menu' },
-          { label: 'Production', href: '/dashboard/production', permission: ['production.menu', 'purchase-order.menu', 'internal-purchase-order.menu'] },
-          { label: 'Warehouse', href: '/dashboard/warehouse', permission: ['purchase-order.menu', 'stock-movement.menu', 'invoice.menu'] },
-        ],
-      },
+      // One menu; /dashboard renders the Outlet, Production or Warehouse
+      // dashboard for the active branch's type (src/pages/dashboard/index.tsx).
+      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: 'dashboard.read' },
       { label: 'Point of Sale', href: '/pos', icon: ShoppingCart, permission: 'point-of-sale.menu' },
       {
         label: 'Store Operations',
