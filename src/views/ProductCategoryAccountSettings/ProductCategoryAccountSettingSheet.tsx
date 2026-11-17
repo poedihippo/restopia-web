@@ -111,6 +111,13 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
   }))
   const coaOptions: SelectOption[] = coaOpts.items.filter((c: any) => !c.is_header && c.is_active !== false && c.normal_balance === 'debit').map((c: any) => ({ value: c.id, label: `${c.code} - ${c.name}` }))
 
+  // The option lists load page by page, so the saved category / account may not
+  // be on a loaded page yet: fall back to the row's own relation so edit shows it.
+  const selectedCatOption: SelectOption | null = catOptions.find(o => o.value === productCategoryId)
+    ?? (productCategoryId && editData?.product_category?.id === productCategoryId ? { value: editData.product_category.id, label: editData.product_category.name } : null)
+  const selectedCoaOption: SelectOption | null = coaOptions.find(o => o.value === chartOfAccountId)
+    ?? (chartOfAccountId && editData?.chart_of_account?.id === chartOfAccountId ? { value: editData.chart_of_account.id, label: `${editData.chart_of_account.code} - ${editData.chart_of_account.name}` } : null)
+
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => productCategoryAccountSettingsService.create(data as any),
     onSuccess: () => {
@@ -180,7 +187,7 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
                 Product Category <span style={{ color: 'var(--destructive)' }}>*</span>
               </label>
               <SearchableSelect
-                value={catOptions.find(o => o.value === productCategoryId) || null}
+                value={selectedCatOption}
                 options={catOptions}
                 onChange={(val: any) => setValue('product_category_id', val?.value || 0, { shouldValidate: true })}
                 onInputChange={(val, { action }) => { if (action === 'input-change') setCatSearch(val) }}
@@ -197,7 +204,7 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
                 Chart of Account (Debit Normal) <span style={{ color: 'var(--destructive)' }}>*</span>
               </label>
               <SearchableSelect
-                value={coaOptions.find(o => o.value === chartOfAccountId) || null}
+                value={selectedCoaOption}
                 options={coaOptions}
                 onChange={(val: any) => setValue('chart_of_account_id', val?.value || 0, { shouldValidate: true })}
                 onInputChange={(val, { action }) => { if (action === 'input-change') setCoaSearch(val) }}
