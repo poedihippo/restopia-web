@@ -127,15 +127,17 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   // Berlaku untuk semua tipe branch, termasuk "outlet" (product-UOM kini punya
   // branch_types "outlet", jadi tidak perlu lagi pengecualian).
   const activeBranchType = ((user as any)?.branch?.type as string | undefined) || undefined
+  // Outlet hanya boleh memesan produk wip.
+  const productTypesFilter = activeBranchType === 'outlet' ? 'wip' : 'wip,raw,supply'
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', activeBranchType, debouncedDropdownSearch],
+    queryKey: ['product-uoms-all', activeBranchType, productTypesFilter, debouncedDropdownSearch],
     queryFn: () =>
       productUomsService
         .list({
           'filter[search]': debouncedDropdownSearch || undefined,
           per_page: 1000,
           include: 'product,uom',
-          'filter[product_types]': 'wip,raw,supply',
+          'filter[product_types]': productTypesFilter,
           'filter[branch_type]': activeBranchType,
           'filter[is_active]': true,
         } as any)
