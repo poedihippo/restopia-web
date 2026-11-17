@@ -25,6 +25,40 @@ const OUT_ALIASES = ['debet', 'debit', 'mutasidebet', 'mutasidebit', 'db']
 const IN_ALIASES = ['kredit', 'credit', 'mutasikredit', 'mutasicredit', 'cr']
 const BAL_ALIASES = ['saldo', 'balance', 'saldoakhir', 'runningbalance']
 
+/** dd/mm/yyyy of a yyyy-mm-dd date moved by `days`, kept inside [start, end]. */
+function exampleDate(start: string, end: string, days: number): string {
+  const base = start ? new Date(`${start}T00:00:00`) : new Date()
+  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + days)
+  if (end) {
+    const last = new Date(`${end}T00:00:00`)
+    if (d > last) d.setTime(last.getTime())
+  }
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${dd}/${mm}/${d.getFullYear()}`
+}
+
+/** Sample statement rows for the Example file, with a running Saldo. */
+function exampleRows(start: string, end: string, opening: number): (string | number)[][] {
+  const sample: [number, string, string, number, number][] = [
+    // [day offset, keterangan, referensi, debet (keluar), kredit (masuk)]
+    [1, 'SETORAN TUNAI OUTLET', 'STR-0001', 0, 2500000],
+    [3, 'TRSF E-BANKING DB - PEMBAYARAN SUPPLIER', 'TRF-0002', 1750000, 0],
+    [7, 'PENCAIRAN EDC / QRIS', 'EDC-0003', 0, 3200000],
+    [12, 'TRSF E-BANKING DB - PEMBELIAN BAHAN BAKU', 'TRF-0004', 980000, 0],
+    [20, 'BIAYA ADMINISTRASI', '', 15000, 0],
+    [27, 'BUNGA', '', 0, 12500],
+    [27, 'PAJAK BUNGA', '', 2500, 0],
+  ]
+  let saldo = round2(opening)
+  const rows: (string | number)[][] = [[exampleDate(start, end, 0), 'SALDO AWAL', '', '', '', saldo]]
+  for (const [days, desc, ref, out, inn] of sample) {
+    saldo = round2(saldo - out + inn)
+    rows.push([exampleDate(start, end, days), desc, ref, out || '', inn || '', saldo])
+  }
+  return rows
+}
+
 interface PreviewRow {
   row: number
   line: StatementLineInput | null
@@ -51,12 +85,20 @@ export default function StatementUpload({
   const matchedCount = lines.filter((l) => l.match_group_id != null).length
   const unmatchedCount = lines.length - matchedCount
 
-  const downloadTemplate = () => {
-    const ws = XLSX.utils.aoa_to_sheet([HEADERS])
+  // Builds the statement workbook: the empty template, or the same layout
+  // filled with sample lines (the Example) dated inside this statement period,
+  // so it can be uploaded as-is to see how an import looks.
+  const downloadWorkbook = (example: boolean) => {
+    const rows: (string | number)[][] = [HEADERS]
+    if (example) rows.push(...exampleRows(start, end, num(rec.statement_opening_balance)))
+    const ws = XLSX.utils.aoa_to_sheet(rows)
     ws['!cols'] = [{ wch: 12 }, { wch: 44 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 18 }]
     const guide = XLSX.utils.aoa_to_sheet([
-      ['Template rekening koran (bank statement)'],
+      [example ? 'Contoh rekening koran (bank statement) — berisi data contoh' : 'Template rekening koran (bank statement)'],
       [],
+      ...(example
+        ? [['Data di sheet "Rekening Koran" hanya contoh. Ganti dengan mutasi dari rekening koran Anda sebelum diunggah, atau gunakan file Template yang kosong.'], []]
+        : []),
       [`1. Isi satu baris per mutasi pada periode ${formatDate(rec.statement_start_date)} – ${formatDate(rec.statement_end_date)}.`],
       ['2. Tanggal: dd/mm/yyyy (mis. 05/03/2026), yyyy-mm-dd, atau format tanggal Excel.'],
       ['3. Gunakan sudut pandang BANK seperti di rekening koran: Debet = uang KELUAR dari rekening, Kredit = uang MASUK.'],
@@ -70,7 +112,7 @@ export default function StatementUpload({
     XLSX.utils.book_append_sheet(wb, ws, TEMPLATE_SHEET)
     XLSX.utils.book_append_sheet(wb, guide, 'Petunjuk')
     const bank = (rec.bank_account?.bank_name ?? 'bank').replace(/[^\w-]+/g, '-')
-    XLSX.writeFile(wb, `rekening-koran-template_${bank}_${start || 'periode'}.xlsx`)
+    XLSX.writeFile(wb, `rekening-koran-${example ? 'contoh' : 'template'}_${bank}_${start || 'periode'}.xlsx`)
   }
 
   const parseFile = async (file: File) => {
@@ -191,8 +233,11 @@ export default function StatementUpload({
             : 'No lines yet — download the template (or use the bank’s Excel/CSV export) and upload it.'}
         </div>
       </div>
-      <button type="button" className="v2-btn v2-btn-ghost" onClick={downloadTemplate}>
+      <button type="button" className="v2-btn v2-btn-ghost" onClick={() => downloadWorkbook(false)} title="Empty template to fill in">
         <Download size={14} /> Template
+      </button>
+      <button type="button" className="v2-btn v2-btn-ghost" onClick={() => downloadWorkbook(true)} title="Filled example file">
+        <Download size={14} /> Example
       </button>
       {canUpdate && (
         <button

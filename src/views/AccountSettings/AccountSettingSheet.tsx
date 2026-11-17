@@ -142,7 +142,7 @@ export default function AccountSettingSheet({ open, onClose, editData }: Account
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Chart of Account</label>
               <SearchableSelect
-                value={selectOptions.find(o => o.value === chartOfAccountId) || null}
+                value={selectOptions.find(o => o.value === chartOfAccountId) || (chartOfAccountId && editData?.chart_of_account?.id === chartOfAccountId ? { value: editData.chart_of_account.id, label: `${editData.chart_of_account.code} - ${editData.chart_of_account.name}` } : null)}
                 options={selectOptions}
                 onChange={(val: any) => setValue('chart_of_account_id', val?.value || 0)}
                 onInputChange={(val, { action }) => {

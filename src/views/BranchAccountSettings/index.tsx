@@ -9,11 +9,12 @@ import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useAuth } from '@/hooks/useAuth'
 import BranchAccountSettingSheet from './BranchAccountSettingSheet'
+import AccountSettingUsageCell, { AccountSettingDetailDialog } from '@/components/AccountSettingUsage'
 import { toastMutationApiError } from '@/utils/apiError'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { formatDate } from '@/utils/date'
-import { Plus, Pencil, Trash2, Building2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Building2, Eye } from 'lucide-react'
 
 export default function BranchAccountSettingsView() {
   const qc = useQueryClient()
@@ -33,6 +34,7 @@ export default function BranchAccountSettingsView() {
   const [debouncedCoaFilterSearch, setDebouncedCoaFilterSearch] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<any | null>(null)
+  const [detailItem, setDetailItem] = useState<any | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -175,27 +177,25 @@ export default function BranchAccountSettingsView() {
               <th style={thStyle}>Branch</th>
               <th style={thStyle}>Account Key</th>
               <th style={thStyle}>Chart of Account</th>
-              <th style={{ ...thStyle, width: 180 }}>COA Code</th>
-              <th style={thStyle}>Description</th>
-              <th style={{ ...thStyle, width: 120 }}>Created</th>
-              <th style={{ ...thStyle, width: 80 }} />
+              <th style={{ ...thStyle, width: 260 }}>Usage</th>
+              <th style={{ ...thStyle, width: 110 }} />
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 8 }).map((__, j) => (
+                  {Array.from({ length: 6 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
-                      <div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 7 ? 60 : '75%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                      <div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 5 ? 60 : '75%', animation: 'pulse 1.5s ease-in-out infinite' }} />
                     </td>
                   ))}
                 </tr>
               ))
             ) : isError ? (
-              <tr><td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}><span style={{ fontSize: 14, color: 'var(--destructive)' }}>Failed to load settings.</span></td></tr>
+              <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}><span style={{ fontSize: 14, color: 'var(--destructive)' }}>Failed to load settings.</span></td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <Building2 size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No branch account settings found</span>
@@ -228,14 +228,13 @@ export default function BranchAccountSettingsView() {
                       ) : <span style={{ fontSize: 13, color: 'var(--foreground-muted)', fontStyle: 'italic' }}>Not set</span>}
                     </td>
                     <td style={tdStyle}>
-                      <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--foreground-muted)' }}>{item.chart_of_account?.code || '—'}</span>
-                    </td>
-                    <td style={{ ...tdStyle, fontSize: 13, color: 'var(--foreground-muted)' }}>{item.description || '—'}</td>
-                    <td style={tdStyle}>
-                      <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.created_at ? formatDate(item.created_at) : '—'}</span>
+                      <AccountSettingUsageCell settingKey={keyInfo?.key || item.account_setting_key} />
                     </td>
                     <td style={tdStyle}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                        <button onClick={() => setDetailItem(item)} style={actionBtnStyle} title="Detail">
+                          <Eye size={14} />
+                        </button>
                         {canEdit && (
                           <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={actionBtnStyle} title="Edit">
                             <Pencil size={14} />
@@ -271,6 +270,22 @@ export default function BranchAccountSettingsView() {
           </div>
         </div>
       )}
+
+      <AccountSettingDetailDialog
+        open={!!detailItem}
+        onClose={() => setDetailItem(null)}
+        title={detailItem?.account_setting_key_entity?.label || detailItem?.account_setting_key || 'Detail'}
+        subtitle={detailItem?.account_setting_key_entity?.key || detailItem?.account_setting_key}
+        settingKey={detailItem?.account_setting_key_entity?.key || detailItem?.account_setting_key}
+        fields={[
+          { label: 'Branch', value: detailItem?.branch ? `${detailItem.branch.name}${detailItem.branch.code ? ` (${detailItem.branch.code})` : ''}` : '—' },
+          { label: 'Account Key', value: detailItem?.account_setting_key_entity?.label || detailItem?.account_setting_key || '—' },
+          { label: 'Key', value: <span style={{ fontFamily: 'monospace' }}>{detailItem?.account_setting_key_entity?.key || detailItem?.account_setting_key || '—'}</span> },
+          { label: 'Chart of Account', value: detailItem?.chart_of_account ? <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span>{detailItem?.chart_of_account.name}</span><span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--foreground-muted)' }}>{detailItem?.chart_of_account.code}</span></div> : null },
+          { label: 'Description', value: detailItem?.description || '—' },
+          { label: 'Created', value: detailItem?.created_at ? formatDate(detailItem.created_at) : '—' },
+        ]}
+      />
 
       <BranchAccountSettingSheet
         open={sheetOpen}

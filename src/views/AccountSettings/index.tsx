@@ -7,7 +7,8 @@ import { accountSettingsService } from '@/services/account-settings.service'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import AccountSettingSheet from './AccountSettingSheet'
-import { Settings, Pencil, Download } from 'lucide-react'
+import AccountSettingUsageCell, { AccountSettingDetailDialog } from '@/components/AccountSettingUsage'
+import { Settings, Pencil, Download, Eye } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function AccountSettingsView() {
@@ -16,6 +17,7 @@ export default function AccountSettingsView() {
   const canUpdate = hasPermission('account-setting.update')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<any | null>(null)
+  const [detailItem, setDetailItem] = useState<any | null>(null)
   const [search, setSearch] = useState('')
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
@@ -86,8 +88,8 @@ export default function AccountSettingsView() {
                 <th style={{ ...thStyle, width: 180 }}>Key</th>
                 <th style={{ ...thStyle, width: 140 }}>Module</th>
                 <th style={{ ...thStyle, width: 250 }}>Chart of Account</th>
-                <th style={thStyle}>Description</th>
-                <th style={{ ...thStyle, width: 60, textAlign: 'right' }}>Actions</th>
+                <th style={{ ...thStyle, width: 280 }}>Usage</th>
+                <th style={{ ...thStyle, width: 90, textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -141,10 +143,17 @@ export default function AccountSettingsView() {
                         <span style={{ fontSize: 13, color: 'var(--foreground-muted)', fontStyle: 'italic' }}>Not configured</span>
                       )}
                     </td>
-                    <td style={{ ...tdStyle, fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      {item.description || '—'}
+                    <td style={tdStyle}>
+                      <AccountSettingUsageCell settingKey={item.account_setting_key_entity?.key || item.account_setting_key} />
                     </td>
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button
+                        onClick={() => setDetailItem(item)}
+                        style={{ padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)' }}
+                        title="Detail"
+                      >
+                        <Eye size={16} />
+                      </button>
                       {canUpdate && (
                         <button
                           onClick={() => {
@@ -165,6 +174,21 @@ export default function AccountSettingsView() {
           </table>
         </div>
       </div>
+
+      <AccountSettingDetailDialog
+        open={!!detailItem}
+        onClose={() => setDetailItem(null)}
+        title={detailItem?.account_setting_key_entity?.label || detailItem?.account_setting_key || 'Detail'}
+        subtitle={detailItem?.account_setting_key_entity?.key || detailItem?.account_setting_key}
+        settingKey={detailItem?.account_setting_key_entity?.key || detailItem?.account_setting_key}
+        fields={[
+          { label: 'Label', value: detailItem?.account_setting_key_entity?.label || '—' },
+          { label: 'Key', value: <span style={{ fontFamily: 'monospace' }}>{detailItem?.account_setting_key_entity?.key || detailItem?.account_setting_key || '—'}</span> },
+          { label: 'Module', value: detailItem?.account_setting_key_entity?.module || 'SYSTEM' },
+          { label: 'Chart of Account', value: detailItem?.chart_of_account ? <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span>{detailItem?.chart_of_account.name}</span><span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--foreground-muted)' }}>{detailItem?.chart_of_account.code}</span></div> : null },
+          { label: 'Description', value: detailItem?.description || '—' },
+        ]}
+      />
 
       <AccountSettingSheet
         open={sheetOpen}
