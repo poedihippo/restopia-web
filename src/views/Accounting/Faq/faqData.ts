@@ -71,7 +71,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: 'periode',
     question: 'Apakah periode yang sudah ditutup bisa dibuka lagi?',
     answer: [
-      'Bisa, lewat tombol Reopen di menu Periods. Gunakan hanya untuk koreksi: setelah dibuka, angka laporan periode itu bisa berubah lagi. Tutup kembali setelah koreksi selesai.',
+      'Bisa, lewat tombol Reopen di menu Periods, selama tahun bukunya belum ditutup. Gunakan hanya untuk koreksi: setelah dibuka, angka laporan periode itu bisa berubah lagi. Tutup kembali setelah koreksi selesai.',
       'Untuk kesalahan kecil, cara yang lebih aman adalah membuat jurnal koreksi di periode berjalan tanpa membuka periode lama.',
     ],
     links: [{ label: 'Periods', href: '/accounting/periods' }],
@@ -81,7 +81,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: 'periode',
     question: 'Bagaimana cara menutup tahun buku?',
     answer: [
-      'Tahun buku hanya bisa ditutup setelah tahun berakhir dan semua periodenya sudah ditutup. Saat ditutup, sistem membuat jurnal penutup yang memindahkan saldo pendapatan dan beban ke laba ditahan, sehingga tahun berikutnya dimulai dengan laba rugi nol.',
+      'Tahun buku hanya bisa ditutup jika semua periodenya sudah ditutup; setelah itu periodenya tidak bisa dibuka kembali. Saat ditutup, sistem membuat jurnal penutup yang memindahkan saldo pendapatan dan beban ke laba ditahan, sehingga tahun berikutnya dimulai dengan laba rugi nol.',
       'Jurnal penutup tidak bisa diedit, dihapus, atau dibalik secara manual. Dashboard Akuntansi akan mengingatkan saat tahun buku siap ditutup.',
     ],
     links: [{ label: 'Fiscal Years', href: '/accounting/fiscal-years' }],
@@ -104,8 +104,8 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: 'jurnal',
     question: 'Kenapa sebuah jurnal tidak bisa diedit atau dihapus?',
     answer: [
-      'Jurnal yang dibuat otomatis oleh dokumen (penjualan, pembayaran, PO, penerimaan barang, transaksi kas, stock opname) hanya bisa diubah dari dokumen asalnya. Tombolnya dinonaktifkan dengan keterangan "Posted by …".',
-      'Jurnal yang sudah diposting tidak bisa dihapus karena sudah menjadi bagian buku besar. Untuk membatalkannya gunakan Reverse, yang membuat jurnal pembalik dengan nilai berlawanan.',
+      'Jurnal yang dibuat otomatis oleh dokumen (penjualan, pembayaran, PO, penerimaan barang, transaksi kas, stock opname) tidak bisa diedit, dihapus, atau di-Reverse dari menu Journals — ubah atau batalkan lewat dokumen asalnya. Tombolnya dinonaktifkan dengan keterangan "Posted by …".',
+      'Jurnal manual yang sudah diposting tidak bisa dihapus karena sudah menjadi bagian buku besar. Untuk membatalkannya gunakan Reverse, yang membuat jurnal pembalik dengan nilai berlawanan.',
     ],
     links: [{ label: 'Journals', href: '/accounting/journals' }],
   },
@@ -142,7 +142,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: 'jurnal',
     question: 'Bagaimana memasukkan saldo awal saat mulai memakai sistem?',
     answer: [
-      'Gunakan menu Opening Balances: pilih tanggal saldo awal dan akun penyeimbang (default: Historical Balancing), lalu isi saldo per akun atau impor dari template Excel. Simpan sebagai draft, periksa, lalu posting — sistem membuat satu jurnal saldo awal per cabang yang seimbang. Pastikan periode untuk tanggal tersebut sudah dibuat dan masih terbuka.',
+      'Gunakan menu Opening Balances: pilih tanggal saldo awal dan akun penyeimbang (default: Historical Balancing), lalu isi saldo per akun atau impor dari template Excel. Simpan sebagai draft, periksa, lalu posting — sistem membuat satu jurnal saldo awal untuk cabang yang sedang aktif; selisih debit dan kredit dibukukan ke akun penyeimbang. Pastikan periode untuk tanggal tersebut sudah dibuat dan masih terbuka.',
     ],
     links: [{ label: 'Opening Balances', href: '/accounting/opening-balances' }],
   },
@@ -154,7 +154,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     question: 'Apa beda Cash In, Cash Out, dan Transfer di Cash Transactions?',
     answer: [
       'Cash In menambah saldo rekening bank, Cash Out menguranginya, dan Transfer memindahkan dana antar dua rekening bank. Untuk Cash In/Out pilih akun lawan (misalnya Pendapatan Bunga atau Beban Administrasi Bank). Jika akun lawan dikosongkan, sistem memakai akun Kas cabang — artinya perpindahan antara bank dan kas kecil.',
-      'Transaksi kas tidak bisa dihapus setelah dibalik (reversed), dan tidak bisa diubah jika periodenya sudah ditutup.',
+      'Transaksi kas tidak bisa diedit; untuk membatalkannya gunakan Reverse. Transaksi kas tidak bisa dihapus setelah dibalik (reversed) atau jika periodenya sudah ditutup.',
     ],
     links: [{ label: 'Cash Transactions', href: '/accounting/cash-transactions' }],
   },
@@ -311,7 +311,8 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: 'piutang-hutang',
     question: 'Kapan piutang dianggap lewat jatuh tempo?',
     answer: [
-      'Piutang dihitung lewat jatuh tempo jika invoice-nya memiliki tanggal jatuh tempo yang sudah lewat. Penjualan kredit tanpa tanggal jatuh tempo tetap dihitung sebagai piutang terbuka, tetapi tidak dianggap terlambat.',
+      'Di Dashboard Akuntansi dan untuk blokir PO, piutang dianggap lewat jatuh tempo jika invoice-nya memiliki tanggal jatuh tempo yang sudah lewat.',
+      'Di laporan AR Aging, umur piutang dihitung dari tanggal jatuh tempo; dokumen tanpa tanggal jatuh tempo (misalnya penjualan kredit yang belum ditagihkan) dihitung dari tanggal dokumennya. Dokumen yang belum jatuh tempo masuk kelompok Current.',
     ],
     links: [{ label: 'AR Aging', href: '/accounting/reports/ar-aging' }],
   },

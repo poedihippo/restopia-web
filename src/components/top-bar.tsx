@@ -10,6 +10,7 @@ import { branchesService } from '@/services/branches.service';
 import { cn } from '@/lib/utils';
 import MenuSearch from '@/components/menu-search';
 import TourHelpButton from '@/components/tour/TourHelpButton';
+import PageHelpButton from '@/components/PageHelpButton';
 import { NAV_GROUPS } from '@/components/app-sidebar';
 import { getBreadcrumbs, shortenBreadcrumbs } from '@/lib/breadcrumbs';
 import {
@@ -170,6 +171,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
             </React.Fragment>
           );
         })}
+        <PageHelpButton />
       </nav>
 
       {/* RIGHT — Actions */}
