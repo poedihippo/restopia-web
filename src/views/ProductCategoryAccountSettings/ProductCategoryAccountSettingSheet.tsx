@@ -12,6 +12,7 @@ import { productCategoriesService } from '@/services/product-categories.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import { branchesService } from '@/services/branches.service'
 import { useAuth } from '@/hooks/useAuth'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { SearchableSelect, SelectOption } from '@/components/ui/searchable-select'
 import { X, Loader2, Check } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -78,15 +79,14 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
     enabled: open,
   })
 
-  const [branchSearch, setBranchSearch] = useState('')
+  // Whole list (~30 branches, grouped by company / premiere), searched client-side.
   const { data: branchesData, isFetching: branchesLoading } = useQuery({
-    queryKey: ['pcas-branch-options', branchSearch],
-    queryFn: () => branchesService.list({ 'filter[search]': branchSearch || undefined, per_page: 30, sort: 'name' } as any).then(r => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then(r => r.data),
     enabled: open,
-    placeholderData: (prev: any) => prev,
   })
   const branchRows: any[] = (branchesData as any)?.data ?? []
-  const branchOptions: SelectOption[] = branchRows.map((b: any) => ({ value: b.id, label: `${b.code} - ${b.name}` }))
+  const branchOptions: SelectOption[] = branchSelectOptions(branchRows, (b: any) => `${b.code} - ${b.name}`)
   const knownBranch = branchRows.find((b: any) => b.id === branchId)
     ?? (editData?.branch?.id === branchId ? editData.branch : null)
     ?? (user?.branch?.id === branchId ? user?.branch : null)
@@ -174,7 +174,6 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
                 value={selectedBranchOption}
                 options={branchOptions}
                 onChange={(val: any) => setValue('branch_id', val?.value || 0, { shouldValidate: true })}
-                onInputChange={(val, { action }) => { if (action === 'input-change') setBranchSearch(val) }}
                 isLoading={branchesLoading}
                 placeholder="Search branch..."
                 isClearable

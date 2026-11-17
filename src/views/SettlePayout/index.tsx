@@ -9,6 +9,7 @@ import { FileSpreadsheet, Inbox, Loader2, Undo2, X, ArrowUpRight } from 'lucide-
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { bankAccountsService } from '@/services/bank-accounts.service'
 import { paymentsService } from '@/services/payments.service'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -156,8 +157,8 @@ export default function SettlePayoutView() {
   )
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'settle-payout'],
-    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name' } as any).then((r) => r.data),
+    queryKey: ['branches-all', 'settle-payout', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
   })
   const branches: any[] = (branchesData as any)?.data ?? []
 
@@ -485,11 +486,7 @@ export default function SettlePayoutView() {
           style={{ ...controlStyle, width: 200 }}
         >
           <option value="">Semua outlet</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
+          <BranchOptionGroups branches={branches} label={(b: any) => b.name} getValue={(b) => b.id} />
         </select>
         <input type="date" value={dateGte} onChange={(e) => setDateGte(e.target.value)} style={controlStyle} />
         <span style={{ alignSelf: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>s/d</span>

@@ -10,6 +10,7 @@ import { dimensionTransfersService } from '@/services/dimension-transfers.servic
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions, withBranchDetails } from '@/lib/branchOptions'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
@@ -79,11 +80,11 @@ export default function DimensionTransferView() {
 
   // Fetch available branches
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []
-  const availableBranches: any[] = isSuperadmin ? allBranches : user?.branches ?? []
+  const availableBranches: any[] = isSuperadmin ? allBranches : withBranchDetails((user as any)?.branches, allBranches, (user as any)?.branch?.company)
   const effectiveBranchId = selectedBranchId || user?.branch?.id
 
   const queryClient = useQueryClient()
@@ -424,11 +425,11 @@ export default function DimensionTransferView() {
             onChange={(val) => {
               setSelectedBranchId(val as number)
             }}
-            options={availableBranches.map((b: any) => ({
-              value: b.id,
-              label: b.name,
-              sublabel: b.company?.name,
-            }))}
+            options={branchSelectOptions(
+              availableBranches,
+              (b: any) => b.name,
+              (b: any) => ({ sublabel: b.company?.name }),
+            )}
             placeholder="Pilih cabang..."
             searchPlaceholder="Cari cabang..."
           />

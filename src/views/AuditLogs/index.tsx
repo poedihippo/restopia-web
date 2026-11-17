@@ -6,6 +6,7 @@ import { Eye, X } from 'lucide-react'
 import { FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, DateRange, countActive } from '@/components/ListFilters'
 import { auditLogsService } from '@/services/audit-logs.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups, withBranchDetails } from '@/lib/branchOptions'
 import { enumsService } from '@/services/enums.service'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -54,13 +55,13 @@ export default function AuditLogsView() {
 
   // Superadmin sees all branches, others their assigned branches
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'by-name'],
-    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
-    enabled: isSuperadmin && canRead,
+    queryKey: ['branches-all', 'by-name', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 200, sort: 'name', include: 'company' } as any).then((r) => r.data),
+    enabled: canRead,
   })
   const branchOptions: { id: number; name: string }[] = isSuperadmin
     ? (branchesData as any)?.data ?? []
-    : (user as any)?.branches ?? []
+    : withBranchDetails((user as any)?.branches, (branchesData as any)?.data ?? [], (user as any)?.branch?.company)
 
   const humanize = (v: string) =>
     v.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
@@ -184,11 +185,7 @@ export default function AuditLogsView() {
           <FilterField label="Branch">
             <FilterSelect block value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
               <option value="">All Branches</option>
-              {branchOptions.map((b) => (
-                <option key={b.id} value={String(b.id)}>
-                  {b.name}
-                </option>
-              ))}
+              <BranchOptionGroups branches={branchOptions} label={(b) => b.name} getValue={(b) => String(b.id)} />
             </FilterSelect>
           </FilterField>
           <FilterField label="Created date">

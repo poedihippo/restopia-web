@@ -7,6 +7,23 @@ export interface SelectOption {
   label: string;
   /** react-select greys out and skips options with this set. */
   isDisabled?: boolean;
+  /** Group header (e.g. a branch's company); consecutive options with the same group are grouped. */
+  group?: string;
+  /** Nesting level shown with an arrow (e.g. 1 = pickup point under its premiere). */
+  indent?: number;
+}
+
+// Flat options carrying `group` become react-select groups, keeping their order.
+// Callers keep passing (and looking values up in) the flat list.
+function toGrouped(options: readonly SelectOption[]) {
+  const groups: { label: string; options: SelectOption[] }[] = [];
+  for (const o of options) {
+    const label = o.group ?? "";
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.options.push(o);
+    else groups.push({ label, options: [o] });
+  }
+  return groups;
 }
 
 type SearchableSelectProps = Omit<
@@ -41,9 +58,27 @@ export const SearchableSelect = (props: SearchableSelectProps) => {
     }
   }, [value, user, placeholder, options, onChange]);
 
+  const flat = (options ?? []) as SelectOption[];
+  const hasGroups = flat.some((o) => o && typeof o === "object" && "group" in o && o.group);
+  const hasIndent = flat.some((o) => o && typeof o === "object" && (o.indent ?? 0) > 0);
+
   return (
     <ReactSelect<SelectOption, boolean>
       {...selectProps}
+      {...(hasGroups ? { options: toGrouped(flat) as any } : {})}
+      {...(hasIndent && !selectProps.formatOptionLabel
+        ? {
+            formatOptionLabel: (o: SelectOption, meta: any) =>
+              meta?.context === "menu" && (o.indent ?? 0) > 0 ? (
+                <span style={{ paddingLeft: (o.indent ?? 0) * 14 }}>
+                  <span style={{ color: "var(--foreground-subtle)", marginRight: 4 }}>↳</span>
+                  {o.label}
+                </span>
+              ) : (
+                o.label
+              ),
+          }
+        : {})}
       isLoading={selectProps.isLoading || loadingMore}
       onMenuScrollToBottom={(e) => {
         selectProps.onMenuScrollToBottom?.(e);

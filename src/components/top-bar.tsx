@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authService } from '@/services/auth.service';
 import { branchesService } from '@/services/branches.service';
+import { orderBranches, withBranchDetails } from '@/lib/branchOptions';
 import { cn } from '@/lib/utils';
 import MenuSearch from '@/components/menu-search';
 import TourHelpButton from '@/components/tour/TourHelpButton';
@@ -33,7 +34,7 @@ type TopBarProps = {
 
 export default function TopBar({ onMenuClick }: TopBarProps = {}) {
   const router = useRouter();
-  const { user, logout, refreshUser, isSuperadmin } = useAuth();
+  const { user, logout, refreshUser, isSuperadmin, hasPermission } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,7 +47,8 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
       branchesService
         .list({ per_page: 1000, sort: 'name', include: 'company' } as any)
         .then((r) => r.data),
-    enabled: isSuperadmin,
+    // Non-superadmins need branch.read to list branches (their own still show without it).
+    enabled: isSuperadmin || hasPermission('branch.read'),
   });
   const allBranches = (branchesData as any)?.data ?? [];
 
@@ -71,7 +73,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
   const userInitial = user?.name?.charAt(0)?.toUpperCase() ?? 'U';
   const availableBranches = isSuperadmin
     ? allBranches
-    : user?.branches ?? [];
+    : withBranchDetails((user as any)?.branches, allBranches, (user as any)?.branch?.company);
 
   const onSelectBranch = async (branchId: number) => {
     try {
@@ -304,15 +306,28 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
                   No branches assigned
                 </div>
               )}
-              {availableBranches.map((branch: {
-                id?: number
-                name?: string
-                company?: { name?: string }
-              }) => {
+              {orderBranches(availableBranches).map(({ branch, company, indent }, idx, rows) => {
                 const isActive = branch.id === user?.branch?.id;
+                const showGroup = company !== rows[idx - 1]?.company;
                 return (
+                  <React.Fragment key={branch.id}>
+                  {showGroup && (
+                    <div
+                      style={{
+                        padding: '6px 14px 4px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                        color: 'var(--foreground-subtle)',
+                        background: 'var(--background)',
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                    >
+                      {company}
+                    </div>
+                  )}
                   <button
-                    key={branch.id}
                     type="button"
                     onClick={() => onSelectBranch(branch.id!)}
                     className="branch-option"
@@ -323,6 +338,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
                       alignItems: 'center',
                       gap: 8,
                       padding: '10px 14px',
+                      paddingLeft: 14 + indent * 16,
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
@@ -361,13 +377,9 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
                           color: isActive ? 'var(--accent)' : 'var(--foreground)',
                         }}
                       >
+                        {indent > 0 && <span style={{ color: 'var(--foreground-subtle)', marginRight: 4 }}>↳</span>}
                         {branch.name}
                       </span>
-                      {branch.company?.name && (
-                        <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                          {branch.company.name}
-                        </span>
-                      )}
                     </div>
                     {isActive && (
                       <span style={{ fontSize: 10, color: 'var(--accent)', marginLeft: 'auto' }}>
@@ -375,6 +387,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
                       </span>
                     )}
                   </button>
+                  </React.Fragment>
                 );
               })}
             </div>

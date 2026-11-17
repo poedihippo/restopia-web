@@ -11,6 +11,7 @@ import { paymentsService } from '@/services/payments.service'
 import { paymentMethodsService } from '@/services/payment-methods.service'
 import { bankAccountsService } from '@/services/bank-accounts.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { toastMutationApiError } from '@/utils/apiError'
 import { formatCurrency } from '@/utils/price'
 import { formatDateShort } from '@/utils/date'
@@ -164,8 +165,8 @@ export default function PaymentSettlementsView() {
   }, [tab, searchDebounced, methodId, dateGte, dateLte, historyBranchId])
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'payment-settlements'],
-    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name' } as any).then((r) => r.data),
+    queryKey: ['branches-all', 'payment-settlements', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
   })
   const branches: any[] = (branchesData as any)?.data ?? []
 
@@ -421,11 +422,7 @@ export default function PaymentSettlementsView() {
           />
           <select value={historyBranchId} onChange={(e) => setHistoryBranchId(e.target.value ? Number(e.target.value) : '')} style={{ ...controlStyle, width: 200 }}>
             <option value="">Semua outlet</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
+            <BranchOptionGroups branches={branches} label={(b: any) => b.name} getValue={(b) => b.id} />
           </select>
           <select value={methodId} onChange={(e) => setMethodId(e.target.value ? Number(e.target.value) : '')} style={{ ...controlStyle, width: 180 }}>
             <option value="">Semua metode</option>

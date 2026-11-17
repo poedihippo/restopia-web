@@ -18,6 +18,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { suppliersService } from '@/services/suppliers.service'
 import { buyersService } from '@/services/buyers.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { productUomsService } from '@/services/product-uoms.service'
 import { taxesService } from '@/services/taxes.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
@@ -262,8 +263,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const buyers = buyerOpts.items
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', debouncedDropdownSearch],
-    queryFn: () => branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
+    // Whole list (small) with company so the selector can group company → premiere → pickup points;
+    // the select filters client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
@@ -445,23 +448,19 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     })
   }
   // Internal-source branches: every branch except our own.
-  const sourceBranchOptions = branches
-    .filter((b: any) => b.id !== currentBranchId)
-    .map((b: any) => ({
-      value: b.id as number,
-      label: (b.name as string) ?? `Branch #${b.id}`,
-      sublabel: b.code as string | undefined,
-    }))
+  // (plus the saved source branch on edit, so its label shows even if it is not listed)
+  const sourceBranchRows = branches.filter((b: any) => b.id !== currentBranchId)
   if (
     initialData?.supplier_branch?.id &&
-    !sourceBranchOptions.some((o: any) => o.value === initialData.supplier_branch.id)
+    !sourceBranchRows.some((b: any) => b.id === initialData.supplier_branch.id)
   ) {
-    sourceBranchOptions.push({
-      value: initialData.supplier_branch.id,
-      label: initialData.supplier_branch.name ?? `Branch #${initialData.supplier_branch.id}`,
-      sublabel: initialData.supplier_branch.code,
-    })
+    sourceBranchRows.push(initialData.supplier_branch)
   }
+  const sourceBranchOptions = branchSelectOptions(
+    sourceBranchRows,
+    (b: any) => (b.name as string) ?? `Branch #${b.id}`,
+    (b: any) => ({ sublabel: b.code as string | undefined }),
+  )
   const productUomOptions = mergedProductUoms.map((pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu, pu.product?.name), pu.product?.type),
@@ -903,7 +902,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       searchPlaceholder="Search branches..."
                       loading={branchesLoading}
                       error={errors.supplier_branch_id?.message as string | undefined}
-                      onSearchChange={setDropdownSearch}
                       triggerStyle={triggerStyle}
                     />
                   )}

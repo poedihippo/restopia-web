@@ -8,6 +8,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -149,8 +150,8 @@ export default function InternalOrdersView() {
   // Source-branch options (the PO's supplier_branch_id). branch_id is pinned
   // to my branch and type to 'branch', so neither is exposed.
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
     enabled: !!myBranchId,
   })
   const sourceBranches: any[] = ((branchesData as any)?.data ?? []).filter(
@@ -270,11 +271,7 @@ export default function InternalOrdersView() {
           <FilterField label="Source branch">
             <FilterSelect block value={supplierBranchFilter} onChange={(e) => setSupplierBranchFilter(e.target.value)}>
               <option value="">All Source Branches</option>
-              {sourceBranches.map((b: any) => (
-                <option key={b.id} value={String(b.id)}>
-                  {b.name}
-                </option>
-              ))}
+              <BranchOptionGroups branches={sourceBranches} label={(b: any) => b.name} getValue={(b: any) => String(b.id)} />
             </FilterSelect>
           </FilterField>
         </FilterGroup>

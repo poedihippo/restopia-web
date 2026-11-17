@@ -15,6 +15,7 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { bundlesService as bundleService } from '@/services/bundles.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { usersService } from '@/services/users.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { taxesService } from '@/services/taxes.service'
@@ -359,8 +360,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const purchaseOrders = (purchaseOrdersData as any)?.data ?? []
 
   const { data: branchesData } = useQuery({
-    queryKey: ['so-branches'],
-    queryFn: () => branchesService.list({ per_page: 100 } as any).then((r) => r.data),
+    queryKey: ['so-branches', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
@@ -1468,12 +1469,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               style={fieldStyle}
             >
               <option value={0}>No buyer branch</option>
-              {branches.map((b: any) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                  {b.code ? ` (${b.code})` : ''}
-                </option>
-              ))}
+              <BranchOptionGroups branches={branches} label={(b: any) => `${b.name}${b.code ? ` (${b.code})` : ''}`} getValue={(b) => b.id} />
             </select>
           </div>
         </div>

@@ -10,6 +10,7 @@ import { dimensionTransferRequestsService } from '@/services/dimension-transfer-
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups, withBranchDetails } from '@/lib/branchOptions'
 import { toastMutationApiError } from '@/utils/apiError'
 import { withProductType } from '@/utils/productUomName'
 import api from '@/hooks/useApi'
@@ -83,11 +84,11 @@ export default function DimensionTransferRequestSheet({
   }, [user?.branch?.id, selectedBranchId])
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []
-  const availableBranches: any[] = isSuperadmin ? allBranches : user?.branches ?? []
+  const availableBranches: any[] = isSuperadmin ? allBranches : withBranchDetails((user as any)?.branches, allBranches, (user as any)?.branch?.company)
   const effectiveBranchId = selectedBranchId || user?.branch?.id
 
   const queryClient = useQueryClient()
@@ -482,11 +483,11 @@ export default function DimensionTransferRequestSheet({
               style={inputStyle}
             >
               {availableBranches.length > 0 ? (
-                availableBranches.map((b: any) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} {b.company?.name ? `(${b.company.name})` : ''}
-                  </option>
-                ))
+                <BranchOptionGroups
+                  branches={availableBranches}
+                  label={(b: any) => `${b.name} ${b.company?.name ? `(${b.company.name})` : ''}`}
+                  getValue={(b: any) => b.id}
+                />
               ) : (
                 <option value={user?.branch?.id || ''}>
                   {user?.branch?.name ?? 'Cabang Aktif'}

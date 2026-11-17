@@ -4,6 +4,7 @@ import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
 import { branchesService } from '@/services/branches.service'
+import { orderBranches } from '@/lib/branchOptions'
 
 /**
  * Branch scope of a financial statement (trial balance, income statement,
@@ -19,6 +20,10 @@ interface CompanyBranch {
   name: string
   format?: string | null
   parentId?: number | null
+  /** Raw fields read by orderBranches (company grouping, pickup point nesting). */
+  parent_id?: number | null
+  company_id?: number | null
+  company?: { id?: number; name?: string } | null
 }
 
 /** Branches of the active branch's company; falls back to the user's own branches. */
@@ -33,7 +38,7 @@ function useCompanyBranches(): CompanyBranch[] {
     staleTime: 60_000,
     queryFn: () =>
       branchesService
-        .list({ per_page: 1000, sort: 'name', 'filter[company_id]': companyId } as any)
+        .list({ per_page: 1000, sort: 'name', include: 'company', 'filter[company_id]': companyId } as any)
         .then((r) => r.data),
   })
 
@@ -49,6 +54,9 @@ function useCompanyBranches(): CompanyBranch[] {
       name: b.name ?? `Branch ${b.id}`,
       format: b.format ?? null,
       parentId: b.parent_id != null ? Number(b.parent_id) : null,
+      parent_id: b.parent_id != null ? Number(b.parent_id) : null,
+      company_id: b.company_id ?? b.company?.id ?? null,
+      company: b.company ?? null,
     }))
 }
 
@@ -86,15 +94,15 @@ export default function FinanceBranchSelect({
   const activeName = (user as any)?.branch?.name
   const activeListed = !!activeId && branches.some((b) => String(b.id) === activeId)
 
-  // Each premiere with its own pickup points under it; picking the premiere
-  // reports it together with them, picking a pickup point reports it alone.
-  const premieres = branches.filter((b) => b.format !== 'pickup_point')
-  const premiereIds = new Set(premieres.map((b) => b.id))
-  const childrenOf = (id: number) =>
-    branches
-      // Already in business order (src/utils/branchOrder.ts via branchesService / auth).
-      .filter((b) => b.format === 'pickup_point' && b.parentId === id)
-  const orphans = branches.filter((b) => b.format === 'pickup_point' && !(b.parentId != null && premiereIds.has(b.parentId)))
+  // Company → each premiere with its own pickup points under it; picking the
+  // premiere reports it together with them, picking a pickup point reports it alone.
+  const ordered = orderBranches(branches)
+  const groups: { company: string; rows: typeof ordered }[] = []
+  for (const row of ordered) {
+    const last = groups[groups.length - 1]
+    if (last && last.company === row.company) last.rows.push(row)
+    else groups.push({ company: row.company, rows: [row] })
+  }
 
   // The default ('' = no param) is the active branch + its pickup points, so show it
   // as that branch's own option instead of a separate duplicate entry.
@@ -110,21 +118,19 @@ export default function FinanceBranchSelect({
         <option value="">{activeName ? `${activeName} (+ pickup point)` : 'Cabang aktif (+ pickup point)'}</option>
       )}
       <option value="all">Semua cabang</option>
-      {premieres.map((p) => (
-        <optgroup key={p.id} label={p.name}>
-          <option value={String(p.id)}>{p.name} (+ pickup point)</option>
-          {childrenOf(p.id).map((c) => (
-            <option key={c.id} value={String(c.id)}>{'\u00A0\u00A0↳ '}{c.name}</option>
+      {groups.map((g) => (
+        <optgroup key={g.company} label={g.company}>
+          {g.rows.map(({ branch: b, indent }) => (
+            <option key={b.id} value={String(b.id)}>
+              {indent > 0
+                ? `\u00A0\u00A0\u00A0↳ ${b.name}`
+                : b.format === 'pickup_point'
+                  ? b.name
+                  : `${b.name} (+ pickup point)`}
+            </option>
           ))}
         </optgroup>
       ))}
-      {orphans.length > 0 && (
-        <optgroup label="Pickup point">
-          {orphans.map((b) => (
-            <option key={b.id} value={String(b.id)}>{b.name}</option>
-          ))}
-        </optgroup>
-      )}
     </select>
   )
 }

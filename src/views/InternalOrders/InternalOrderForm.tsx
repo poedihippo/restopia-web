@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { productUomsService } from '@/services/product-uoms.service'
 import { useAuth } from '@/hooks/useAuth'
 import { Plus, Trash2, Loader2, Save } from 'lucide-react'
@@ -119,8 +120,10 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   }, [focusNewRowIndex, fields.length])
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', debouncedDropdownSearch],
-    queryFn: () => branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
+    // Whole list (small) with company so the selector can group company → premiere → pickup points;
+    // the select filters client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
@@ -208,16 +211,14 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
 
   // Internal-source branches: every branch except our own (plus the default,
   // so its label shows even when the dropdown search hides it).
-  const sourceBranchOptions = [
-    ...branches,
-    ...(defaultSourceBranch && !branches.some((b: any) => b.id === defaultSourceBranch.id) ? [defaultSourceBranch] : []),
-  ]
-    .filter((b: any) => b.id !== myBranchId)
-    .map((b: any) => ({
-      value: b.id as number,
-      label: (b.name as string) ?? `Branch #${b.id}`,
-      sublabel: b.code as string | undefined,
-    }))
+  const sourceBranchOptions = branchSelectOptions(
+    [
+      ...branches,
+      ...(defaultSourceBranch && !branches.some((b: any) => b.id === defaultSourceBranch.id) ? [defaultSourceBranch] : []),
+    ].filter((b: any) => b.id !== myBranchId),
+    (b: any) => (b.name as string) ?? `Branch #${b.id}`,
+    (b: any) => ({ sublabel: b.code as string | undefined }),
+  )
   const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu, pu.product?.name) || '', pu.product?.type),
@@ -554,7 +555,6 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                     searchPlaceholder="Search branches..."
                     loading={branchesLoading}
                     error={errors.supplier_branch_id?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
 />
                 )}
               />
