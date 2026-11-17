@@ -1,8 +1,10 @@
 "use client";
-import { fetchExpenseAccounts } from "@/utils/expenseAccounts";
+import { useExpenseAccountOptions } from "@/utils/expenseAccounts";
+import { useInfiniteOptions } from "@/hooks/useInfiniteOptions";
+import { useDebounce } from "@/hooks/useDebounce";
 import { formatDateShort, formatDateTime } from "@/utils/date";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Eye, X } from "lucide-react";
@@ -77,30 +79,51 @@ export default function PaymentMethodsView() {
   const companyOptions: { id: number; name: string }[] =
     (companiesData as any)?.data ?? [];
 
-  const { data: chartOfAccountsData, isLoading: chartOfAccountsLoading } =
-    useQuery({
-      queryKey: ["chart-of-accounts-pm"],
-      queryFn: () =>
-        chartOfAccountsService
-          .list({
-            per_page: 500,
-            sort: "code",
-            "filter[use_as_payment_method]": "true",
-          } as any)
-          .then((r) => (r.data as any)?.data ?? []),
-      enabled: showForm,
-    });
-  const chartOfAccounts = chartOfAccountsData ?? [];
+  // Kas/Bank picker: paged + server-searched. filter[use_as_payment_method] is kept
+  // as before (the API currently ignores it).
+  const [coaSearch, setCoaSearch] = useState("");
+  const debouncedCoaSearch = useDebounce(coaSearch, 400);
+  const coaOpts = useInfiniteOptions<any>({
+    queryKey: ["chart-of-accounts-pm", debouncedCoaSearch],
+    fetchPage: (page) =>
+      chartOfAccountsService
+        .list({
+          page,
+          per_page: 20,
+          sort: "code,id",
+          "filter[use_as_payment_method]": "true",
+          "filter[search]": debouncedCoaSearch || undefined,
+        } as any)
+        .then((r) => r.data),
+    enabled: showForm,
+  });
+  const chartOfAccountsLoading = coaOpts.loading;
   // Default fee account for settlements: an active, non-header expense
   // account, e.g. Biaya Admin Bank / MDR.
-  const { data: feeAccountsData, isLoading: feeAccountsLoading } = useQuery({
+  const [feeCoaSearch, setFeeCoaSearch] = useState("");
+  const debouncedFeeCoaSearch = useDebounce(feeCoaSearch, 400);
+  const feeCoaOpts = useExpenseAccountOptions({
     queryKey: ["chart-of-accounts-fee", "expense"],
-    queryFn: fetchExpenseAccounts,
+    search: debouncedFeeCoaSearch,
     enabled: showForm && requiresSettlement,
   });
+  const feeAccountsLoading = feeCoaOpts.loading;
+
+  // id → account cache (loaded pages + the edited method's included accounts) so a
+  // saved Kas/Bank or fee account keeps its label when it is outside the loaded pages.
+  const seenCoaRef = useRef(new Map<number, any>());
+  for (const c of [...coaOpts.items, ...feeCoaOpts.items]) seenCoaRef.current.set(Number(c.id), c);
+  if (editing?.chart_of_account?.id) seenCoaRef.current.set(Number(editing.chart_of_account.id), editing.chart_of_account);
+  if (editing?.settlement_fee_chart_of_account?.id)
+    seenCoaRef.current.set(Number(editing.settlement_fee_chart_of_account.id), editing.settlement_fee_chart_of_account);
+  const withSelected = (list: any[], id: number | null) =>
+    id && !list.some((c) => Number(c.id) === Number(id)) && seenCoaRef.current.has(Number(id))
+      ? [...list, seenCoaRef.current.get(Number(id))]
+      : list;
+  const chartOfAccounts = withSelected(coaOpts.items, chartOfAccountId);
   const feeAccountOptions = [
     { value: 0, label: "— None —" },
-    ...((feeAccountsData ?? []) as any[]).map((coa: any) => ({
+    ...withSelected(feeCoaOpts.items, feeAccountId).map((coa: any) => ({
       value: coa.id as number,
       label: (coa.name as string) ?? `COA #${coa.id}`,
       sublabel: (coa.code as string) ?? undefined,
@@ -113,7 +136,7 @@ export default function PaymentMethodsView() {
     queryKey: ["bank-accounts-all", "pm-labels"],
     queryFn: () =>
       bankAccountsService
-        .list({ per_page: 1000 } as any)
+        .list({ per_page: 1000, include: "chart_of_account" } as any)
         .then((r) => (r.data as any)?.data ?? []),
     enabled: showForm,
   });
@@ -123,10 +146,32 @@ export default function PaymentMethodsView() {
       .map((b) => [Number(b.chart_of_account_id), b]),
   );
 
+  // The server search only matches COA code/name, but the picker also shows and
+  // filters on bank name / account number: add the ledger accounts of the bank
+  // accounts matching the typed text, so "BCA" or "1234567" still finds them.
+  const coaNeedle = coaSearch.trim().toLowerCase();
+  const bankMatchedCoas = coaNeedle
+    ? ((bankAccountsData ?? []) as any[])
+        .filter(
+          (b) =>
+            b.chart_of_account?.id &&
+            [b.bank_name, b.account_number, b.account_name]
+              .filter(Boolean)
+              .some((v: string) => String(v).toLowerCase().includes(coaNeedle)),
+        )
+        .map((b) => b.chart_of_account)
+    : [];
+  const pickerAccounts = [
+    ...chartOfAccounts,
+    ...bankMatchedCoas.filter(
+      (c: any) => !chartOfAccounts.some((x: any) => Number(x.id) === Number(c.id)),
+    ),
+  ];
+
   // Searchable options for the Kas/Bank picker (searchable by name and code).
   const coaSelectOptions = [
     { value: 0, label: "— Choose account —" },
-    ...chartOfAccounts.map((coa: any) => {
+    ...pickerAccounts.map((coa: any) => {
       const bank = bankByCoaId.get(Number(coa.id));
       return {
         value: coa.id as number,
@@ -158,7 +203,7 @@ export default function PaymentMethodsView() {
         .list({
           per_page: 1000,
           sort: "id",
-          include: "chart_of_account",
+          include: "chart_of_account,settlement_fee_chart_of_account",
           "filter[search]": debouncedSearch || undefined,
           "filter[type]": typeFilter || undefined,
           "filter[company_id]": companyFilter || undefined,
@@ -887,10 +932,14 @@ export default function PaymentMethodsView() {
                 onChartOfAccountChange={setChartOfAccountId}
                 accountOptions={coaSelectOptions}
                 accountsLoading={chartOfAccountsLoading}
+                onAccountSearchChange={setCoaSearch}
+                accountSelectProps={coaOpts.selectProps}
                 feeAccountId={feeAccountId}
                 onFeeAccountChange={setFeeAccountId}
                 feeAccountOptions={feeAccountOptions}
                 feeAccountsLoading={feeAccountsLoading}
+                onFeeAccountSearchChange={setFeeCoaSearch}
+                feeAccountSelectProps={feeCoaOpts.selectProps}
               />
               {editing?.bank_account_id ? (
                 <p
@@ -1207,6 +1256,8 @@ export default function PaymentMethodsView() {
   );
 }
 
+type PagedSelectProps = { hasMore: boolean; loadingMore: boolean; onLoadMore: () => void };
+
 // "Where does the money go?" — the one accounting decision a payment method
 // needs, phrased for cashiers rather than as a raw Chart of Account picker.
 function MoneyDestination({
@@ -1217,10 +1268,14 @@ function MoneyDestination({
   onChartOfAccountChange,
   accountOptions,
   accountsLoading,
+  onAccountSearchChange,
+  accountSelectProps,
   feeAccountId,
   onFeeAccountChange,
   feeAccountOptions,
   feeAccountsLoading,
+  onFeeAccountSearchChange,
+  feeAccountSelectProps,
 }: {
   type: string;
   requiresSettlement: boolean;
@@ -1233,6 +1288,10 @@ function MoneyDestination({
   onFeeAccountChange: (v: number | null) => void;
   feeAccountOptions: { value: number; label: string; sublabel?: string }[];
   feeAccountsLoading: boolean;
+  onAccountSearchChange?: (search: string) => void;
+  accountSelectProps?: PagedSelectProps;
+  onFeeAccountSearchChange?: (search: string) => void;
+  feeAccountSelectProps?: PagedSelectProps;
 }) {
   const isPurchase = type === "purchase_orders";
   const settleLater = !isPurchase && requiresSettlement;
@@ -1289,6 +1348,8 @@ function MoneyDestination({
         placeholder="— Choose account —"
         searchPlaceholder="Search bank, account number or code..."
         loading={accountsLoading}
+        onSearchChange={onAccountSearchChange}
+        {...accountSelectProps}
         triggerStyle={triggerStyle}
       />
     </div>
@@ -1360,6 +1421,8 @@ function MoneyDestination({
             placeholder="— None —"
             searchPlaceholder="Search account name or code..."
             loading={feeAccountsLoading}
+            onSearchChange={onFeeAccountSearchChange}
+            {...feeAccountSelectProps}
             triggerStyle={triggerStyle}
           />
           <p style={hintStyle}>

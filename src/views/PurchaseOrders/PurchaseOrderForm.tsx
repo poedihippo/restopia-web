@@ -1,4 +1,5 @@
 'use client'
+import HeaderCheckbox from '@/components/HeaderCheckbox'
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { getProductUomName, withProductType } from '@/utils/productUomName';
 import { packagingChains } from '@/utils/unitDisplay';
@@ -1005,7 +1006,21 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                     <th style={{ ...thStyle, width: 170, textAlign: 'right' }}>Unit Price</th>
                   )}
                   {watchType !== 'branch' && (
-                    <th style={{ ...thStyle, width: 64, textAlign: 'center' }}>Taxable</th>
+                    <th style={{ ...thStyle, width: 64, textAlign: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                        <span>Taxable</span>
+                        <HeaderCheckbox
+                          total={watchDetails.length}
+                          checkedCount={watchDetails.filter((d) => d.is_taxable).length}
+                          onToggleAll={(checkAll) =>
+                            watchDetails.forEach((_, i) =>
+                              setValue(`details.${i}.is_taxable`, checkAll, { shouldDirty: true }),
+                            )
+                          }
+                          title="Mark all lines taxable"
+                        />
+                      </div>
+                    </th>
                   )}
                   <th style={{ ...thStyle, width: 120, textAlign: 'right' }}>Subtotal</th>
                   <th style={{ ...thStyle, width: 150, textAlign: 'left' }}>Notes</th>

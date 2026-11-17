@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState,  useEffect } from 'react'
+import React, { useState,  useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Plus, Trash2, Loader2, Save } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import RecipeImportModal from '@/views/PurchaseOrders/RecipeImportModal'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
@@ -127,13 +128,17 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   // Berlaku untuk semua tipe branch, termasuk "outlet" (product-UOM kini punya
   // branch_types "outlet", jadi tidak perlu lagi pengecualian).
   const activeBranchType = ((user as any)?.branch?.type as string | undefined) || undefined
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
+  // Product UOMs for the row pickers — paged (20 per page, next page on
+  // scroll), search delegated to the server (`filter[search]`).
+  const productUomOpts = useInfiniteOptions<any>({
     queryKey: ['product-uoms-all', activeBranchType, debouncedDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           'filter[search]': debouncedDropdownSearch || undefined,
-          per_page: 1000,
+          per_page: 20,
+          sort: 'id',
           include: 'product,uom',
           'filter[product_types]': 'wip,raw,supply',
           'filter[branch_type]': activeBranchType,
@@ -141,8 +146,44 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
         } as any)
         .then((r) => r.data),
   })
-  const allProductUoms = (productUomsData as any)?.data ?? []
+  const productUomsLoading = productUomOpts.loading
+  const allProductUoms = productUomOpts.items
   const productUoms = allProductUoms
+
+  // Every product UOM seen so far, by id. Rows chosen earlier (edit mode,
+  // recipe import, or picked before the search changed) may not be on a loaded
+  // page — those are fetched by id (`filter[ids]`) so their labels always show.
+  const productUomCacheRef = useRef<Map<number, any>>(new Map())
+  useMemo(() => {
+    allProductUoms.forEach((pu: any) => {
+      if (pu?.id != null) productUomCacheRef.current.set(Number(pu.id), pu)
+    })
+  }, [allProductUoms])
+  const missingProductUomIds: number[] = Array.from(
+    new Set<number>(
+      (watch('details') ?? [])
+        .map((d: any) => Number(d?.product_uom_id ?? 0))
+        .filter((v: number) => v > 0 && !productUomCacheRef.current.has(v)),
+    ),
+  ).sort((a, b) => a - b)
+  const { data: chosenProductUomsData } = useQuery({
+    queryKey: ['product-uoms-by-ids', missingProductUomIds.join(','), 'product,uom'],
+    enabled: missingProductUomIds.length > 0,
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[ids]': missingProductUomIds.join(','),
+          per_page: Math.max(20, missingProductUomIds.length),
+          include: 'product,uom',
+        } as any)
+        .then((r) => r.data),
+  })
+  const chosenProductUoms: any[] = (chosenProductUomsData as any)?.data ?? []
+  useMemo(() => {
+    chosenProductUoms.forEach((pu: any) => {
+      if (pu?.id != null) productUomCacheRef.current.set(Number(pu.id), pu)
+    })
+  }, [chosenProductUomsData])
 
   const companyId = Number((user as any)?.branch?.company_id ?? (user as any)?.branch?.company?.id) || 0
   const defaultSourceName = DEFAULT_SOURCE_BRANCH_BY_COMPANY[companyId]
@@ -177,13 +218,21 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
       label: (b.name as string) ?? `Branch #${b.id}`,
       sublabel: b.code as string | undefined,
     }))
-  const productUomOptions = productUoms.map((pu: any) => ({
+  const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu, pu.product?.name) || '', pu.product?.type),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
     price: pu.base_price ?? 0,
-  }))
+  })
+  const productUomOptions = productUoms.map(toProductUomOption)
+  // Loaded options plus the row's chosen product UOM when it is not on a loaded page.
+  const productUomOptionsFor = (selectedId: number) => {
+    const id = Number(selectedId)
+    if (!id || productUomOptions.some((o: any) => o.value === id)) return productUomOptions
+    const cached = productUomCacheRef.current.get(id)
+    return cached ? [toProductUomOption(cached), ...productUomOptions] : productUomOptions
+  }
 
   const handleImportRecipes = (selectedRecipes: any[]) => {
     const currentDetails = watch('details')
@@ -723,7 +772,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                         f.onChange(val)
                         const opt = productUomOptions.find((o: any) => o.value === val)
                       }}
-                      options={productUomOptions.filter((o: any) => {
+                      options={productUomOptionsFor(Number(f.value)).filter((o: any) => {
                         const selectedIds = watch('details').map(d => d.product_uom_id).filter(id => id > 0)
                         return !selectedIds.includes(o.value) || o.value === f.value
                       })}
@@ -736,6 +785,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                         | undefined
                       }
                       onSearchChange={setDropdownSearch}
+                      {...productUomOpts.selectProps}
                     />
                   )}
                 />

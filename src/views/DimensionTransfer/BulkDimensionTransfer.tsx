@@ -13,6 +13,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Loader2, ArrowRightLeft, Plus, Trash2 } from 'lucide-react'
 
@@ -101,23 +102,39 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
 
-  const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
-    queryKey: ['dimension-transfer-source-inventory', effectiveBranchId, debouncedDropdownSearch],
-    enabled: !!effectiveBranchId,
-    queryFn: () =>
+  const fromOwner = watch('from_owner_ref')
+  const fromStage = watch('from_stage')
+  const fromLocation = watch('from_location_ref') || 'GENERAL'
+  const toStage = watch('to_stage')
+  const watchItems = watch('items')
+
+  // Paged (20/page), server-searched rows of the selected source dimension that
+  // still have stock (stock is numeric(20,2), so >= 0.01 means > 0).
+  const inventoryOpts = useInfiniteOptions<DimensionInventoryRow>({
+    queryKey: ['dimension-transfer-source-inventory', effectiveBranchId, 'bulk', fromOwner, fromStage, fromLocation, debouncedDropdownSearch],
+    enabled: !!effectiveBranchId && !!fromStage,
+    fetchPage: (page) =>
       productInventoriesService
         .list({
-          per_page: 1000,
+          page,
+          per_page: 20,
+          sort: 'id',
           'filter[branch_id]': effectiveBranchId,
           'filter[search]': debouncedDropdownSearch || undefined,
+          'filter[stock_gte]': 0.01,
+          'filter[owner_ref]': fromOwner,
+          'filter[stage]': fromStage,
+          'filter[location_ref]': fromLocation,
           include:
             'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
         } as any)
         .then((r) => r.data),
   })
+  const inventoryLoading = inventoryOpts.loading
 
-  const allInventoryRows: DimensionInventoryRow[] = ((inventoryData as any)?.data ?? []).filter(
-    (r: any) => Number(r.display_qty ?? r.stock ?? r.qty ?? 0) > 0,
+  const allInventoryRows: DimensionInventoryRow[] = useMemo(
+    () => inventoryOpts.items.filter((r: any) => Number(r.display_qty ?? r.stock ?? r.qty ?? 0) > 0),
+    [inventoryOpts.items],
   )
 
   const { data: companiesData } = useQuery({
@@ -154,12 +171,6 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
     return match?.name ?? ownerRef
   }
 
-  const fromOwner = watch('from_owner_ref')
-  const fromStage = watch('from_stage')
-  const fromLocation = watch('from_location_ref') || 'GENERAL'
-  const toStage = watch('to_stage')
-  const watchItems = watch('items')
-
   // Only offer inventory rows that live in the selected source dimension
   // (stage dipilih dulu; owner & lokasi dikunci GENERAL).
   const inventoryRows = useMemo(
@@ -172,6 +183,10 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
       ),
     [allInventoryRows, fromOwner, fromStage, fromLocation],
   )
+  // Rows seen in any loaded page/search, so picked items still resolve after the
+  // search is cleared or when they sit outside the currently loaded pages.
+  const seenRowsRef = useRef(new Map<number, DimensionInventoryRow>())
+  for (const r of inventoryRows) seenRowsRef.current.set(r.id, r)
 
   // Changing the source dimension invalidates previously picked items.
   const prevFrom = useRef(`${fromOwner}|${fromStage}|${fromLocation}`)
@@ -251,7 +266,14 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
 
     const items: { product_uom_batch_id: number; qty: number }[] = []
     for (const item of values.items) {
-      const row = inventoryRows.find((r) => r.id === Number(item.source_inventory_id))
+      const seen = seenRowsRef.current.get(Number(item.source_inventory_id))
+      const row =
+        seen &&
+        (seen.owner_ref ?? 'GENERAL') === fromOwner &&
+        (seen.stage ?? 'GENERAL') === fromStage &&
+        (seen.location_ref ?? 'GENERAL') === fromLocation
+          ? seen
+          : undefined
       if (!row) {
         toast.error(`Item #${item.source_inventory_id} tidak valid`)
         return
@@ -490,6 +512,7 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
                       disabled={!fromStage}
                       error={errors.items?.[index]?.source_inventory_id?.message as string | undefined}
                       onSearchChange={setDropdownSearch}
+                      {...inventoryOpts.selectProps}
                     />
                   )}
                 />

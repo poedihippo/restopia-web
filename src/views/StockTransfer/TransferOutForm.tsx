@@ -16,6 +16,7 @@ import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import api from '@/hooks/useApi'
 import { Plus, Trash2, Loader2, X } from 'lucide-react'
@@ -148,21 +149,35 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
 
   const activeProductTypes = useActiveBranchProductTypes()
 
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
+  // Product UOMs for the row pickers — paged (20 per page, next page on
+  // scroll), search delegated to the server (`filter[search]`).
+  const productUomOpts = useInfiniteOptions<any>({
     queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           'filter[search]': debouncedDropdownSearch || undefined,
-          per_page: 1000,
+          per_page: 20,
+          sort: 'id',
           include: 'product,uom',
           'filter[product_types]': activeProductTypes,
           'filter[is_active]': true,
         } as any)
         .then((r) => r.data),
   })
-  const allProductUoms = (productUomsData as any)?.data ?? []
+  const productUomsLoading = productUomOpts.loading
+  const allProductUoms = productUomOpts.items
   const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
+
+  // Every product UOM ever loaded, by id — rows already chosen keep their label
+  // (and the shortage message its name) after the search / loaded pages change.
+  const productUomCacheRef = React.useRef<Map<number, any>>(new Map())
+  React.useMemo(() => {
+    allProductUoms.forEach((pu: any) => {
+      if (pu?.id != null) productUomCacheRef.current.set(Number(pu.id), pu)
+    })
+  }, [allProductUoms])
 
   // Available stock at the SOURCE branch for the selected owner/stage/location.
   // filter[stage]/filter[owner_ref]/filter[location_ref] are supported by
@@ -261,8 +276,9 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
           need -= take
         }
         if (need > 1e-9) {
+          const cachedPu = productUomCacheRef.current.get(Number(d.product_uom_id))
           const name =
-            productUomOptions.find((o: any) => o.value === Number(d.product_uom_id))?.label ??
+            (cachedPu ? toProductUomOption(cachedPu).label : undefined) ??
             `row ${i + 1}`
           shortages.push(`${name} (kurang ${need.toLocaleString('id-ID', { maximumFractionDigits: 3 })})`)
         }
@@ -290,12 +306,20 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
       sublabel: (b.company?.name as string) ?? '',
     }))
 
-  const productUomOptions = productUoms.map((pu: any) => ({
+  const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu, pu.product?.name), pu.product?.type),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
-  }))
+  })
+  const productUomOptions = productUoms.map(toProductUomOption)
+  // Loaded options plus the row's chosen product UOM when it is not on a loaded page.
+  const productUomOptionsFor = (selectedId: number) => {
+    const id = Number(selectedId)
+    if (!id || productUomOptions.some((o: any) => o.value === id)) return productUomOptions
+    const cached = productUomCacheRef.current.get(id)
+    return cached ? [toProductUomOption(cached), ...productUomOptions] : productUomOptions
+  }
 
   const createMutation = useMutation({
     mutationFn: (values: FormValues) => {
@@ -622,12 +646,12 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                         value={f.value ?? 0}
                         onChange={(val) => {
                           f.onChange(val)
-                          const selectedPu = productUoms.find((pu: any) => pu.id === Number(val))
+                          const selectedPu = productUomCacheRef.current.get(Number(val))
                           if (selectedPu && selectedPu.base_price !== undefined) {
                             setValue(`details.${index}.price`, Number(selectedPu.base_price))
                           }
                         }}
-                        options={productUomOptions.filter((o: any) => {
+                        options={productUomOptionsFor(Number(f.value)).filter((o: any) => {
                           const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
                           return !selectedIds.includes(o.value) || o.value === f.value
                         })}
@@ -640,6 +664,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                           | undefined
                         }
                         onSearchChange={setDropdownSearch}
+                        {...productUomOpts.selectProps}
 />
                     )}
                   />

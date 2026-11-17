@@ -164,6 +164,15 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
         ?.scrollIntoView({ block: 'nearest' })
     }, [open, highlightedIndex])
 
+    // A paged source loads its next page on scroll — but when the loaded options don't
+    // fill the list (few rows matched this page), there is nothing to scroll, so keep
+    // loading until the list overflows or the source has no more pages.
+    useEffect(() => {
+      if (!open || loading || loadingMore || !hasMore || !onLoadMore) return
+      const el = listRef.current
+      if (el && el.scrollHeight <= el.clientHeight + 24) onLoadMore()
+    }, [open, loading, loadingMore, hasMore, onLoadMore, filteredOptions.length])
+
     const close = () => {
       setOpen(false)
       setSearch('')

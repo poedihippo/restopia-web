@@ -1,7 +1,8 @@
 'use client'
 
-import { fetchExpenseAccounts } from '@/utils/expenseAccounts'
-import { useEffect, useState } from 'react'
+import { useExpenseAccountOptions } from '@/utils/expenseAccounts'
+import { useDebounce } from '@/hooks/useDebounce'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowUpRight, Check, CreditCard, Inbox, Loader2, MousePointerClick, Plus, Trash2, Undo2 } from 'lucide-react'
@@ -172,7 +173,7 @@ export default function PaymentSettlementsView() {
     queryKey: ['payment-methods-all', 'requires-settlement'],
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 200, sort: 'name', 'filter[requires_settlement]': true } as any)
+        .list({ per_page: 200, sort: 'name', include: 'settlement_fee_chart_of_account', 'filter[requires_settlement]': true } as any)
         .then((r) => r.data),
   })
   const methods: any[] = ((methodsData as any)?.data ?? []).filter((m: any) => m.requires_settlement !== false)
@@ -191,12 +192,24 @@ export default function PaymentSettlementsView() {
   })
   const bankAccounts: any[] = ((banksData as any)?.data ?? []).filter((b: any) => b.is_active !== false)
 
-  const { data: feeCoaData, isLoading: feeCoaLoading } = useQuery({
+  const [feeCoaSearch, setFeeCoaSearch] = useState('')
+  const debouncedFeeCoaSearch = useDebounce(feeCoaSearch, 400)
+  const feeCoaOpts = useExpenseAccountOptions({
     queryKey: ['chart-of-accounts-fee', 'expense'],
+    search: debouncedFeeCoaSearch,
     enabled: tab === 'pending' && canSettle,
-    queryFn: fetchExpenseAccounts,
   })
-  const feeCoaOptions = ((feeCoaData ?? []) as any[]).map((c: any) => ({
+  const feeCoaLoading = feeCoaOpts.loading
+  // id → account cache (loaded pages + each method's included default fee account) so a
+  // pre-filled / chosen fee account keeps its label when it is outside the loaded pages.
+  const seenFeeCoaRef = useRef(new Map<number, any>())
+  for (const c of feeCoaOpts.items) seenFeeCoaRef.current.set(Number(c.id), c)
+  for (const m of methods) if (m.settlement_fee_chart_of_account?.id) seenFeeCoaRef.current.set(Number(m.settlement_fee_chart_of_account.id), m.settlement_fee_chart_of_account)
+  const loadedFeeCoaIds = new Set(feeCoaOpts.items.map((c: any) => Number(c.id)))
+  const selectedExtraFeeCoa = Array.from(new Set(fees.map((f) => Number(f.chart_of_account_id) || 0)))
+    .filter((id) => id && !loadedFeeCoaIds.has(id) && seenFeeCoaRef.current.has(id))
+    .map((id) => seenFeeCoaRef.current.get(id))
+  const feeCoaOptions = [...feeCoaOpts.items, ...selectedExtraFeeCoa].map((c: any) => ({
     value: Number(c.id),
     label: c.name ?? `COA #${c.id}`,
     sublabel: c.code ?? undefined,
@@ -757,6 +770,8 @@ export default function PaymentSettlementsView() {
                             placeholder="Pilih akun biaya"
                             searchPlaceholder="Cari nama / kode akun..."
                             loading={feeCoaLoading}
+                            onSearchChange={setFeeCoaSearch}
+                            {...feeCoaOpts.selectProps}
                             error={fieldErrors[`fees.${i}.chart_of_account_id`] || undefined}
                           />
                         </div>

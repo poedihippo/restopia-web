@@ -1,5 +1,6 @@
 'use client'
 
+import HeaderCheckbox from '@/components/HeaderCheckbox'
 import React, { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -105,6 +106,22 @@ export default function Workspace({ id, onBack }: { id: number; onBack: () => vo
       return next
     })
   }
+
+  // Check-all acts on the shown, still-unmatched lines only (matched ones can't be selected).
+  const selectableStatement = canEdit ? shownStatement.filter((l) => !isMatched(l.match_group_id)) : []
+  const selectableLedger = canEdit ? shownLedger.filter((l) => !isMatched(l.match_group_id)) : []
+  const toggleAllStatement = (checkAll: boolean) =>
+    setSelStatement((prev) => {
+      const next = new Map(prev)
+      for (const l of selectableStatement) checkAll ? next.set(l.id, l) : next.delete(l.id)
+      return next
+    })
+  const toggleAllLedger = (checkAll: boolean) =>
+    setSelLedger((prev) => {
+      const next = new Map(prev)
+      for (const l of selectableLedger) checkAll ? next.set(l.journal_detail_id, l) : next.delete(l.journal_detail_id)
+      return next
+    })
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['bank-reconciliation', id] })
@@ -319,7 +336,14 @@ export default function Workspace({ id, onBack }: { id: number; onBack: () => vo
                 <table className="v2-table">
                   <thead>
                     <tr>
-                      <th style={checkCell} />
+                      <th style={checkCell}>
+                        <HeaderCheckbox
+                          total={selectableStatement.length}
+                          checkedCount={selectableStatement.filter((l) => selStatement.has(l.id)).length}
+                          onToggleAll={toggleAllStatement}
+                          title="Check all unmatched statement lines"
+                        />
+                      </th>
                       <th>Date</th>
                       <th>Description</th>
                       <th style={{ textAlign: 'right' }}>In</th>
@@ -415,7 +439,14 @@ export default function Workspace({ id, onBack }: { id: number; onBack: () => vo
                 <table className="v2-table">
                   <thead>
                     <tr>
-                      <th style={checkCell} />
+                      <th style={checkCell}>
+                        <HeaderCheckbox
+                          total={selectableLedger.length}
+                          checkedCount={selectableLedger.filter((l) => selLedger.has(l.journal_detail_id)).length}
+                          onToggleAll={toggleAllLedger}
+                          title="Check all unmatched ledger lines"
+                        />
+                      </th>
                       <th>Date</th>
                       <th>Journal / source</th>
                       <th style={{ textAlign: 'right' }}>Debit (in)</th>

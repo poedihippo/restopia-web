@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { receiptsService } from '@/services/receipts.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { productUomsService } from '@/services/product-uoms.service'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
@@ -92,26 +93,62 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
     deliveryLines.length > 0 && deliveryLines.every((d: any) => remainingQtyOf(d) <= 0)
   const canCreate = !delivery || canUserCreateReceiptForDelivery(delivery, user, isSuperadmin)
 
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
+  // Product UOMs for the row pickers — paged (20 per page, next page on
+  // scroll), search delegated to the server (`filter[search]`).
+  const productUomOpts = useInfiniteOptions<any>({
     queryKey: ['product-uoms-all', debouncedDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           'filter[search]': debouncedDropdownSearch || undefined,
-          per_page: 1000,
+          per_page: 20,
+          sort: 'id',
           include: 'product,uom',
           'filter[is_active]': true,
         } as any)
         .then((r) => r.data),
   })
-  const productUoms: any[] = (productUomsData as any)?.data ?? []
+  const productUomsLoading = productUomOpts.loading
+  const productUoms: any[] = productUomOpts.items
 
-  const productUomOptions = productUoms.map((pu: any) => ({
+  // Rows are prefilled from the delivery lines, whose product UOMs may not be on
+  // a loaded page — fetch exactly those by id so their labels always show.
+  const deliveryProductUomIds: number[] = Array.from(
+    new Set<number>(
+      deliveryLines
+        .map((d: any) => Number(d.product_uom_id ?? d.product_uom?.id ?? 0))
+        .filter((v: number) => v > 0),
+    ),
+  ).sort((a, b) => a - b)
+  const { data: chosenProductUomsData } = useQuery({
+    queryKey: ['product-uoms-by-ids', deliveryProductUomIds.join(','), 'product,uom'],
+    enabled: deliveryProductUomIds.length > 0,
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[ids]': deliveryProductUomIds.join(','),
+          per_page: Math.max(20, deliveryProductUomIds.length),
+          include: 'product,uom',
+        } as any)
+        .then((r) => r.data),
+  })
+  const chosenProductUoms: any[] = (chosenProductUomsData as any)?.data ?? []
+
+  const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu, pu.product?.name), pu.product?.type),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
-  }))
+  })
+  const productUomOptions = productUoms.map(toProductUomOption)
+  // Loaded options plus the row's chosen product UOM when it is not on a loaded page.
+  const productUomOptionsFor = (selectedId: number) => {
+    const id = Number(selectedId)
+    if (!id || productUomOptions.some((o: any) => o.value === id)) return productUomOptions
+    const chosen = chosenProductUoms.find((pu: any) => Number(pu.id) === id)
+    return chosen ? [toProductUomOption(chosen), ...productUomOptions] : productUomOptions
+  }
 
   const {
     register,
@@ -701,7 +738,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                   <SearchableSelect
                     value={f.value ?? 0}
                     onChange={f.onChange}
-                    options={productUomOptions.filter((o: any) => {
+                    options={productUomOptionsFor(Number(f.value)).filter((o: any) => {
                       const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
                       return !selectedIds.includes(o.value) || o.value === f.value
                     })}
@@ -714,6 +751,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                       | undefined
                     }
                     onSearchChange={setDropdownSearch}
+                    {...productUomOpts.selectProps}
 />
                 )}
               />

@@ -17,6 +17,8 @@ import { formatCurrency } from '@/utils/price'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
+import { useDebounce } from '@/hooks/useDebounce'
 import {
   Plus, Pencil, Trash2, ChevronRight, ChevronDown,
   X, Loader2, BookOpen, XCircle, Download, Folder, FolderOpen, FileText, ArrowUpRight,
@@ -193,11 +195,19 @@ export default function ChartOfAccountsView() {
 
   // Parent filter options: all header accounts, independent of the tree's current filters
   // (deriving them from `items` would empty the list once another filter is applied).
-  const { data: parentOptionsData } = useQuery({
-    queryKey: ['chart-of-accounts-all', 'coa-parent-filter'],
-    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[is_header]': '1' } as any).then((r) => r.data),
+  // Paged + server-searched; a seen-records cache keeps the chosen parent's label once it scrolls out of the loaded pages.
+  const [parentFilterSearch, setParentFilterSearch] = useState('')
+  const debouncedParentFilterSearch = useDebounce(parentFilterSearch, 400)
+  const parentFilterOpts = useInfiniteOptions<CoA>({
+    queryKey: ['chart-of-accounts-all', 'coa-parent-filter', debouncedParentFilterSearch],
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 20, sort: 'code,id', 'filter[is_header]': '1', 'filter[search]': debouncedParentFilterSearch || undefined } as any).then((r) => r.data),
   })
-  const parentOptions: CoA[] = (parentOptionsData as any)?.data ?? []
+  const seenParentRef = React.useRef(new Map<number, CoA>())
+  for (const a of parentFilterOpts.items) seenParentRef.current.set(a.id, a)
+  const selectedParent = filterParent !== '' ? seenParentRef.current.get(Number(filterParent)) : undefined
+  const parentOptions: CoA[] = selectedParent && !parentFilterOpts.items.some((a) => a.id === selectedParent.id)
+    ? [selectedParent, ...parentFilterOpts.items]
+    : parentFilterOpts.items
 
   const items: CoA[] = React.useMemo(() => (data as any)?.data ?? [], [data])
 
@@ -533,7 +543,9 @@ export default function ChartOfAccountsView() {
               ]}
               placeholder="All Parents"
               searchPlaceholder="Search parent..."
-              onSearchChange={setDropdownSearch}
+              onSearchChange={setParentFilterSearch}
+              loading={parentFilterOpts.loading}
+              {...parentFilterOpts.selectProps}
               triggerStyle={toolbarSelectStyle}
             />
           </FilterField>

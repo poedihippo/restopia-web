@@ -1,5 +1,6 @@
 'use client'
 
+import HeaderCheckbox from '@/components/HeaderCheckbox'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -230,6 +231,30 @@ export default function SettlePayoutView() {
       return next
     })
     setFieldErrors({})
+  }
+
+  // Check-all: one payout covers one sales channel + one outlet, so it acts on the
+  // shown pending orders of the selected group (or of the first row's group when
+  // nothing is selected yet).
+  const groupBase = anchor ?? items[0]
+  const bulkGroup =
+    tab === 'pending' && groupBase
+      ? items.filter(
+          (o) =>
+            Number(o.sales_channel_id) === Number(groupBase.sales_channel_id) &&
+            outletKeyOf(o) === outletKeyOf(groupBase),
+        )
+      : []
+  const toggleAll = (checkAll: boolean) => {
+    setSelected((prev) => {
+      const next = new Map(prev)
+      for (const o of bulkGroup) checkAll ? next.set(Number(o.id), o) : next.delete(Number(o.id))
+      return next
+    })
+    setFieldErrors({})
+    if (checkAll && bulkGroup.length < items.length) {
+      toast.info('Hanya order dengan sales channel dan outlet yang sama yang dipilih — satu payout untuk satu channel dan satu outlet.')
+    }
   }
 
   const resetForm = () => {
@@ -485,7 +510,18 @@ export default function SettlePayoutView() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {canSettle && <th style={{ ...thStyle, width: 40 }} />}
+                  {canSettle && (
+                    <th style={{ ...thStyle, width: 40 }}>
+                      {tab === 'pending' && (
+                        <HeaderCheckbox
+                          total={bulkGroup.length}
+                          checkedCount={bulkGroup.filter((o) => selected.has(Number(o.id))).length}
+                          onToggleAll={toggleAll}
+                          title="Pilih semua order (channel dan outlet yang sama)"
+                        />
+                      )}
+                    </th>
+                  )}
                   <th style={thStyle}>Kode</th>
                   <th style={thStyle}>Tanggal</th>
                   <th style={thStyle}>Channel</th>

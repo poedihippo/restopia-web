@@ -334,6 +334,8 @@ export function MaterialPicker({
             include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
             'filter[status]': 'active',
             'filter[branch_id]': branchId,
+            // Scope to the chosen product on the server (rows were filtered by product client-side only).
+            'filter[product_ids]': productId,
             'filter[owner_refs]': ownerFilter,
             'filter[stages]': stagesFilter,
           },

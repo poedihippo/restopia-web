@@ -52,22 +52,6 @@ function useCompanyBranches(): CompanyBranch[] {
     }))
 }
 
-// Branches have no sort field, so pickup points under a premiere follow this
-// business order (matched on the name without "OUTLET"); unlisted ones come
-// after, alphabetically.
-const PICKUP_POINT_ORDER = [
-  // Cibubur
-  'CIRACAS', 'HANKAM', 'TAPOS', 'JATIKRAMAT', 'KALISARI',
-  // Depok
-  'JAGAKARSA', 'SAWANGAN', 'CIMANGGIS', 'CIBINONG', 'CIRIUNG',
-]
-
-function pickupPointRank(name: string): number {
-  const key = name.toUpperCase().replace(/\bOUTLET\b/g, '').replace(/[^A-Z]/g, '')
-  const idx = PICKUP_POINT_ORDER.findIndex((k) => key.startsWith(k))
-  return idx === -1 ? PICKUP_POINT_ORDER.length : idx
-}
-
 /** Human label of a scope, for the report subtitle / printout. */
 export function useFinanceBranchLabel(scope: FinanceBranchScope): string {
   const { user } = useAuth()
@@ -108,8 +92,8 @@ export default function FinanceBranchSelect({
   const premiereIds = new Set(premieres.map((b) => b.id))
   const childrenOf = (id: number) =>
     branches
+      // Already in business order (src/utils/branchOrder.ts via branchesService / auth).
       .filter((b) => b.format === 'pickup_point' && b.parentId === id)
-      .sort((a, b) => pickupPointRank(a.name) - pickupPointRank(b.name) || a.name.localeCompare(b.name))
   const orphans = branches.filter((b) => b.format === 'pickup_point' && !(b.parentId != null && premiereIds.has(b.parentId)))
 
   // The default ('' = no param) is the active branch + its pickup points, so show it

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -14,6 +14,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { withProductType } from '@/utils/productUomName'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import SearchableSelect from '@/components/SearchableSelect'
 import { X, Loader2 } from 'lucide-react'
 
@@ -114,24 +115,33 @@ export default function DimensionTransferRequestSheet({
     },
   })
 
-  const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
+  const inventoryOpts = useInfiniteOptions<DimensionInventoryRow>({
     queryKey: ['dimension-transfer-source-inventory', effectiveBranchId, debouncedDropdownSearch],
     enabled: !!effectiveBranchId && open,
-    queryFn: () =>
+    fetchPage: (page) =>
       productInventoriesService
         .list({
-          per_page: 1000,
+          page,
+          per_page: 20,
+          sort: 'id',
           'filter[branch_id]': effectiveBranchId,
           'filter[search]': debouncedDropdownSearch || undefined,
+          // stock is numeric(20,2): >= 0.01 is the server-side twin of the "stock > 0" filter below.
+          'filter[stock_gte]': 0.01,
           include:
             'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
         } as any)
         .then((r) => r.data),
   })
+  const inventoryLoading = inventoryOpts.loading
 
-  const inventoryRows: DimensionInventoryRow[] = ((inventoryData as any)?.data ?? []).filter(
+  const inventoryRows: DimensionInventoryRow[] = inventoryOpts.items.filter(
     (r: any) => Number(r.stock ?? r.qty ?? 0) > 0,
   )
+  // Rows seen in any loaded page/search — the chosen source row must keep resolving
+  // after the search is cleared or it falls outside the currently loaded pages.
+  const seenRowsRef = useRef(new Map<number, DimensionInventoryRow>())
+  for (const r of inventoryRows) seenRowsRef.current.set(r.id, r)
 
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
     queryKey: ['companies-all'],
@@ -172,7 +182,7 @@ export default function DimensionTransferRequestSheet({
   }
 
   const sourceInventoryId = watch('source_inventory_id')
-  const selectedRow = inventoryRows.find((r) => r.id === Number(sourceInventoryId))
+  const selectedRow = seenRowsRef.current.get(Number(sourceInventoryId))
 
   const sourceOptions = inventoryRows.map((row) => {
     const product =
@@ -247,7 +257,23 @@ export default function DimensionTransferRequestSheet({
     fromLocation === toLocationRef
 
   const targetBatchId = selectedRow?.product_uom_batch_id ?? selectedRow?.product_uom_batch?.id
-  const targetRow = inventoryRows.find((r) => {
+  // The target dimension row may not be among the paged dropdown rows — fetch it directly.
+  const { data: targetData } = useQuery({
+    queryKey: ['dimension-transfer-source-inventory', 'target', effectiveBranchId, targetBatchId, toOwnerRef, toStage, toLocationRef],
+    enabled: open && !!effectiveBranchId && !!targetBatchId && !!toOwnerRef && !!toStage,
+    queryFn: () =>
+      productInventoriesService
+        .list({
+          per_page: 5,
+          'filter[branch_id]': effectiveBranchId,
+          'filter[product_uom_batch_id]': targetBatchId,
+          'filter[owner_ref]': toOwnerRef,
+          'filter[stage]': toStage,
+          'filter[location_ref]': toLocationRef,
+        } as any)
+        .then((r) => r.data),
+  })
+  const targetRow = (((targetData as any)?.data ?? []) as DimensionInventoryRow[]).find((r) => {
     const batchId = r.product_uom_batch_id ?? r.product_uom_batch?.id
     return (
       batchId === targetBatchId &&
@@ -261,7 +287,7 @@ export default function DimensionTransferRequestSheet({
   const showTargetCaption = !!selectedRow && !!toOwnerRef && !!toStage && !isSameDimension
 
   const onSubmit = (values: FormValues) => {
-    const row = inventoryRows.find((r) => r.id === Number(values.source_inventory_id))
+    const row = seenRowsRef.current.get(Number(values.source_inventory_id))
     if (!row) {
       toast.error('Pilih item sumber terlebih dahulu')
       return
@@ -482,7 +508,7 @@ export default function DimensionTransferRequestSheet({
                   value={field.value ?? 0}
                   onChange={(val) => {
                     field.onChange(val)
-                    const row = inventoryRows.find((r) => r.id === Number(val))
+                    const row = seenRowsRef.current.get(Number(val))
                     if (row) {
                       setValue('from_owner_ref', row.owner_ref ?? 'GENERAL')
                       setValue('from_stage', row.stage ?? 'GENERAL')
@@ -498,6 +524,7 @@ export default function DimensionTransferRequestSheet({
                   loading={inventoryLoading}
                   error={errors.source_inventory_id?.message as string | undefined}
                   onSearchChange={setDropdownSearch}
+                  {...inventoryOpts.selectProps}
                 />
               )}
             />

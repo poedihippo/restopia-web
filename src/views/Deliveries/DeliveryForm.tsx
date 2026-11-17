@@ -535,21 +535,24 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     .filter((po: any) => ['accepted', 'final'].includes(po?.status))
     .sort((a: any, b: any) => b.id - a.id)
 
-  const { data: salesOrdersData, isLoading: salesOrdersLoading } = useQuery({
+  const salesOrderOpts = useInfiniteOptions<any>({
     queryKey: ['sales-orders-pending', soSearchDebounced],
     enabled: sourceTypeForPickers === 'so_to_branch',
     staleTime: 60_000,
-    queryFn: () =>
+    fetchPage: (page) =>
       salesOrdersService
         .list({
+          page,
           'filter[search]': soSearchDebounced || undefined,
-          per_page: 1000,
+          per_page: 20,
+          sort: '-id',
           'filter[status]': 'final',
           'filter[has_delivery]': 'false',
         } as any)
         .then((r) => r.data),
   })
-  const salesOrders = (salesOrdersData as any)?.data ?? []
+  const salesOrders: any[] = salesOrderOpts.items
+  const salesOrdersLoading = salesOrderOpts.loading
 
   const watchPurchaseOrderId = watch('purchase_order_id')
   const watchSalesOrderId = watch('sales_order_id')
@@ -934,9 +937,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       sublabel: po.date ? po.date : undefined,
     })),
   ]
+  // Keep the linked SO labelled even when the loaded pages don't contain it
+  // (soDetail is fetched by id).
   const salesOrderOptions = [
     { value: 0, label: 'No linked SO' },
-    ...salesOrders.map((so: any) => ({
+    ...[
+      ...(soDetail && !salesOrders.some((so: any) => so.id === soDetail.id) ? [soDetail] : []),
+      ...salesOrders,
+    ].map((so: any) => ({
       value: so.id as number,
       label: so.code ?? `SO-${so.id}`,
       sublabel: undefined,
@@ -1473,6 +1481,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       searchPlaceholder="Search SOs..."
                       loading={salesOrdersLoading}
                       onSearchChange={setSoSearch}
+                      {...salesOrderOpts.selectProps}
                     />
                   )}
                 />

@@ -7,6 +7,7 @@ import { branchesService } from '@/services/branches.service'
 import { accountSettingsService } from '@/services/account-settings.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useAuth } from '@/hooks/useAuth'
 import BranchAccountSettingSheet from './BranchAccountSettingSheet'
 import AccountSettingUsageCell, { AccountSettingDetailDialog } from '@/components/AccountSettingUsage'
@@ -62,14 +63,13 @@ export default function BranchAccountSettingsView() {
     const t = setTimeout(() => setDebouncedCoaFilterSearch(coaFilterSearch), 400)
     return () => clearTimeout(t)
   }, [coaFilterSearch])
-  const { data: coaFilterData, isFetching: coaFilterLoading } = useQuery({
+  const coaFilterOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-all', 'branch-filter', debouncedCoaFilterSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
-    placeholderData: (prev: any) => prev,
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 20, sort: 'code,id', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
   })
   const coaFilterOptions = [
     { value: 0, label: 'All Accounts' },
-    ...((coaFilterData as any)?.data ?? []).map((a: any) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
+    ...coaFilterOpts.items.map((a: any) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
   ]
 
   const { data: branchesData } = useQuery({
@@ -161,7 +161,8 @@ export default function BranchAccountSettingsView() {
                 placeholder="All Accounts"
                 searchPlaceholder="Search account..."
                 triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
-                loading={coaFilterLoading}
+                loading={coaFilterOpts.loading}
+                {...coaFilterOpts.selectProps}
                 onSearchChange={setCoaFilterSearch}
               />
             </div>
