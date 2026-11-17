@@ -261,7 +261,7 @@ export default function TransactionHistoryReport() {
           body { font-size: 10px; margin: 0; }
           table { border-collapse: collapse; width: 100%; }
           th, td { border: 1px solid #000; padding: 2px 5px; font-size: 10px; }
-          thead { background: #f0f0f0 !important; }
+          thead { background: none !important; }
         }
       `}</style>
 

@@ -208,10 +208,10 @@ function printArAgingPdf(report: ArAgingResponse) {
       .muted { color: #555; margin: 0 0 12px; }
       table { border-collapse: collapse; width: 100%; }
       th, td { border: 1px solid #999; padding: 4px 6px; vertical-align: top; }
-      th { background: #eee; text-align: left; }
+      th { text-align: left; border-bottom: 2px solid #333; }
       .r { text-align: right; white-space: nowrap; }
       .c { text-align: center; }
-      tfoot td { font-weight: bold; background: #f5f5f5; }
+      tfoot td { font-weight: bold; border-top: 2px solid #333; }
       .summary { width: 280px; margin-top: 14px; }
     </style></head><body>
     <h1>Accounts Receivable Aging</h1>

@@ -753,11 +753,10 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         <div
           style={{
             textAlign: 'center',
-            backgroundColor: '#5c3a21',
-            color: '#fff',
-            padding: '10mm 0',
+            color: '#5c3a21',
+            padding: '6mm 0',
             marginBottom: '6mm',
-            borderRadius: '8px 8px 0 0',
+            borderBottom: '2px solid #5c3a21',
           }}
         >
           <div style={{ fontSize: '24pt', fontWeight: 800, letterSpacing: '2px' }}>
@@ -817,7 +816,6 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             style={{
               padding: '6px 16px',
               border: `2px solid ${statusMeta.color}`,
-              backgroundColor: statusMeta.color + '15',
               color: statusMeta.color,
               fontWeight: 800,
               fontSize: '12pt',
@@ -834,7 +832,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         <div style={{ padding: '0 4mm', marginBottom: '8mm' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: '8px', overflow: 'hidden' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f0e6d2', color: '#5c3a21' }}>
+              <tr style={{ color: '#5c3a21' }}>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
                   No
                 </th>
@@ -854,7 +852,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             </thead>
             <tbody>
               {details.map((d, i) => (
-                <tr key={d.id} style={{ borderBottom: '1px solid #e5e5e5', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                <tr key={d.id} style={{ borderBottom: '1px solid #e5e5e5' }}>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
                     {getProductUomName(d.product_uom, d.product_uom?.product?.name) || `Item #${d.product_uom_id ?? d.id}`}
@@ -878,7 +876,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
 
         {/* Totals */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 4mm' }}>
-          <div style={{ width: '50%', backgroundColor: '#fdfbf7', padding: '16px', borderRadius: '8px', border: '1px solid #f0e6d2' }}>
+          <div style={{ width: '50%', padding: '16px', borderRadius: '8px', border: '1px solid #d4c4a8' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
                 <tr>

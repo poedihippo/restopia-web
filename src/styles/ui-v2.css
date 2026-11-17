@@ -870,6 +870,14 @@
   :root[data-ui="v2"] main table.v2-top-scroll-on > thead > tr:last-child > th {
     padding-bottom: 9px !important;
   }
+  /* Ink-friendly: no header / zebra / total-row fills on paper — rules only. */
+  :root[data-ui="v2"] main table > :is(thead, tbody, tfoot) > tr,
+  :root[data-ui="v2"] main table > :is(thead, tbody, tfoot) > tr > :is(th, td) {
+    background: transparent !important;
+  }
+  :root[data-ui="v2"] main table > thead > tr > th {
+    border-bottom: 1px solid #333 !important;
+  }
 }
 
 /* Brown outline button: secondary "add" actions next to a primary button. */
