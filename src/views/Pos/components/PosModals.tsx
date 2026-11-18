@@ -300,7 +300,17 @@ export default function PosModals({
   const creditMethod = paymentMethods.find((pm: any) => pm.name?.toLowerCase().includes('credit'))
   const moneyMethods = paymentMethods.filter((pm: any) => pm !== creditMethod)
   const staffCreditPicked = isCreditMethod && !customerCredit
-  const creditNoDp = customerCredit && paymentMode !== 'partial'
+  // "Bayar dengan Kredit" vs "Bayar Langsung". Kredit Customer exists only on
+  // the DP tab (pay part now — or 0 — and the rest later); Kredit Karyawan on both.
+  const [payWithCredit, setPayWithCredit] = React.useState(false)
+  React.useEffect(() => {
+    if (staffCreditPicked || customerCredit) setPayWithCredit(true)
+  }, [staffCreditPicked, customerCredit])
+  React.useEffect(() => {
+    if (!showPayment) setPayWithCredit(false)
+  }, [showPayment])
+  const dpValue = Number(partialAmount.replace(/\D/g, '')) || 0
+  const creditNoDp = customerCredit && dpValue === 0
   const pickStaffCredit = () => {
     if (staffCreditPicked) {
       setPaymentMethodId(null)
@@ -312,6 +322,32 @@ export default function PosModals({
     setPaymentMethodId(creditMethod.id)
     setCashTendered('')
   }
+  const choosePayNow = () => {
+    setPayWithCredit(false)
+    if (customerCredit) {
+      setCustomerCredit(false)
+      setCreditType?.('user')
+    }
+    if (isCreditMethod) setPaymentMethodId(null)
+  }
+  const choosePayWithCredit = () => {
+    setPayWithCredit(true)
+    if (!isCreditMethod) setPaymentMethodId(null)
+    setCashTendered('')
+    // Full Payment only offers Kredit Karyawan: pick it straight away.
+    if (paymentMode !== 'partial' && !staffCreditPicked && creditMethod) {
+      setCustomerCredit(false)
+      setCreditType?.('user')
+      setPaymentMethodId(creditMethod.id)
+    }
+  }
+  // Back on Full Payment, Kredit Customer no longer applies.
+  React.useEffect(() => {
+    if (paymentMode !== 'partial' && customerCredit) {
+      setCustomerCredit(false)
+      setCreditType?.('user')
+    }
+  }, [paymentMode, customerCredit, setCustomerCredit, setCreditType])
   const pickCustomerCredit = () => {
     if (customerCredit) {
       setCustomerCredit(false)
@@ -321,7 +357,7 @@ export default function PosModals({
     setCustomerCredit(true)
     setCreditType?.('customer')
     setCreditByUserId(null)
-    if (isCreditMethod) setPaymentMethodId(null)
+    setPaymentMethodId(null)
   }
   const selectedChannelName =
     salesChannels.find((c: any) => c.id === salesChannelId)?.name ?? 'marketplace'
@@ -345,10 +381,8 @@ export default function PosModals({
     : isSplitPayment
     ? remainingSplitBalance === 0
     : customerCredit
-    ? hasCustomerForCredit &&
-      (paymentMode !== 'partial' ||
-        (paymentMethodId !== null && !isCreditMethod &&
-          Number(partialAmount.replace(/\D/g, '')) > 0 && Number(partialAmount.replace(/\D/g, '')) < total))
+    ? hasCustomerForCredit && paymentMode === 'partial' && dpValue < total &&
+      (dpValue === 0 || (paymentMethodId !== null && !isCreditMethod))
     : (paymentMethodId !== null &&
        (!isCreditMethod ||
          (creditType === 'customer'
@@ -553,7 +587,7 @@ export default function PosModals({
               {paymentMode === 'partial' && (
                 <div style={{ marginTop: 10 }}>
                   <label style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>
-                    DP Amount (must be less than {formatCurrency(total)})
+                    DP Amount (must be less than {formatCurrency(total)}){customerCredit ? ' — boleh 0 untuk Kredit Customer' : ''}
                   </label>
                   <LocalizedNumberInput
                     value={partialAmount ? Number(partialAmount) : undefined}
@@ -645,7 +679,7 @@ export default function PosModals({
                       return (
                         <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px dashed var(--border)' }}>
                           <span style={{ fontSize: 13 }}>
-                            {method?.name} {user ? `(Credit: ${user.name})` : ''}
+                            {method && method === creditMethod ? 'Kredit Karyawan' : method?.name} {user ? `(${user.name})` : ''}
                           </span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <span style={{ fontSize: 13, fontWeight: 500 }}>{formatCurrency(sp.amount)}</span>
@@ -681,7 +715,15 @@ export default function PosModals({
                           style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
                         >
                           <option value="">Select...</option>
-                          {paymentMethods.map(pm => <option key={pm.id} value={pm.id}>{pm.name}</option>)}
+                          {/* Money tenders and credit are listed apart, as in the single-payment view. */}
+                          <optgroup label="Metode Pembayaran">
+                            {moneyMethods.map((pm: any) => <option key={pm.id} value={pm.id}>{pm.name}</option>)}
+                          </optgroup>
+                          {creditMethod && (
+                            <optgroup label="Bayar Nanti (Kredit)">
+                              <option value={creditMethod.id}>Kredit Karyawan</option>
+                            </optgroup>
+                          )}
                         </select>
                       </div>
                       <div>
@@ -743,57 +785,93 @@ export default function PosModals({
               </div>
             ) : (
               <>
-            {/* Credit (pay later) — its own section, apart from the money tenders. */}
-            <div style={{ marginBottom: 20, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12, background: 'var(--background)' }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 2 }}>Bayar Nanti (Kredit)</label>
-              <span style={{ fontSize: 11.5, color: 'var(--foreground-muted)', display: 'block', marginBottom: 8 }}>
-                Pilih jika order tidak dilunasi sekarang.
-              </span>
-              <div role="radiogroup" aria-label="Kredit" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                {([
-                  { key: 'user', label: 'Kredit Karyawan', hint: 'Potong kredit karyawan', selected: staffCreditPicked, onPick: pickStaffCredit },
-                  { key: 'customer', label: 'Kredit Customer', hint: 'Dibayar customer nanti', selected: customerCredit, onPick: pickCustomerCredit },
-                ] as const).map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    role="radio"
-                    aria-checked={opt.selected}
-                    onClick={opt.onPick}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      justifyContent: 'center',
-                      gap: 2,
-                      padding: '8px 12px',
-                      minHeight: 52,
-                      border: '1px solid',
-                      borderColor: opt.selected ? 'var(--accent)' : 'var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      background: opt.selected ? 'var(--accent-light-bg)' : 'var(--surface)',
-                      color: opt.selected ? 'var(--accent)' : 'var(--foreground)',
-                      boxShadow: opt.selected ? '0 0 0 1px var(--accent)' : 'none',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontFamily: 'var(--font-sans)',
-                    }}
-                  >
-                    <span style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 13, fontWeight: 600 }}>
-                      {opt.label}
-                      {opt.selected && <Check size={14} />}
-                    </span>
-                    <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontWeight: 400 }}>{opt.hint}</span>
-                  </button>
-                ))}
-              </div>
+            {/* Pay now (money tenders) or pay with credit — one or the other. */}
+            <div role="tablist" aria-label="Cara bayar" style={{ display: 'flex', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 3, marginBottom: 16 }}>
+              {([
+                { key: 'now', label: 'Bayar Langsung', active: !payWithCredit, onPick: choosePayNow },
+                { key: 'credit', label: 'Bayar dengan Kredit', active: payWithCredit, onPick: choosePayWithCredit },
+              ] as const).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={t.active}
+                  onClick={t.onPick}
+                  style={{
+                    flex: 1,
+                    height: 34,
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    background: t.active ? 'var(--surface)' : 'transparent',
+                    color: t.active ? 'var(--foreground)' : 'var(--foreground-muted)',
+                    boxShadow: t.active ? 'var(--shadow-sm)' : 'none',
+                    fontSize: 13,
+                    fontWeight: t.active ? 600 : 500,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
 
-            {/* Payment method selection — money tenders only (credit is above). */}
-            {creditNoDp ? (
-              <div style={{ marginBottom: 20, fontSize: 12.5, color: 'var(--foreground-muted)', background: 'var(--info-bg)', borderRadius: 'var(--radius-md)', padding: '10px 12px', lineHeight: 1.5 }}>
-                Tidak ada pembayaran sekarang — order disimpan sebagai <b>Kredit Customer</b> (Belum Dibayar). Pilih <b>Down Payment (DP)</b> bila customer membayar sebagian.
+            {payWithCredit && (
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>Jenis Kredit</label>
+                <div role="radiogroup" aria-label="Jenis kredit" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                  {([
+                    { key: 'user', label: 'Kredit Karyawan', hint: 'Potong kredit karyawan', selected: staffCreditPicked, onPick: pickStaffCredit, show: true },
+                    { key: 'customer', label: 'Kredit Customer', hint: 'DP sekarang (boleh 0), sisa nanti', selected: customerCredit, onPick: pickCustomerCredit, show: paymentMode === 'partial' },
+                  ] as const).filter((o) => o.show).map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={opt.selected}
+                      onClick={opt.onPick}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        gap: 2,
+                        padding: '8px 12px',
+                        minHeight: 52,
+                        border: '1px solid',
+                        borderColor: opt.selected ? 'var(--accent)' : 'var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        background: opt.selected ? 'var(--accent-light-bg)' : 'var(--surface)',
+                        color: opt.selected ? 'var(--accent)' : 'var(--foreground)',
+                        boxShadow: opt.selected ? '0 0 0 1px var(--accent)' : 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontFamily: 'var(--font-sans)',
+                      }}
+                    >
+                      <span style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 13, fontWeight: 600 }}>
+                        {opt.label}
+                        {opt.selected && <Check size={14} />}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontWeight: 400 }}>{opt.hint}</span>
+                    </button>
+                  ))}
+                </div>
+                {paymentMode !== 'partial' && (
+                  <span style={{ fontSize: 11.5, color: 'var(--foreground-muted)', display: 'block', marginTop: 6 }}>
+                    Kredit Customer tersedia di tab <b>Down Payment (DP)</b>.
+                  </span>
+                )}
               </div>
+            )}
+
+            {/* Money tenders: shown for "Bayar Langsung", or for a Kredit Customer DP. */}
+            {payWithCredit && !(customerCredit && dpValue > 0) ? (
+              customerCredit ? (
+                <div style={{ marginBottom: 20, fontSize: 12.5, color: 'var(--foreground-muted)', background: 'var(--info-bg)', borderRadius: 'var(--radius-md)', padding: '10px 12px', lineHeight: 1.5 }}>
+                  DP Rp 0 — tidak ada pembayaran sekarang, order disimpan sebagai <b>Kredit Customer</b> (Belum Dibayar). Isi DP bila customer membayar sebagian.
+                </div>
+              ) : null
             ) : (
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
@@ -1250,7 +1328,7 @@ export default function PosModals({
                   }
                   if (paymentMode === 'partial') {
                     const dpAmt = Number(partialAmount.replace(/\D/g, ''))
-                    if (dpAmt <= 0) {
+                    if (dpAmt <= 0 && !customerCredit) {
                       toast.error('Enter a valid DP amount')
                       return
                     }

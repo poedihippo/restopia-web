@@ -1235,13 +1235,15 @@ export function usePosLogic() {
           ? tenderedCash
           : payload.total_price
       const isOnline = payload.type === 'online'
-      // Kredit Customer without a DP takes no tender: the order starts unpaid.
+      // Kredit Customer (DP tab): DP 0 takes no tender — the order starts unpaid.
+      const dpNow = Number(partialAmount.replace(/\D/g, '')) || 0
+      const creditNoTender = customerCredit && !isSplitPayment && dpNow === 0
       const paymentStatus = isOnline
         ? 'pending'
-        : paymentMode === 'partial'
-          ? 'partial'
-          : customerCredit && !isSplitPayment
-            ? 'pending'
+        : creditNoTender
+          ? 'pending'
+          : paymentMode === 'partial'
+            ? 'partial'
             : 'paid'
       let checkoutPayments: {
         payment_method_id: number
@@ -1257,8 +1259,8 @@ export function usePosLogic() {
           amount: sp.amount,
           description: orderNote || undefined,
         }))
-      } else if (customerCredit && paymentMode !== 'partial') {
-        // Kredit Customer, nothing paid now.
+      } else if (creditNoTender) {
+        // Kredit Customer with DP 0: nothing paid now.
         checkoutPayments = []
       } else if (paymentMethodId) {
         checkoutPayments = [{
@@ -1379,7 +1381,7 @@ export function usePosLogic() {
       const serverSubtotal = num(order.subtotal_price, variables.subtotal_price)
       const serverDiscount = num(order.discount_price, variables.discount_price)
       const serverTax = num(order.tax_amount, taxAmount)
-      const creditNoDp = !isOnline && !isSplitPayment && customerCredit && paymentMode !== 'partial'
+      const creditNoDp = !isOnline && !isSplitPayment && customerCredit && (Number(partialAmount.replace(/\D/g, '')) || 0) === 0
       const isPartial = !isOnline && (paymentMode === 'partial' || creditNoDp)
       const dueNow = creditNoDp ? 0 : isPartial ? Number(partialAmount.replace(/\D/g, '')) || 0 : serverTotal
       const methodName = (id: number | null | undefined) =>
@@ -1501,7 +1503,7 @@ export function usePosLogic() {
   // Returns true once the mutation was dispatched (its onSettled releases the lock).
   const prepareCheckout = async (): Promise<boolean> => {
     // Kredit Customer without a DP needs no payment method.
-    const needsMethod = !(customerCredit && !isSplitPayment && paymentMode !== 'partial')
+    const needsMethod = !(customerCredit && !isSplitPayment && (Number(partialAmount.replace(/\D/g, '')) || 0) === 0)
     if (orderType !== 'online' && (isSplitPayment ? splitPayments.length === 0 : needsMethod && !paymentMethodId)) {
       toast.error('Select a payment method')
       return false
