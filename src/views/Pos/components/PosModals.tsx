@@ -200,6 +200,14 @@ export default function PosModals({
 
   const [splitMethodId, setSplitMethodId] = React.useState<number | null>(null)
   const [splitAmount, setSplitAmount] = React.useState<string>('')
+  // The split row being typed belongs to the open payment: clear it when the
+  // payment closes or the split list is reset (new order).
+  React.useEffect(() => {
+    if (!showPayment || !isSplitPayment || (splitPayments ?? []).length === 0) {
+      setSplitMethodId(null)
+      setSplitAmount('')
+    }
+  }, [showPayment, isSplitPayment, splitPayments])
 
   const customerFieldLabel: React.CSSProperties = {
     fontSize: 12,
