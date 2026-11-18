@@ -287,6 +287,8 @@ export default function PosView() {
         setCreditUserSearch={logic.setCreditUserSearch}
         creditType={logic.creditType}
         setCreditType={logic.setCreditType}
+        customerCredit={logic.customerCredit}
+        setCustomerCredit={logic.setCustomerCredit}
         selectedCustomerId={logic.selectedCustomerId}
         manualCustomerName={logic.manualCustomerName}
         guestName={logic.guestName}

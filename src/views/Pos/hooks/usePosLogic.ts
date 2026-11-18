@@ -187,6 +187,9 @@ export function usePosLogic() {
   const [creditByUserId, setCreditByUserId] = useState<number | null>(null)
   // credit_type: 'user' = staff credit (credit_by_id), 'customer' = customer credit
   const [creditType, setCreditType] = useState<'user' | 'customer'>('user')
+  // Kredit Customer: the order is saved on a customer's account (e.g. a hospital
+  // paying next month) with no tender, or with a DP paid by a real method.
+  const [customerCredit, setCustomerCredit] = useState(false)
   const [isSplitPayment, setIsSplitPayment] = useState(false)
   const [splitPayments, setSplitPayments] = useState<Array<{ paymentMethodId: number, amount: number, cashTendered?: string, creditByUserId?: number | null }>>([])
   // DP / partial payment: 'full' = pay entire total now, 'partial' = down payment
@@ -381,8 +384,9 @@ export function usePosLogic() {
     setEditingOrderSettlement(order.settlement_status ?? null)
     // Restore credit fields when re-opening a held order
     setCreditByUserId(order.credit_by_id ?? null)
-    // The POS only offers staff credit; a held order is re-paid that way.
-    setCreditType('user')
+    const heldOnCustomerCredit = order.credit_type === 'customer'
+    setCustomerCredit(heldOnCustomerCredit)
+    setCreditType(heldOnCustomerCredit ? 'customer' : 'user')
     setShowPreorders(false)
     toast.success('Pending order loaded to cart')
   }
@@ -711,6 +715,7 @@ export function usePosLogic() {
     setCreditUserSearch('')
     setIsSplitPayment(false)
     setSplitPayments([])
+    setCustomerCredit(false)
     setShowReceipt(false)
     setEditingOrderId(null)
     setEditingOrderCode(null)
@@ -733,6 +738,7 @@ export function usePosLogic() {
     setCreditType('user')
     setIsSplitPayment(false)
     setSplitPayments([])
+    setCustomerCredit(false)
   }, [cart.length, bundleCart.length])
 
   const addLotToCart = useCallback((lot: any) => {
@@ -924,6 +930,9 @@ export function usePosLogic() {
       }
       return { creditType: null, creditById: null, settlementStatus: baseSettlementStatus() }
     }
+    if (customerCredit) {
+      return { creditType: 'customer' as const, creditById: null, settlementStatus: 'credit' as const }
+    }
     if (isCreditMethod) {
       if (creditType === 'customer') {
         return { creditType: 'customer' as const, creditById: null, settlementStatus: 'credit' as const }
@@ -969,14 +978,24 @@ export function usePosLogic() {
 
     try {
       const created = await customersService.create({ name, phone } as any)
-      const id = Number((created.data as any)?.data?.id ?? 0)
+      let id = Number((created.data as any)?.data?.id ?? 0)
+      if (!(id > 0)) {
+        // POST /customers answers without the new id: find it by name + phone.
+        const res = await customersService.list({ per_page: 20, sort: '-id', 'filter[search]': name } as any)
+        const rows: any[] = (res.data as any)?.data ?? []
+        const lower = name.toLowerCase()
+        const found = rows.find((c: any) =>
+          String(c?.name ?? '').trim().toLowerCase() === lower &&
+          (!phone || String(c?.phone ?? '').trim() === phone))
+        id = Number(found?.id ?? 0)
+      }
       if (id > 0) {
         setSelectedCustomerId(id)
         setCustomerSearch(name)
         return id
       }
     } catch {
-      // e.g. missing customer.create — payload falls back to name/phone only
+      // e.g. missing customer.create — the caller stops with a message
     }
     return null
   }
@@ -1157,13 +1176,18 @@ export function usePosLogic() {
     if (
       resolvedCreditType === 'customer' &&
       !(selectedCustomerId && selectedCustomerId > 0) &&
-      !manualCustomerName
+      !(manualCustomerName && guestPhone.trim())
     ) {
-      toast.error('Select a customer or type a customer name for customer credit')
+      toast.error('Pilih customer terdaftar, atau isi nama + no. HP customer untuk kredit customer')
       return false
     }
 
     const payloadCustomerId = await resolvePayloadCustomerId(resolvedCreditType)
+    // Customer credit needs the customer on record (the API refuses it without).
+    if (resolvedCreditType === 'customer' && !payloadCustomerId) {
+      toast.error('Customer tidak bisa didaftarkan — pilih customer terdaftar, atau periksa nama + no. HP')
+      return false
+    }
     const fallbackCustomerName =
       resolvedCreditType === 'customer' ? manualCustomerName : guestName
 
@@ -1211,7 +1235,14 @@ export function usePosLogic() {
           ? tenderedCash
           : payload.total_price
       const isOnline = payload.type === 'online'
-      const paymentStatus = isOnline ? 'pending' : paymentMode === 'partial' ? 'partial' : 'paid'
+      // Kredit Customer without a DP takes no tender: the order starts unpaid.
+      const paymentStatus = isOnline
+        ? 'pending'
+        : paymentMode === 'partial'
+          ? 'partial'
+          : customerCredit && !isSplitPayment
+            ? 'pending'
+            : 'paid'
       let checkoutPayments: {
         payment_method_id: number
         amount: number
@@ -1226,6 +1257,9 @@ export function usePosLogic() {
           amount: sp.amount,
           description: orderNote || undefined,
         }))
+      } else if (customerCredit && paymentMode !== 'partial') {
+        // Kredit Customer, nothing paid now.
+        checkoutPayments = []
       } else if (paymentMethodId) {
         checkoutPayments = [{
           payment_method_id: paymentMethodId,
@@ -1345,8 +1379,9 @@ export function usePosLogic() {
       const serverSubtotal = num(order.subtotal_price, variables.subtotal_price)
       const serverDiscount = num(order.discount_price, variables.discount_price)
       const serverTax = num(order.tax_amount, taxAmount)
-      const isPartial = !isOnline && paymentMode === 'partial'
-      const dueNow = isPartial ? Number(partialAmount.replace(/\D/g, '')) || 0 : serverTotal
+      const creditNoDp = !isOnline && !isSplitPayment && customerCredit && paymentMode !== 'partial'
+      const isPartial = !isOnline && (paymentMode === 'partial' || creditNoDp)
+      const dueNow = creditNoDp ? 0 : isPartial ? Number(partialAmount.replace(/\D/g, '')) || 0 : serverTotal
       const methodName = (id: number | null | undefined) =>
         paymentMethods.find((pm: any) => pm.id === id)?.name ?? 'Payment'
 
@@ -1354,7 +1389,7 @@ export function usePosLogic() {
       if (!isOnline) {
         if (isSplitPayment) {
           payments = splitPayments.map((sp) => ({ method: methodName(sp.paymentMethodId), amount: Number(sp.amount) || 0 }))
-        } else if (paymentMethodId) {
+        } else if (paymentMethodId && !creditNoDp) {
           payments = [{ method: methodName(paymentMethodId), amount: dueNow }]
         }
       }
@@ -1410,6 +1445,7 @@ export function usePosLogic() {
         change,
         isOnline,
         isPartial,
+        isCustomerCredit: creditNoDp,
         remaining: isPartial ? Math.max(0, serverTotal - dueNow) : 0,
         printedCount: 0,
       }
@@ -1425,6 +1461,7 @@ export function usePosLogic() {
       setCreditType('user')
       setIsSplitPayment(false)
       setSplitPayments([])
+      setCustomerCredit(false)
       setCompletedTransaction(tx)
       toast.success(editingOrderId ? 'Order updated!' : 'Order placed!')
 
@@ -1463,7 +1500,9 @@ export function usePosLogic() {
 
   // Returns true once the mutation was dispatched (its onSettled releases the lock).
   const prepareCheckout = async (): Promise<boolean> => {
-    if (orderType !== 'online' && (isSplitPayment ? splitPayments.length === 0 : !paymentMethodId)) {
+    // Kredit Customer without a DP needs no payment method.
+    const needsMethod = !(customerCredit && !isSplitPayment && paymentMode !== 'partial')
+    if (orderType !== 'online' && (isSplitPayment ? splitPayments.length === 0 : needsMethod && !paymentMethodId)) {
       toast.error('Select a payment method')
       return false
     }
@@ -1479,13 +1518,18 @@ export function usePosLogic() {
     if (
       resolvedCreditType === 'customer' &&
       !(selectedCustomerId && selectedCustomerId > 0) &&
-      !manualCustomerName
+      !(manualCustomerName && guestPhone.trim())
     ) {
-      toast.error('Please select a customer or type a customer name for customer credit')
+      toast.error('Pilih customer terdaftar, atau isi nama + no. HP customer untuk kredit customer')
       return false
     }
 
     const payloadCustomerId = await resolvePayloadCustomerId(resolvedCreditType)
+    // Customer credit needs the customer on record (the API refuses it without).
+    if (resolvedCreditType === 'customer' && !payloadCustomerId) {
+      toast.error('Customer tidak bisa didaftarkan — pilih customer terdaftar, atau periksa nama + no. HP')
+      return false
+    }
     const fallbackCustomerName =
       resolvedCreditType === 'customer' ? manualCustomerName : guestName
 
@@ -1577,6 +1621,7 @@ export function usePosLogic() {
     selectedMethod, isCashMethod, isCreditMethod,
     creditByUserId, setCreditByUserId, creditUsers, setCreditUserSearch,
     creditType, setCreditType,
+    customerCredit, setCustomerCredit,
     isPending, isHoldPending,
 
     resetCart,
