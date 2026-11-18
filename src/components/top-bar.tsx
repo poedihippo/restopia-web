@@ -23,9 +23,19 @@ import {
   Building2,
   Check,
   RefreshCw,
+  Search,
+  Store,
 } from 'lucide-react';
 
 const BRANCH_LABEL_MAP: Record<string, string> = {};
+
+// "OUTLET CIBUBUR" → "Outlet Cibubur"; legal forms (PT, CV, TBK) stay upper-case.
+const KEEP_UPPER = new Set(['PT', 'CV', 'TBK', 'UD', 'II', 'III']);
+function titleCase(value?: string | null): string {
+  return String(value ?? '')
+    .toLowerCase()
+    .replace(/\S+/g, (w) => (KEEP_UPPER.has(w.toUpperCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)));
+}
 
 type TopBarProps = {
   // Phones only: opens the off-canvas sidebar.
@@ -38,8 +48,10 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [branchSearch, setBranchSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const branchRef = useRef<HTMLDivElement>(null);
+  const branchSearchRef = useRef<HTMLInputElement>(null);
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches-all', 'with-company'],
@@ -74,6 +86,29 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
   const availableBranches = isSuperadmin
     ? allBranches
     : withBranchDetails((user as any)?.branches, allBranches, (user as any)?.branch?.company);
+
+  // Business order kept (orderBranches); search only narrows it.
+  const orderedBranches = orderBranches(availableBranches);
+  const branchQuery = branchSearch.trim().toLowerCase();
+  const visibleBranches = branchQuery
+    ? orderedBranches.filter(({ branch, company }) =>
+        [branch.name, (branch as any).code, company].some((v) => String(v ?? '').toLowerCase().includes(branchQuery)),
+      )
+    : orderedBranches;
+
+  useEffect(() => {
+    if (!branchMenuOpen) {
+      setBranchSearch('');
+      return;
+    }
+    const t = window.setTimeout(() => branchSearchRef.current?.focus(), 30);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setBranchMenuOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [branchMenuOpen]);
 
   const onSelectBranch = async (branchId: number) => {
     try {
@@ -235,161 +270,63 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
           </button>
 
           {branchMenuOpen && (
-            <div
-              className="branch-menu"
-              style={{
-                position: 'absolute',
-                top: 'calc(100% + 6px)',
-                right: 0,
-                width: 240,
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-lg)',
-                boxShadow: 'var(--shadow-lg)',
-                zIndex: 50,
-                maxHeight: '60vh',
-                overflowY: 'auto',
-              }}
-            >
-              <div
-                style={{
-                  padding: '10px 14px',
-                  borderBottom: '1px solid var(--border)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: 'var(--foreground-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.6px',
-                  }}
-                >
-                  Switch Branch
-                </span>
+            <div className="branch-menu" role="menu">
+              <div className="branch-menu-head">
+                <div className="branch-menu-search">
+                  <Search size={14} />
+                  <input
+                    ref={branchSearchRef}
+                    value={branchSearch}
+                    onChange={(e) => setBranchSearch(e.target.value)}
+                    placeholder={availableBranches.length > 1 ? `Search ${availableBranches.length} branches…` : 'Search branch…'}
+                    aria-label="Search branch"
+                  />
+                </div>
                 <button
                   type="button"
+                  className="branch-menu-refresh"
                   onClick={onRefreshBranches}
                   disabled={refreshing}
                   title="Refresh branches"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: refreshing ? 'not-allowed' : 'pointer',
-                    padding: 2,
-                    display: 'flex',
-                    color: 'var(--foreground-muted)',
-                  }}
+                  aria-label="Refresh branches"
                 >
-                  <RefreshCw
-                    size={12}
-                    style={{
-                      animation: refreshing ? 'spin 1s linear infinite' : undefined,
-                    }}
-                  />
+                  <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : undefined }} />
                 </button>
               </div>
-              {availableBranches.length === 0 && (
-                <div
-                  style={{
-                    padding: '14px',
-                    fontSize: 12,
-                    color: 'var(--foreground-muted)',
-                    textAlign: 'center',
-                  }}
-                >
-                  No branches assigned
-                </div>
-              )}
-              {orderBranches(availableBranches).map(({ branch, company, indent }, idx, rows) => {
-                const isActive = branch.id === user?.branch?.id;
-                const showGroup = company !== rows[idx - 1]?.company;
-                return (
-                  <React.Fragment key={branch.id}>
-                  {showGroup && (
-                    <div
-                      style={{
-                        padding: '6px 14px 4px',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: '0.04em',
-                        textTransform: 'uppercase',
-                        color: 'var(--foreground-subtle)',
-                        background: 'var(--background)',
-                        borderBottom: '1px solid var(--border)',
-                      }}
-                    >
-                      {company}
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => onSelectBranch(branch.id!)}
-                    className="branch-option"
-                    data-active={isActive}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '10px 14px',
-                      paddingLeft: 14 + indent * 16,
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: 13,
-                      color: isActive ? 'var(--accent)' : 'var(--foreground)',
-                      borderBottom: '1px solid var(--border)',
-                    }}
-                  >
-                    {isActive ? (
-                      <div
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 99,
-                          background: 'var(--accent)',
-                          flexShrink: 0,
-                        }}
-                      />
-                    ) : (
-                      <div style={{ width: 6, height: 6, flexShrink: 0 }} />
-                    )}
-                    <div
-                      style={{
-                        flex: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 1,
-                        minWidth: 0,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 500,
-                          color: isActive ? 'var(--accent)' : 'var(--foreground)',
-                        }}
+
+              <div className="branch-menu-list">
+                {availableBranches.length === 0 && <div className="branch-menu-empty">No branches assigned</div>}
+                {availableBranches.length > 0 && visibleBranches.length === 0 && (
+                  <div className="branch-menu-empty">No branch matches “{branchSearch}”</div>
+                )}
+                {visibleBranches.map(({ branch, company, indent }, idx, rows) => {
+                  const isActive = branch.id === user?.branch?.id;
+                  const showGroup = company !== rows[idx - 1]?.company;
+                  return (
+                    <React.Fragment key={branch.id}>
+                      {showGroup && <div className="branch-group">{titleCase(company)}</div>}
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={isActive}
+                        onClick={() => (isActive ? setBranchMenuOpen(false) : onSelectBranch(branch.id!))}
+                        className="branch-row"
+                        data-active={isActive}
+                        data-indent={indent > 0 ? 1 : 0}
+                        title={branch.name}
                       >
-                        {indent > 0 && <span style={{ color: 'var(--foreground-subtle)', marginRight: 4 }}>↳</span>}
-                        {branch.name}
-                      </span>
-                    </div>
-                    {isActive && (
-                      <span style={{ fontSize: 10, color: 'var(--accent)', marginLeft: 'auto' }}>
-                        Active
-                      </span>
-                    )}
-                  </button>
-                  </React.Fragment>
-                );
-              })}
+                        {indent === 0 && (
+                          <span className="branch-row-icon">
+                            <Store size={14} />
+                          </span>
+                        )}
+                        <span className="branch-row-name">{titleCase(branch.name)}</span>
+                        {isActive && <Check size={14} className="branch-row-check" />}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

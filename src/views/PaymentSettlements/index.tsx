@@ -19,6 +19,8 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useAuth } from '@/hooks/useAuth'
+import { chartOfAccountsService } from '@/services/accounting.service'
+import { PAYMENT_METHOD_CREDIT_ID } from '@/lib/actionGuards'
 
 /*
  * Settle Payments: customer payments whose method requires settlement (Cash,
@@ -27,6 +29,11 @@ import { useAuth } from '@/hooks/useAuth'
  * per invoice): D Bank (received) + D each "biaya lainnya" row / K Piutang,
  * where received + fees = the period's total. Undo reverses it.
  * The backend only settles payments of the active branch.
+ *
+ * Kredit Karyawan (the Credit method, users.credit deduction) waits here too:
+ * its payment already moved the debt to Piutang Dagang Counter, and accounting
+ * clears it into an account it picks (e.g. payroll) — D that account / K
+ * Piutang Counter, no bank and no fees.
  */
 
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -128,7 +135,10 @@ type FeeRow = { key: number; chart_of_account_id: number; amount?: number; descr
 let feeKey = 0
 const newFee = (coaId = 0): FeeRow => ({ key: ++feeKey, chart_of_account_id: coaId, amount: undefined, description: '' })
 
-export default function PaymentSettlementsView() {
+export default function PaymentSettlementsView({ mode = 'methods' }: { mode?: 'methods' | 'employee-credit' } = {}) {
+  // 'methods': payment methods settled later (BCA, VISA, …) — Offline Orders.
+  // 'employee-credit': the Credit tender (Kredit Karyawan) only, its own menu.
+  const isEmployeeMode = mode === 'employee-credit'
   const { hasPermission, user } = useAuth()
   const activeBranchId = Number((user as any)?.branch?.id) || 0
   const activeBranchName: string = (user as any)?.branch?.name ?? ''
@@ -142,7 +152,7 @@ export default function PaymentSettlementsView() {
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
   // Pending tab: the period being settled is always the active branch.
-  const [methodId, setMethodId] = useState<number | ''>('')
+  const [methodId, setMethodId] = useState<number | ''>(isEmployeeMode ? PAYMENT_METHOD_CREDIT_ID : '')
   const [dateGte, setDateGte] = useState(firstOfMonth())
   const [dateLte, setDateLte] = useState(today())
   // History tab filters.
@@ -172,13 +182,41 @@ export default function PaymentSettlementsView() {
 
   const { data: methodsData } = useQuery({
     queryKey: ['payment-methods-all', 'requires-settlement'],
+    enabled: !isEmployeeMode,
     queryFn: () =>
       paymentMethodsService
         .list({ per_page: 200, sort: 'name', include: 'settlement_fee_chart_of_account', 'filter[requires_settlement]': true } as any)
         .then((r) => r.data),
   })
-  const methods: any[] = ((methodsData as any)?.data ?? []).filter((m: any) => m.requires_settlement !== false)
+  // The Credit method is a shared system row without requires_settlement, so it
+  // is added by hand: its employee-credit payments wait for a settlement too.
+  const methods: any[] = isEmployeeMode
+    ? [{ id: PAYMENT_METHOD_CREDIT_ID, name: 'Kredit Karyawan', requires_settlement: true }]
+    : ((methodsData as any)?.data ?? []).filter((m: any) => m.requires_settlement !== false && Number(m.id) !== PAYMENT_METHOD_CREDIT_ID)
   const method = methods.find((m) => Number(m.id) === Number(methodId))
+  const isEmployeeCredit = Number(methodId) === PAYMENT_METHOD_CREDIT_ID
+
+  // Employee credit is cleared into any postable account (payroll), not a bank.
+  const [targetCoaId, setTargetCoaId] = useState(0)
+  const [targetCoaSearch, setTargetCoaSearch] = useState('')
+  const debouncedTargetCoaSearch = useDebounce(targetCoaSearch, 400)
+  const { data: targetCoaData, isFetching: targetCoaLoading } = useQuery({
+    queryKey: ['chart-of-accounts', 'settlement-target', debouncedTargetCoaSearch],
+    enabled: tab === 'pending' && isEmployeeCredit,
+    queryFn: () =>
+      chartOfAccountsService
+        .list({ per_page: 50, sort: 'code', 'filter[is_active]': 'true', 'filter[is_header]': 'false', 'filter[search]': debouncedTargetCoaSearch || undefined } as any)
+        .then((r) => r.data),
+  })
+  const seenTargetCoaRef = useRef(new Map<number, any>())
+  const targetCoaItems: any[] = (targetCoaData as any)?.data ?? []
+  for (const c of targetCoaItems) seenTargetCoaRef.current.set(Number(c.id), c)
+  const targetCoaOptions = [
+    ...targetCoaItems,
+    ...(targetCoaId && !targetCoaItems.some((c) => Number(c.id) === targetCoaId) && seenTargetCoaRef.current.has(targetCoaId)
+      ? [seenTargetCoaRef.current.get(targetCoaId)]
+      : []),
+  ].map((c: any) => ({ value: Number(c.id), label: c.name ?? `COA #${c.id}`, sublabel: c.code ?? undefined }))
 
   // Pre-fill the first "biaya lainnya" row with the method's default fee account.
   useEffect(() => {
@@ -247,7 +285,7 @@ export default function PaymentSettlementsView() {
   })
   const preview = previewData as { count?: number; total_amount?: number } | null | undefined
   const total = Number(preview?.total_amount ?? 0)
-  const feeTotal = fees.reduce((s, f) => s + Number(f.amount ?? 0), 0)
+  const feeTotal = isEmployeeCredit ? 0 : fees.reduce((s, f) => s + Number(f.amount ?? 0), 0)
   const received = total - feeTotal
 
   // The pending list is one method's payments, so it waits for a method.
@@ -276,7 +314,7 @@ export default function PaymentSettlementsView() {
         : paymentsService
             .listSettlements({
               sort: '-date',
-              include: 'branch,payment_method,bank_account',
+              include: 'branch,payment_method,bank_account,chart_of_account',
               'filter[search]': searchDebounced || undefined,
               'filter[branch_id]': historyBranchId || undefined,
               'filter[payment_method_id]': methodId || undefined,
@@ -293,6 +331,7 @@ export default function PaymentSettlementsView() {
 
   const resetForm = () => {
     setBankAccountId(0)
+    setTargetCoaId(0)
     setFees(method?.settlement_fee_chart_of_account_id ? [newFee(Number(method.settlement_fee_chart_of_account_id))] : [])
     setSettleDate(today())
     setDescription('')
@@ -306,7 +345,7 @@ export default function PaymentSettlementsView() {
     qc.invalidateQueries({ queryKey: ['sales-orders'] })
   }
 
-  const usedFees = fees.filter((f) => Number(f.amount ?? 0) > 0)
+  const usedFees = isEmployeeCredit ? [] : fees.filter((f) => Number(f.amount ?? 0) > 0)
 
   const { mutate: submit, isPending: submitting } = useMutation({
     mutationFn: () =>
@@ -315,7 +354,7 @@ export default function PaymentSettlementsView() {
         payment_method_id: Number(methodId),
         date_gte: dateGte,
         date_lte: dateLte,
-        bank_account_id: bankAccountId,
+        ...(isEmployeeCredit ? { chart_of_account_id: targetCoaId } : { bank_account_id: bankAccountId }),
         received_amount: received,
         fees: usedFees.map((f) => ({
           chart_of_account_id: f.chart_of_account_id,
@@ -348,7 +387,8 @@ export default function PaymentSettlementsView() {
     if (!methodId) return toast.error('Pilih metode pembayaran')
     if (!periodReady) return toast.error('Isi periode dengan benar')
     if (!(total > 0)) return toast.error('Tidak ada piutang yang menunggu settlement di periode ini')
-    if (!bankAccountId) return toast.error('Pilih akun kas/bank tujuan')
+    if (isEmployeeCredit && !targetCoaId) return toast.error('Pilih akun tujuan (mis. gaji)')
+    if (!isEmployeeCredit && !bankAccountId) return toast.error('Pilih akun kas/bank tujuan')
     if (fees.some((f) => Number(f.amount ?? 0) > 0 && !f.chart_of_account_id))
       return toast.error('Pilih akun untuk setiap biaya')
     if (!(received > 0)) return toast.error('Biaya tidak boleh sama dengan atau melebihi total piutang')
@@ -397,11 +437,12 @@ export default function PaymentSettlementsView() {
     <div style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)' }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>
-          Offline Order Settlements
+          {isEmployeeMode ? 'Kredit Karyawan Settlements' : 'Offline Order Settlements'}
         </h1>
         <p style={{ color: 'var(--foreground-muted)', fontSize: 14, marginTop: 4 }}>
-          Pembayaran Cash, Visa, BCA, dll. tetap di Piutang Dagang sampai dana masuk. Settlement melunasi piutang satu metode untuk satu periode
-          (akumulasi, bukan per invoice).
+          {isEmployeeMode
+            ? 'Kredit karyawan (potong users.credit) tetap di Piutang Dagang Counter sampai dipotong dari gaji. Settlement memindahkannya ke akun tujuan (mis. gaji) untuk satu periode.'
+            : 'Pembayaran Cash, Visa, BCA, dll. tetap di Piutang Dagang sampai dana masuk. Settlement melunasi piutang satu metode untuk satu periode (akumulasi, bukan per invoice).'}
         </p>
       </div>
 
@@ -424,6 +465,7 @@ export default function PaymentSettlementsView() {
             <option value="">Semua outlet</option>
             <BranchOptionGroups branches={branches} label={(b: any) => b.name} getValue={(b) => b.id} />
           </select>
+          {!isEmployeeMode && (
           <select value={methodId} onChange={(e) => setMethodId(e.target.value ? Number(e.target.value) : '')} style={{ ...controlStyle, width: 180 }}>
             <option value="">Semua metode</option>
             {methods.map((m) => (
@@ -432,11 +474,16 @@ export default function PaymentSettlementsView() {
               </option>
             ))}
           </select>
+          )}
         </div>
       ) : (
         <section style={{ ...cardStyle, padding: 20, marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
-            <StepTitle step={1} title="Pilih metode pembayaran" hint="Settlement dicatat per metode. Pilih metode yang dananya sudah masuk ke bank." />
+            <StepTitle
+              step={1}
+              title={isEmployeeMode ? 'Pilih periode' : 'Pilih metode pembayaran'}
+              hint={isEmployeeMode ? 'Kredit karyawan yang menunggu dipotong dari gaji pada periode ini.' : 'Settlement dicatat per metode. Pilih metode yang dananya sudah masuk ke bank.'}
+            />
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Periode</span>
               <input type="date" value={dateGte} max={dateLte || undefined} onChange={(e) => setDateGte(e.target.value)} style={controlStyle} aria-label="Periode dari" />
@@ -470,7 +517,7 @@ export default function PaymentSettlementsView() {
                     type="button"
                     role="radio"
                     aria-checked={selected}
-                    onClick={() => setMethodId(selected ? '' : Number(m.id))}
+                    onClick={() => { if (!isEmployeeMode) setMethodId(selected ? '' : Number(m.id)) }}
                     style={{
                       position: 'relative',
                       textAlign: 'left',
@@ -634,10 +681,14 @@ export default function PaymentSettlementsView() {
                         {s.period_start ? `${formatDateShort(s.period_start)} – ${formatDateShort(s.period_end)}` : '—'}
                       </td>
                       <td style={tdStyle}>
-                        {s.payment_method?.name ?? '—'}
+                        {Number(s.payment_method_id) === PAYMENT_METHOD_CREDIT_ID ? 'Kredit Karyawan' : s.payment_method?.name ?? '—'}
                         <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{s.branch?.name ?? ''}</div>
                       </td>
-                      <td style={tdStyle}>{bankLabel(s.bank_account)}</td>
+                      <td style={tdStyle}>
+                        {s.chart_of_account
+                          ? `${s.chart_of_account.code ? `${s.chart_of_account.code} · ` : ''}${s.chart_of_account.name}`
+                          : bankLabel(s.bank_account)}
+                      </td>
                       <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(s.received_amount)}</td>
                       <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <span style={{ color: Number(s.fee_amount) > 0 ? 'var(--warning)' : undefined }}>{formatCurrency(s.fee_amount ?? 0)}</span>
@@ -697,7 +748,11 @@ export default function PaymentSettlementsView() {
               top: 16,
             }}
           >
-            <StepTitle step={2} title="Catat dana masuk" hint="Isi bank tujuan dan biaya yang dipotong bank." />
+            <StepTitle
+              step={2}
+              title={isEmployeeCredit ? 'Catat potong gaji' : 'Catat dana masuk'}
+              hint={isEmployeeCredit ? 'Pilih akun tujuan (mis. gaji) untuk kredit karyawan yang sudah dipotong.' : 'Isi bank tujuan dan biaya yang dipotong bank.'}
+            />
 
             <div style={{ background: 'var(--background)', borderRadius: 'var(--radius-md)', padding: '12px 14px', fontSize: 13 }}>
               {previewLoading ? (
@@ -715,92 +770,111 @@ export default function PaymentSettlementsView() {
               )}
             </div>
 
-            <div>
-              <label style={labelStyle}>Akun Kas/Bank tujuan *</label>
-              <SearchableSelect
-                value={bankAccountId}
-                onChange={(val: any) => setBankAccountId(Number(val) || 0)}
-                options={bankAccounts.map((b) => ({ value: Number(b.id), label: bankLabel(b) }))}
-                placeholder="Pilih akun bank"
-                searchPlaceholder="Cari bank / no. rekening..."
-                loading={banksLoading}
-                error={fieldErrors.bank_account_id || undefined}
-              />
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ ...labelStyle, marginBottom: 0 }}>Biaya lainnya (admin / MDR)</span>
-                <button
-                  type="button"
-                  onClick={() => setFees((rows) => [...rows, newFee()])}
-                  className="v2-btn-outline v2-btn-sm"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    height: 28,
-                    padding: '0 10px',
-                    border: '1px solid var(--accent)',
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'var(--surface)',
-                    color: 'var(--accent)',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Plus size={12} /> Tambah biaya
-                </button>
+            {isEmployeeCredit ? (
+              <div>
+                <label style={labelStyle}>Akun tujuan *</label>
+                <SearchableSelect
+                  value={targetCoaId}
+                  onChange={(val: any) => setTargetCoaId(Number(val) || 0)}
+                  options={targetCoaOptions}
+                  placeholder="Pilih akun (mis. gaji)"
+                  searchPlaceholder="Cari nama / kode akun..."
+                  loading={targetCoaLoading}
+                  onSearchChange={setTargetCoaSearch}
+                  error={fieldErrors.chart_of_account_id || undefined}
+                />
               </div>
-              {fees.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>Tidak ada biaya — seluruh piutang diterima bank.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {fees.map((f, i) => (
-                    <div key={f.key} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <SearchableSelect
-                            value={f.chart_of_account_id}
-                            onChange={(val: any) => updateFee(f.key, { chart_of_account_id: Number(val) || 0 })}
-                            options={feeCoaOptions}
-                            placeholder="Pilih akun biaya"
-                            searchPlaceholder="Cari nama / kode akun..."
-                            loading={feeCoaLoading}
-                            onSearchChange={setFeeCoaSearch}
-                            {...feeCoaOpts.selectProps}
-                            error={fieldErrors[`fees.${i}.chart_of_account_id`] || undefined}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setFees((rows) => rows.filter((r) => r.key !== f.key))}
-                          title="Hapus biaya"
-                          style={{ background: 'none', border: 'none', color: 'var(--foreground-muted)', cursor: 'pointer', display: 'flex', padding: 4 }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      <LocalizedNumberInput
-                        value={f.amount}
-                        onChange={(val) => updateFee(f.key, { amount: val })}
-                        decimals={2}
-                        padDecimals={false}
-                        placeholder="Jumlah biaya"
-                        error={!!fieldErrors[`fees.${i}.amount`]}
-                      />
-                      <input
-                        value={f.description}
-                        onChange={(e) => updateFee(f.key, { description: e.target.value })}
-                        placeholder="Keterangan (opsional)"
-                        style={{ ...controlStyle, width: '100%', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                  ))}
+            ) : (
+              <>
+              <div>
+                <label style={labelStyle}>Akun Kas/Bank tujuan *</label>
+                <SearchableSelect
+                  value={bankAccountId}
+                  onChange={(val: any) => setBankAccountId(Number(val) || 0)}
+                  options={bankAccounts.map((b) => ({ value: Number(b.id), label: bankLabel(b) }))}
+                  placeholder="Pilih akun bank"
+                  searchPlaceholder="Cari bank / no. rekening..."
+                  loading={banksLoading}
+                  error={fieldErrors.bank_account_id || undefined}
+                />
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ ...labelStyle, marginBottom: 0 }}>Biaya lainnya (admin / MDR)</span>
+                  <button
+                    type="button"
+                    onClick={() => setFees((rows) => [...rows, newFee()])}
+                    className="v2-btn-outline v2-btn-sm"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      height: 28,
+                      padding: '0 10px',
+                      border: '1px solid var(--accent)',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--surface)',
+                      color: 'var(--accent)',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Plus size={12} /> Tambah biaya
+                  </button>
                 </div>
-              )}
-              {fieldErrors.fees && <div style={fieldErrorStyle}>{fieldErrors.fees}</div>}
-            </div>
+                {fees.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>Tidak ada biaya — seluruh piutang diterima bank.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {fees.map((f, i) => (
+                      <div key={f.key} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <SearchableSelect
+                              value={f.chart_of_account_id}
+                              onChange={(val: any) => updateFee(f.key, { chart_of_account_id: Number(val) || 0 })}
+                              options={feeCoaOptions}
+                              placeholder="Pilih akun biaya"
+                              searchPlaceholder="Cari nama / kode akun..."
+                              loading={feeCoaLoading}
+                              onSearchChange={setFeeCoaSearch}
+                              {...feeCoaOpts.selectProps}
+                              error={fieldErrors[`fees.${i}.chart_of_account_id`] || undefined}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFees((rows) => rows.filter((r) => r.key !== f.key))}
+                            title="Hapus biaya"
+                            style={{ background: 'none', border: 'none', color: 'var(--foreground-muted)', cursor: 'pointer', display: 'flex', padding: 4 }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        <LocalizedNumberInput
+                          value={f.amount}
+                          onChange={(val) => updateFee(f.key, { amount: val })}
+                          decimals={2}
+                          padDecimals={false}
+                          placeholder="Jumlah biaya"
+                          error={!!fieldErrors[`fees.${i}.amount`]}
+                        />
+                        <input
+                          value={f.description}
+                          onChange={(e) => updateFee(f.key, { description: e.target.value })}
+                          placeholder="Keterangan (opsional)"
+                          style={{ ...controlStyle, width: '100%', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {fieldErrors.fees && <div style={fieldErrorStyle}>{fieldErrors.fees}</div>}
+              </div>
+
+              </>
+            )}
 
             <div>
               <label style={labelStyle}>Tanggal settlement *</label>
@@ -834,12 +908,14 @@ export default function PaymentSettlementsView() {
                 <span style={{ fontWeight: 600, color: feeTotal > 0 ? 'var(--warning)' : undefined }}>{formatCurrency(feeTotal)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 6 }}>
-                <span style={{ color: 'var(--foreground-muted)' }}>Diterima bank</span>
+                <span style={{ color: 'var(--foreground-muted)' }}>{isEmployeeCredit ? 'Dipotong dari gaji' : 'Diterima bank'}</span>
                 <span style={{ fontWeight: 700, color: received <= 0 && total > 0 ? 'var(--destructive)' : 'var(--foreground)' }}>{formatCurrency(received)}</span>
               </div>
               {fieldErrors.received_amount && <div style={fieldErrorStyle}>{fieldErrors.received_amount}</div>}
               <div style={{ fontSize: 12, color: 'var(--foreground-subtle)', marginTop: 2 }}>
-                Jurnal: D Bank {usedFees.length > 0 ? `+ D ${usedFees.length} akun biaya ` : ''}/ K Piutang Dagang
+                {isEmployeeCredit
+                  ? 'Jurnal: D akun tujuan / K Piutang Dagang Counter'
+                  : `Jurnal: D Bank ${usedFees.length > 0 ? `+ D ${usedFees.length} akun biaya ` : ''}/ K Piutang Dagang`}
               </div>
             </div>
 
