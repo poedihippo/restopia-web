@@ -121,7 +121,7 @@ export function FilterBar({
             }}
           >
             <SlidersHorizontal size={14} />
-            Filters
+            More Filters
             {activeCount > 0 && (
               <span
                 style={{
@@ -312,6 +312,7 @@ export function DateRange({
   onFromChange,
   onToChange,
   presets = true,
+  inline = false,
 }: {
   from: string
   to: string
@@ -319,6 +320,8 @@ export function DateRange({
   onToChange: (value: string) => void
   /** Hide the preset chips (e.g. where only one end of the range makes sense). */
   presets?: boolean
+  /** One compact row (presets + from – to) for page toolbars; no labels or summary. */
+  inline?: boolean
 }) {
   const dateStyle: React.CSSProperties = { ...filterControlStyle, width: '100%', minWidth: 0, padding: '0 8px', fontSize: 12 }
   const miniLabel: React.CSSProperties = { fontSize: 11, color: 'var(--foreground-subtle)', marginBottom: 4, display: 'block' }
@@ -330,6 +333,46 @@ export function DateRange({
     : from && to && from === to
       ? humanDay(from)
       : `${from ? humanDay(from) : '…'} – ${to ? humanDay(to) : '…'}`
+
+  const pickFrom = (v: string) => {
+    onFromChange(v)
+    if (v && !to) onToChange(v)
+  }
+  const pickTo = (v: string) => {
+    onToChange(v)
+    if (v && !from) onFromChange(v)
+  }
+
+  if (inline) {
+    const inlineDate: React.CSSProperties = { ...filterControlStyle, width: 138, padding: '0 8px', fontSize: 12 }
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {presets && (
+          <div className="v2-seg" role="group" aria-label="Quick ranges" style={{ height: 36, boxSizing: 'border-box', alignItems: 'center' }}>
+            {DATE_PRESETS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                aria-selected={activePreset === p.key}
+                onClick={() => {
+                  onFromChange(p.from())
+                  onToChange(p.to())
+                }}
+                style={{ whiteSpace: 'nowrap', height: 28 }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input type="date" aria-label="From" title="From" value={from} max={to || undefined} onChange={(e) => pickFrom(e.target.value)} style={inlineDate} />
+          <span style={{ color: 'var(--foreground-subtle)', fontSize: 12 }}>to</span>
+          <input type="date" aria-label="To" title="To" value={to} min={from || undefined} onChange={(e) => pickTo(e.target.value)} style={inlineDate} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

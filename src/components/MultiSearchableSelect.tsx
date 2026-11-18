@@ -7,6 +7,10 @@ export interface MultiSearchableSelectOption {
   value: number | string
   label: string
   sublabel?: string
+  /** Group header shown above the first option of each run (e.g. a branch's company). */
+  group?: string
+  /** Nesting level under the previous option (e.g. 1 = pickup point under its premiere). */
+  indent?: number
 }
 
 export interface MultiSearchableSelectProps {
@@ -269,12 +273,30 @@ export default function MultiSearchableSelect({
                 No options
               </div>
             ) : (
-              filteredOptions.map((option) => {
+              filteredOptions.map((option, idx) => {
                 const isSelected = value.includes(option.value)
+                const showGroup = !!option.group && option.group !== filteredOptions[idx - 1]?.group
+                const indent = option.indent ?? 0
                 return (
+                  <React.Fragment key={String(option.value)}>
+                  {showGroup && (
+                    <div
+                      style={{
+                        padding: '6px 8px 4px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                        color: 'var(--foreground-subtle)',
+                        background: 'var(--background)',
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                    >
+                      {option.group}
+                    </div>
+                  )}
                   <button
                     type="button"
-                    key={String(option.value)}
                     onClick={() => toggleOption(option.value)}
                     style={{
                       width: '100%',
@@ -282,6 +304,7 @@ export default function MultiSearchableSelect({
                       alignItems: 'center',
                       gap: 8,
                       padding: '6px 8px',
+                      paddingLeft: 8 + indent * 16,
                       background: isSelected ? 'var(--accent-light-bg)' : 'transparent',
                       border: 'none',
                       cursor: 'pointer',
@@ -315,6 +338,7 @@ export default function MultiSearchableSelect({
                         color: isSelected ? 'var(--accent)' : 'var(--foreground)',
                       }}
                     >
+                      {indent > 0 && <span style={{ color: 'var(--foreground-subtle)', marginRight: 4 }}>↳</span>}
                       {option.label}
                     </span>
                     {option.sublabel && (
@@ -323,6 +347,7 @@ export default function MultiSearchableSelect({
                       </span>
                     )}
                   </button>
+                  </React.Fragment>
                 )
               })
             )}

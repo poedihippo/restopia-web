@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
 import { invoicesService } from '@/services/invoices.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { paymentMethodsService } from '@/services/payment-methods.service'
 import { useAuth } from '@/hooks/useAuth'
 import { paymentAllocateBlock, paymentVoidBlock, paymentDeleteBlock, blockedStyle } from '@/lib/actionGuards'
@@ -87,9 +88,9 @@ export default function PaymentsView() {
   }, [debouncedSearch])
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
+    queryKey: ['branches-all', 'with-company'],
     enabled: canRead,
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branchOptions: any[] = (branchesData as any)?.data ?? []
 
@@ -297,9 +298,7 @@ export default function PaymentsView() {
               }}
             >
               <option value="">All Branches</option>
-              {branchOptions.map((o: any) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
-              ))}
+              <BranchOptionGroups branches={branchOptions} label={(o: any) => o.name} getValue={(o) => o.id} />
             </FilterSelect>
           </FilterField>
           <FilterField label="Payment method">

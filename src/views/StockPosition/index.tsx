@@ -411,8 +411,8 @@ export default function StockPositionView() {
         }}
         quick={
           <>
-            <div style={{ width: 280, maxWidth: '100%' }} title="Periode (wajib)">
-              <DateRange
+            <div style={{ maxWidth: '100%' }} title="Periode (wajib)">
+              <DateRange inline
                 from={startDate}
                 to={endDate}
                 onFromChange={setStartDate}

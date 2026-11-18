@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { dimensionTransferRequestsService } from '@/services/dimension-transfer-requests.service'
 import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups, withBranchDetails } from '@/lib/branchOptions'
 import { usersService } from '@/services/users.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
@@ -195,11 +196,11 @@ export default function DimensionTransferRequestsView() {
 
   // Lookups: Branches
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []
-  const availableBranches: any[] = isSuperadmin ? allBranches : user?.branches ?? []
+  const availableBranches: any[] = isSuperadmin ? allBranches : withBranchDetails((user as any)?.branches, allBranches, (user as any)?.branch?.company)
 
   // Lookups: Batches (safety cache for products)
   const { data: batchesData } = useQuery({
@@ -657,11 +658,11 @@ export default function DimensionTransferRequestsView() {
             <FilterField label="Cabang">
               <FilterSelect block value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
                 <option value="">Semua Cabang</option>
-                {availableBranches.map((b: any) => (
-                  <option key={b.id} value={String(b.id)}>
-                    {b.name} {b.company?.name ? `(${b.company.name})` : ''}
-                  </option>
-                ))}
+                <BranchOptionGroups
+                  branches={availableBranches}
+                  label={(b: any) => `${b.name} ${b.company?.name ? `(${b.company.name})` : ''}`}
+                  getValue={(b: any) => String(b.id)}
+                />
               </FilterSelect>
             </FilterField>
           )}

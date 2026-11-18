@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React, { useEffect, useState } from 'react'
 import api from '@/hooks/useApi'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { reportsService } from '@/services/reports.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import FinancePeriodSelect from '../FinancePeriodSelect'
@@ -12,12 +12,23 @@ export default function CustomerStatementsView() {
   const [customerId, setCustomerId] = useState(0)
   const [asOfDate, setAsOfDate] = useState('')
 
-  const { data: customersData, isLoading: customersLoading } = useQuery({
-    queryKey: ['customers-all'],
-    queryFn: () => api.get('/customers', { params: { per_page: 1000, sort: 'name' } }).then(r => r.data),
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCustomerSearch(customerSearch), 400)
+    return () => clearTimeout(t)
+  }, [customerSearch])
+
+  const customerOpts = useInfiniteOptions<any>({
+    queryKey: ['customers-all', 'statement', debouncedCustomerSearch],
+    fetchPage: (page) =>
+      api
+        .get('/customers', {
+          params: { page, per_page: 20, sort: 'name,id', 'filter[search]': debouncedCustomerSearch || undefined },
+        })
+        .then(r => r.data),
   })
-  const raw = (customersData as any)?.data
-  const customers: any[] = Array.isArray(raw) ? raw : raw?.data ?? []
+  const customers: any[] = customerOpts.items
   const customerOptions = [
     { value: 0, label: 'Pilih customer' },
     ...customers.map((c: any) => ({ value: c.id as number, label: c.name as string, sublabel: c.code ?? c.phone })),
@@ -80,7 +91,9 @@ export default function CustomerStatementsView() {
               options={customerOptions}
               placeholder="Pilih customer"
               searchPlaceholder="Cari customer..."
-              loading={customersLoading}
+              loading={customerOpts.loading}
+              onSearchChange={setCustomerSearch}
+              {...customerOpts.selectProps}
             />
           </div>
           <FinancePeriodSelect className="v2-select" asOf={asOfDate} onChange={(p) => setAsOfDate(p.end_date)} />

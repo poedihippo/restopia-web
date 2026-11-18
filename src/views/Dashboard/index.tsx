@@ -5,6 +5,7 @@ import React, { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { dashboardService } from '@/services/dashboard.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { useAuth } from '@/hooks/useAuth'
 import type { DashboardChartInterval } from '@/types/api'
 import DashboardCharts, { useDashboardCharts } from './DashboardCharts'
@@ -418,9 +419,9 @@ export default function DashboardView() {
   const [chartInterval, setChartInterval] = useState<DashboardChartInterval>('day')
   const [chartBranchId, setChartBranchId] = useState<number | ''>('')
   const { data: ownerBranchesData } = useQuery({
-    queryKey: ['branches-all', 'dashboard-charts'],
+    queryKey: ['branches-all', 'dashboard-charts', 'with-company'],
     enabled: isOwner,
-    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name' } as any).then((r) => r.data),
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
   })
   const ownerBranches: any[] = (ownerBranchesData as any)?.data ?? []
   const expiryRows = expiryTab === 'expiring' ? expiring : expired
@@ -700,11 +701,7 @@ export default function DashboardView() {
               style={{ maxWidth: 220 }}
             >
               <option value="">Semua cabang</option>
-              {ownerBranches.map((b: any) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
+              <BranchOptionGroups branches={ownerBranches} label={(b: any) => b.name} getValue={(b) => b.id} />
             </select>
           )}
           <button

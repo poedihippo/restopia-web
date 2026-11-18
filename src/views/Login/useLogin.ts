@@ -24,6 +24,9 @@ const useLogin = () => {
   const { login } = useAuth();
   const loginMutation = useLoginMutation();
   const [showPassword, setShowPassword] = useState(false);
+  // Stays true after a successful sign-in until the page navigates away, so
+  // the button stays locked while the dashboard is still loading.
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
@@ -40,12 +43,14 @@ const useLogin = () => {
       const refreshToken = response.data.data.refresh_token;
 
       if (token && refreshToken) {
+        setIsRedirecting(true);
         toast.success("Login successful", {
           description: "Redirecting to dashboard...",
         });
         await login(token, refreshToken);
       }
     } catch (error) {
+      setIsRedirecting(false);
       const message = isAxiosError(error)
         ? error.response?.data?.message
         : undefined;
@@ -58,7 +63,8 @@ const useLogin = () => {
   return {
     form,
     onSubmit,
-    isLoading: loginMutation.isPending,
+    isLoading: loginMutation.isPending || isRedirecting,
+    isRedirecting,
     showPassword,
     setShowPassword,
   };

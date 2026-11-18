@@ -14,6 +14,7 @@ import { useBuyerNames } from '@/hooks/useBuyerNames'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { suppliersService } from '@/services/suppliers.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { buyersService } from '@/services/buyers.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -142,8 +143,6 @@ export default function PurchaseOrdersView() {
   const [buyerFilter, setBuyerFilter] = useState<number>(0)
   const [supplierSearch, setSupplierSearch] = useState('')
   const [debouncedSupplierSearch, setDebouncedSupplierSearch] = useState('')
-  const [supplierBranchSearch, setSupplierBranchSearch] = useState('')
-  const [debouncedSupplierBranchSearch, setDebouncedSupplierBranchSearch] = useState('')
   const [buyerSearch, setBuyerSearch] = useState('')
   const [debouncedBuyerSearch, setDebouncedBuyerSearch] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -156,11 +155,10 @@ export default function PurchaseOrdersView() {
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSupplierSearch(supplierSearch)
-      setDebouncedSupplierBranchSearch(supplierBranchSearch)
       setDebouncedBuyerSearch(buyerSearch)
     }, 400)
     return () => clearTimeout(t)
-  }, [supplierSearch, supplierBranchSearch, buyerSearch])
+  }, [supplierSearch, buyerSearch])
 
   useEffect(() => {
     setPage(1)
@@ -190,20 +188,19 @@ export default function PurchaseOrdersView() {
   ]
 
   const { data: supplierBranchesData, isLoading: supplierBranchesLoading } = useQuery({
-    queryKey: ['branches-all', 'po-filter', debouncedSupplierBranchSearch],
-    queryFn: () =>
-      branchesService
-        .list({ 'filter[search]': debouncedSupplierBranchSearch || undefined, per_page: 100 } as any)
-        .then((r) => r.data),
+    // Whole list (small) with company so the selector can group company → premiere → pickup points;
+    // the select filters client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
     enabled: showSupplierBranchFilter,
   })
   const supplierBranchOptions = [
     { value: 0, label: 'All supplier branches' },
-    ...((supplierBranchesData as any)?.data ?? []).map((b: any) => ({
-      value: b.id as number,
-      label: (b.name as string) ?? `Branch #${b.id}`,
-      sublabel: b.code as string | undefined,
-    })),
+    ...branchSelectOptions(
+      (supplierBranchesData as any)?.data ?? [],
+      (b: any) => (b.name as string) ?? `Branch #${b.id}`,
+      (b: any) => ({ sublabel: b.code as string | undefined }),
+    ),
   ]
 
   const buyerOpts = useInfiniteOptions<any>({
@@ -396,7 +393,6 @@ export default function PurchaseOrdersView() {
                 placeholder="All supplier branches"
                 searchPlaceholder="Search supplier branches..."
                 loading={supplierBranchesLoading}
-                onSearchChange={setSupplierBranchSearch}
               />
             </FilterField>
           )}
@@ -444,18 +440,18 @@ export default function PurchaseOrdersView() {
       {/* Table */}
       <div className="v2-card" style={{ overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-        <table className="v2-table">
+        <table className="v2-table" style={{ minWidth: 1200 }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
-              <th style={{ ...thStyle, width: 160 }}>Code</th>
-              <th style={thStyle}>Order From</th>
-              <th style={{ ...thStyle, width: 180 }}>Buyer</th>
-              <th style={{ ...thStyle, width: 130 }}>Date</th>
-              <th style={{ ...thStyle, width: 150, textAlign: 'right' }}>Total</th>
-              <th style={{ ...thStyle, width: 110 }}>Status</th>
-              <th style={{ ...thStyle, width: 120 }}>Payment</th>
-              <th style={{ ...thStyle, width: 100 }} />
+              <th style={{ ...thStyle, width: 56, textAlign: 'center', whiteSpace: 'nowrap' }}>No.</th>
+              <th style={{ ...thStyle, width: 170, whiteSpace: 'nowrap' }}>Code</th>
+              <th style={{ ...thStyle, width: '20%', minWidth: 200, whiteSpace: 'nowrap' }}>Order From</th>
+              <th style={{ ...thStyle, width: '20%', minWidth: 200, whiteSpace: 'nowrap' }}>Buyer</th>
+              <th style={{ ...thStyle, width: 120, whiteSpace: 'nowrap' }}>Date</th>
+              <th style={{ ...thStyle, width: 150, textAlign: 'right', whiteSpace: 'nowrap' }}>Total</th>
+              <th style={{ ...thStyle, width: 150, whiteSpace: 'nowrap' }}>Status</th>
+              <th style={{ ...thStyle, width: 140, whiteSpace: 'nowrap' }}>Payment</th>
+              <th style={{ ...thStyle, width: 210 }} />
             </tr>
           </thead>
           <tbody>
@@ -670,10 +666,19 @@ export default function PurchaseOrdersView() {
                               const sourceType = item.type === 'branch' ? 'po_from_branch' : 'po_from_supplier'
                               router.push(`/transfer/deliveries/create?po_id=${item.id}&source_type=${sourceType}`)
                             }}
-                            className="v2-icon-btn"
                             title="Create Delivery"
+                            // The row's main next step, so it is a labelled,
+                            // tinted pill rather than another grey icon.
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6,
+                              height: 28, padding: '0 10px', marginRight: 6,
+                              borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
+                              border: '1px solid var(--info)', background: 'var(--info-bg)', color: 'var(--info)',
+                              fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-sans)',
+                            }}
                           >
                             <Truck size={14} />
+                            Deliver
                           </button>
                         )}
                         <button

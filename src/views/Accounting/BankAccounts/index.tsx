@@ -15,6 +15,7 @@ import {
 import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { formatCurrency } from '@/utils/price'
@@ -34,6 +35,7 @@ import {
   Scale,
 } from 'lucide-react'
 import Link from 'next/link'
+import ActiveToggle from '@/components/ActiveToggle'
 
 const schema = z.object({
   company_id: z.coerce.number().optional().default(1),
@@ -137,19 +139,30 @@ export default function BankAccountsView() {
   const meta = (data as any)?.meta
 
   // Fetch Chart of Accounts for dropdown
-  const { data: coaData } = useQuery({
+  const coaOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-select', debouncedCoaDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
+        .list({ page, per_page: 20, sort: 'code,id', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
         .then((res) => res.data),
   })
-  const coaList: any[] = (coaData as any)?.data ?? []
+  const coaList: any[] = coaOpts.items
 
+  const coaLabel = (item: any) => `${item.account_code ?? item.code} — ${item.account_name ?? item.name}`
   const coaOptions = coaList.map((item: any) => ({
     value: item.id,
-    label: `${item.account_code ?? item.code} — ${item.account_name ?? item.name}`,
+    label: coaLabel(item),
   }))
+  // id → account cache (loaded pages + rows' included chart_of_account) so a chosen
+  // account keeps its label when it is outside the loaded pages.
+  const seenCoaRef = React.useRef(new Map<number, any>())
+  for (const c of coaList) seenCoaRef.current.set(c.id, c)
+  for (const b of bankAccounts) if ((b as any).chart_of_account?.id) seenCoaRef.current.set((b as any).chart_of_account.id, (b as any).chart_of_account)
+  const withSelectedCoa = <O extends { value: number | string; label: string }>(opts: O[], id: unknown): (O | { value: number; label: string })[] => {
+    const n = Number(id) || 0
+    if (!n || opts.some((o) => o.value === n) || !seenCoaRef.current.has(n)) return opts
+    return [...opts, { value: n, label: coaLabel(seenCoaRef.current.get(n)) }]
+  }
 
   // Form setup
   const {
@@ -196,6 +209,7 @@ export default function BankAccountsView() {
 
   const openEdit = (item: BankAccount) => {
     setEditItem(item)
+    if ((item as any).chart_of_account?.id) seenCoaRef.current.set((item as any).chart_of_account.id, (item as any).chart_of_account)
     reset({
       company_id: item.company_id ?? userCompanyId,
       chart_of_account_id: item.chart_of_account_id,
@@ -453,17 +467,16 @@ export default function BankAccountsView() {
               <SearchableSelect
                 value={coaFilter !== '' ? Number(coaFilter) : ''}
                 onChange={(val) => setCoaFilter(val !== '' && val != null ? String(val) : '')}
-                options={[
+                options={withSelectedCoa([
                   { value: '', label: 'All Chart of Accounts' },
-                  ...coaList.map((item: any) => ({
-                    value: item.id,
-                    label: `${item.account_code ?? item.code} — ${item.account_name ?? item.name}`,
-                  })),
-                ]}
+                  ...coaOptions,
+                ], coaFilter)}
                 placeholder="All Chart of Accounts"
                 searchPlaceholder="Search COA..."
                 triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
                 onSearchChange={setCoaDropdownSearch}
+                loading={coaOpts.loading}
+                {...coaOpts.selectProps}
               />
             </div>
           </>
@@ -936,10 +949,12 @@ export default function BankAccountsView() {
                       <SearchableSelect
                         value={field.value ?? ''}
                         onChange={(val) => field.onChange(val ? Number(val) : undefined)}
-                        options={coaOptions}
+                        options={withSelectedCoa(coaOptions, field.value)}
                         placeholder="Select Chart of Account (Cash / Bank account)"
                         searchPlaceholder="Search COA..."
                         onSearchChange={setCoaDropdownSearch}
+                        loading={coaOpts.loading}
+                        {...coaOpts.selectProps}
                       />
                     )}
                   />
@@ -1005,19 +1020,13 @@ export default function BankAccountsView() {
                 </div>
 
                 {/* Is Active toggle */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                  <input
-                    type="checkbox"
-                    id="is_active_bank"
-                    {...register('is_active')}
-                    style={{ width: 16, height: 16, cursor: 'pointer' }}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={labelStyle}>Status</label>
+                  <Controller
+                    name="is_active"
+                    control={control}
+                    render={({ field }) => <ActiveToggle value={field.value} onChange={field.onChange} />}
                   />
-                  <label
-                    htmlFor="is_active_bank"
-                    style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}
-                  >
-                    Active Account
-                  </label>
                 </div>
               </div>
 

@@ -12,6 +12,7 @@ import { toastMutationApiError, parseApiError } from '@/utils/apiError'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { useAuth } from '@/hooks/useAuth'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import SearchableSelect from '@/components/SearchableSelect'
 import { X, Loader2, TrendingUp, TrendingDown, AlertTriangle, ChevronDown } from 'lucide-react'
 
@@ -107,6 +108,46 @@ const inputStyle = (hasError = false): React.CSSProperties => ({
   boxSizing: 'border-box',
 })
 
+const INVENTORY_INCLUDE =
+  'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product'
+
+// One entry per batch, with the branch's on-hand stock summed across rows
+// (a batch can have several inventory rows in different dimensions).
+const groupByBatch = (rows: any[]): any[] => {
+  const byBatch = new Map<number, any>()
+  for (const inv of rows) {
+    const batch = inv?.product_uom_batch
+    const batchId = Number(batch?.id ?? inv?.product_uom_batch_id)
+    if (!batchId) continue
+    const entry = byBatch.get(batchId) ?? { ...batch, id: batchId, stock: 0 }
+    entry.stock += Number(inv.display_qty ?? inv.stock ?? 0)
+    byBatch.set(batchId, entry)
+  }
+  return Array.from(byBatch.values())
+}
+
+const batchToOption = (batch: any) => {
+  const name =
+    getProductUomName(batch.product_uom, batch.product_uom?.product?.name) ||
+    batch.batch_code ||
+    `BATCH-${batch.id}`
+  const uomCode =
+    batch.display_uom_code ??
+    batch.product_uom?.uom?.code ??
+    batch.product_uom?.uom?.name ??
+    ''
+  const displayStock = batch.display_qty ?? batch.stock ?? 0
+  const expiryDate = batch.expiry_date ? formatExpiry(batch.expiry_date) : 'No expiry'
+  return {
+    value: batch.id as number,
+    label: withProductType(
+      `${name}${uomCode ? ` · ${uomCode}` : ''} · Stok: ${displayStock} · Exp: ${expiryDate}`,
+      batch.product_uom?.product?.type,
+    ),
+    sublabel: batch.batch_code ?? undefined,
+  }
+}
+
 const errorText = (msg?: string) =>
   msg ? <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{msg}</span> : null
 
@@ -151,20 +192,25 @@ export default function StockMovementSheet({ open, onClose, initialBatchId }: St
   // Stock lives on product-inventories, not on the batch row. /product-uom-batches
   // reports a global cross-branch `stock` that doesn't match the active branch,
   // so availability is read from this branch's inventory rows instead.
-  const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
+  // Paged (20/page) + server-searched rows for the batch picker. Sorted by batch so a
+  // batch's dimension rows sit next to each other (its summed stock in the option label
+  // is complete once the page holding its last row is loaded); id keeps paging stable.
+  const inventoryOpts = useInfiniteOptions<any>({
     queryKey: ['stock-movement-inventories', activeBranchId, debouncedDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productInventoriesService
         .list({
-          per_page: 1000,
-          include:
-            'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
+          page,
+          per_page: 20,
+          sort: 'product_uom_batch_id,id',
+          include: INVENTORY_INCLUDE,
           'filter[branch_id]': activeBranchId,
           'filter[search]': debouncedDropdownSearch || undefined,
         } as any)
         .then((r) => r.data),
   })
-  const inventoryRows: any[] = useMemo(() => ((inventoriesData as any)?.data ?? []) as any[], [inventoriesData])
+  const inventoryRows: any[] = inventoryOpts.items
+  const inventoriesLoading = inventoryOpts.loading
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
     queryKey: ['stages-all'],
@@ -179,20 +225,8 @@ export default function StockMovementSheet({ open, onClose, initialBatchId }: St
     return [{ value: GENERAL, label: 'General (GENERAL)' }, ...opts]
   }, [stagesData])
 
-  // One option per batch, with the branch's on-hand stock summed across rows
-  // (a batch can have several inventory rows in different dimensions).
-  const batchesItems: any[] = useMemo(() => {
-    const byBatch = new Map<number, any>()
-    for (const inv of inventoryRows) {
-      const batch = inv?.product_uom_batch
-      const batchId = Number(batch?.id ?? inv?.product_uom_batch_id)
-      if (!batchId) continue
-      const entry = byBatch.get(batchId) ?? { ...batch, id: batchId, stock: 0 }
-      entry.stock += Number(inv.display_qty ?? inv.stock ?? 0)
-      byBatch.set(batchId, entry)
-    }
-    return Array.from(byBatch.values())
-  }, [inventoryRows])
+  // One option per batch (from the loaded pages).
+  const batchesItems: any[] = useMemo(() => groupByBatch(inventoryRows), [inventoryRows])
 
   const watchDirection = watch('direction')
   const watchQty = watch('qty')
@@ -201,35 +235,44 @@ export default function StockMovementSheet({ open, onClose, initialBatchId }: St
   const watchStage = dim(watch('stage'))
   const watchLocation = dim(watch('location_ref'))
 
-  const batchOptions = batchesItems.map((batch: any) => {
-    const name =
-      getProductUomName(batch.product_uom, batch.product_uom?.product?.name) ||
-      batch.batch_code ||
-      `BATCH-${batch.id}`
-    const uomCode =
-      batch.display_uom_code ??
-      batch.product_uom?.uom?.code ??
-      batch.product_uom?.uom?.name ??
-      ''
-    const displayStock = batch.display_qty ?? batch.stock ?? 0
-    const expiryDate = batch.expiry_date ? formatExpiry(batch.expiry_date) : 'No expiry'
-    return {
-      value: batch.id as number,
-      label: withProductType(
-        `${name}${uomCode ? ` · ${uomCode}` : ''} · Stok: ${displayStock} · Exp: ${expiryDate}`,
-        batch.product_uom?.product?.type,
-      ),
-      sublabel: batch.batch_code ?? undefined,
-    }
+  // All of the selected batch's rows in this branch, fetched directly: the paged picker
+  // may hold only some (or none — e.g. initialBatchId) of them, and stock must be exact.
+  const { data: batchInvData } = useQuery({
+    queryKey: ['stock-movement-inventories', 'batch', activeBranchId, Number(watchBatchId)],
+    enabled: open && Number(watchBatchId) > 0,
+    queryFn: () =>
+      productInventoriesService
+        .list({
+          per_page: 100,
+          sort: 'id',
+          include: INVENTORY_INCLUDE,
+          'filter[branch_id]': activeBranchId,
+          'filter[product_uom_batch_id]': Number(watchBatchId),
+        } as any)
+        .then((r) => r.data),
   })
+  const batchInvRows: any[] = useMemo(() => ((batchInvData as any)?.data ?? []) as any[], [batchInvData])
 
-  const selectedBatch = batchesItems.find((batch: any) => batch.id === watchBatchId)
+  const selectedBatch =
+    groupByBatch(batchInvRows).find((batch: any) => batch.id === Number(watchBatchId)) ??
+    batchesItems.find((batch: any) => batch.id === watchBatchId)
   const uomCode = selectedBatch?.display_uom_code ?? selectedBatch?.product_uom?.uom?.code ?? ''
+
+  // Keep the selected batch labelled even when it isn't in the loaded pages, and
+  // always with its exact stock: a batch whose rows straddle a page boundary is only
+  // partly summed in batchesItems.
+  const batchOptions = batchesItems.map(batchToOption)
+  if (selectedBatch) {
+    const exact = batchToOption(selectedBatch)
+    const idx = batchOptions.findIndex((o) => o.value === selectedBatch.id)
+    if (idx >= 0) batchOptions[idx] = exact
+    else batchOptions.push(exact)
+  }
 
   // The batch's stock rows in this branch, one per owner/stage/location.
   const batchRows = useMemo(
     () =>
-      inventoryRows
+      batchInvRows
         .filter((inv) => Number(inv?.product_uom_batch?.id ?? inv?.product_uom_batch_id) === Number(watchBatchId))
         .map((inv) => ({
           owner: dim(inv.owner_ref),
@@ -237,7 +280,7 @@ export default function StockMovementSheet({ open, onClose, initialBatchId }: St
           location: dim(inv.location_ref),
           qty: Number(inv.display_qty ?? inv.stock ?? 0),
         })),
-    [inventoryRows, watchBatchId],
+    [batchInvRows, watchBatchId],
   )
   const rowMatches = (r: { owner: string; stage: string; location: string }) =>
     r.owner === watchOwner && r.stage === watchStage && r.location === watchLocation
@@ -245,9 +288,10 @@ export default function StockMovementSheet({ open, onClose, initialBatchId }: St
   // Stock of the exact row this movement touches; 0 when the row doesn't exist yet.
   const rowStock = selectedRow?.qty ?? 0
 
-  // Existing values for the Owner / Location suggestions.
-  const ownerSuggestions = Array.from(new Set([GENERAL, ...inventoryRows.map((inv) => dim(inv.owner_ref))]))
-  const locationSuggestions = Array.from(new Set([GENERAL, ...inventoryRows.map((inv) => dim(inv.location_ref))]))
+  // Existing values for the Owner / Location suggestions (from the loaded rows).
+  const suggestionRows = [...inventoryRows, ...batchInvRows]
+  const ownerSuggestions = Array.from(new Set([GENERAL, ...suggestionRows.map((inv) => dim(inv.owner_ref))]))
+  const locationSuggestions = Array.from(new Set([GENERAL, ...suggestionRows.map((inv) => dim(inv.location_ref))]))
 
   const hasCustomAllocation = watchOwner !== GENERAL || watchLocation !== GENERAL
   useEffect(() => {
@@ -304,8 +348,7 @@ export default function StockMovementSheet({ open, onClose, initialBatchId }: St
 
   const onSubmit = (values: FormValues) => {
     setSubmitError(null)
-    const selectedBatch = batchesItems.find((batch: any) => batch.id === values.product_uom_batch_id)
-    if (!selectedBatch) {
+    if (!selectedBatch || selectedBatch.id !== Number(values.product_uom_batch_id)) {
       toast.error('Invalid batch selected')
       return
     }
@@ -529,6 +572,7 @@ export default function StockMovementSheet({ open, onClose, initialBatchId }: St
                   loading={inventoriesLoading}
                   error={errors.product_uom_batch_id?.message}
                   onSearchChange={setDropdownSearch}
+                  {...inventoryOpts.selectProps}
 />
               )}
             />

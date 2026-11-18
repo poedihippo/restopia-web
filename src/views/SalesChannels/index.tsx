@@ -4,7 +4,7 @@ import { formatDateShort, formatDateTime } from '@/utils/date';
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Eye, X, Globe, Store } from 'lucide-react'
+import { Eye, X, Globe, Store, BookOpen } from 'lucide-react'
 import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { useAuth } from '@/hooks/useAuth'
@@ -29,6 +29,9 @@ export default function SalesChannelsView() {
     sales_order_type?: string
     created_at?: string
   } | null>(null)
+  // The side sheet shows either the channel's details or its per-outlet
+  // account (COA) mapping, opened from the "Manage COA" row action.
+  const [sheetMode, setSheetMode] = useState<'detail' | 'coa'>('detail')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<'' | 'online' | 'offline'>('')
@@ -257,9 +260,40 @@ export default function SalesChannelsView() {
                 </td>
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
+                    {/* Per-outlet receivable / fee accounts — online channels only. */}
+                    {item.sales_order_type === 'online' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSheetMode('coa')
+                          setSelectedItem(item)
+                        }}
+                        title="Manage COA"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          padding: '4px 10px',
+                          border: '1px solid var(--accent-light)',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--accent-light-bg)',
+                          color: 'var(--accent)',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <BookOpen size={13} />
+                        Manage COA
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setSelectedItem(item)}
+                      onClick={() => {
+                        setSheetMode('detail')
+                        setSelectedItem(item)
+                      }}
                       title="View"
                       style={{
                         padding: 6,
@@ -521,7 +555,7 @@ export default function SalesChannelsView() {
                       color: 'var(--foreground)',
                     }}
                   >
-                    {selectedItem.name}
+                    {sheetMode === 'coa' ? `Manage COA · ${selectedItem.name}` : selectedItem.name}
                   </h2>
                   <span
                     style={{
@@ -564,16 +598,38 @@ export default function SalesChannelsView() {
                 gap: 16,
               }}
             >
-              {/* Only online channels carry receivable / fee accounts. */}
-              {selectedItem.sales_order_type === 'online' && (
-                <SalesChannelBranchAccounts
-                  salesChannelId={Number(selectedItem.id)}
-                  canEdit={canEdit}
-                />
-              )}
-              {selectedItem.sales_order_type !== 'online' && (
-                <div style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                  Channel offline tidak memerlukan akun piutang atau fee per outlet.
+              {sheetMode === 'coa' ? (
+                // Only online channels carry receivable / fee accounts.
+                selectedItem.sales_order_type === 'online' ? (
+                  <SalesChannelBranchAccounts
+                    salesChannelId={Number(selectedItem.id)}
+                    canEdit={canEdit}
+                  />
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    Offline channels don't need receivable or fee accounts per outlet.
+                  </div>
+                )
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '160px 1fr',
+                    rowGap: 12,
+                    columnGap: 16,
+                    fontSize: 13,
+                  }}
+                >
+                  <span style={{ color: 'var(--foreground-muted)' }}>Name</span>
+                  <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>{selectedItem.name}</span>
+                  <span style={{ color: 'var(--foreground-muted)' }}>Sales order type</span>
+                  <span style={{ color: 'var(--foreground)', textTransform: 'capitalize' }}>
+                    {selectedItem.sales_order_type ?? '—'}
+                  </span>
+                  <span style={{ color: 'var(--foreground-muted)' }}>Created</span>
+                  <span style={{ color: 'var(--foreground)' }}>
+                    {selectedItem.created_at ? formatDateTime(selectedItem.created_at) : '—'}
+                  </span>
                 </div>
               )}
             </div>

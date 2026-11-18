@@ -211,3 +211,32 @@ WEB (`zulfi`):
 - [x] Supplier Statements: supplier dropdown built from the statement's parties (exact-name match, includes supplying branches).
 
 Still open (low): cash-transaction delete guard reads `journal.period` which the API doesn't return (API still blocks closed periods).
+
+## Employee credit settlement (2026-11-18)
+
+Client flow: employee credit order → Piutang Dagang Customer XX; Credit tender (users.credit deduction) → Piutang Dagang Counter XX; accounting clears it on the Settlement screen into an account it picks (payroll).
+
+- [x] API: Credit-tender payments on staff-credit orders are marked `settlement_status=pending` after their journal posts (`isEmployeeCreditTender`).
+- [x] API: settlement of the Credit method takes `chart_of_account_id` instead of `bank_account_id`, no fees; journal D target / K the account each payment's journal debited (`settlement_employee_credit.go`). OpenAPI regenerated.
+- [x] Migration `000171_payment_settlement_target_account` (chart_of_account_id, bank_account_id nullable, exactly one of the two). **Not applied** — until it is, creating ANY settlement on that DB fails (insert names the new column).
+- [x] WEB: Settlement screen has a "Kredit Karyawan" method card; its form asks for the target account and hides fees; history shows the account.
+- [x] Apply 000171 on dcdev (done by user 2026-11-18).
+- [x] Map Payment Methods › Credit › branch accounts: CB 113100100, BT 112100100, DP 114100100, MR 115100100 (Piutang Dagang Counter); pickup points inherit. (set on dev 2026-11-18)
+- [ ] Credit tenders taken before this change have no pending status, so they don't appear for settlement.
+- [x] End-to-end on dev (2026-11-18, TEST data): SO 0009/CB/11/2026 (Rp 5.500, credit user 14) → payment PAY-20261118-00001 journal D Counter CB / K Customer CB, pending → settlement 0001/CB/11/2026 D Gaji Outlet 663100110 / K Counter CB; payment settled, Counter net 0.
+
+## Online channels → Piutang Dagang Customer (2026-11-18)
+
+- [x] `docs/sql/2026-11-18_online_channels_to_piutang_customer.sql` run on dcdev by the user. Verified: 16 old accounts inactive with 0 lines; 12 online channel receivables on Piutang Dagang Customer XX; 0 live `sales_revenue_online` overrides; 0 unbalanced company-2 journals. Customer DP 3.272.000 = old GoFood 2.706.000 + Grab 285.000 + Shopee 281.000; Customer BT 251.000 = old GoFood BT.
+- [ ] Deploy the API (ResolveSalesRevenueCOA fallback) before anyone uses the deployed dev API for online sales.
+
+## Customer credit → Piutang Counter + full recheck (2026-11-18)
+
+- [x] API: a deposit-later payment (requires_settlement) on a credit sale posts D Piutang Dagang Counter / K Piutang Dagang Customer at once (`counter_reclass.go`); its settlement clears Counter (`settledLegsAfterReclass`). Counter-sale payments unchanged (no journal until settlement).
+- [x] API: sales-order filter `funds_status=cleared`.
+- [x] Dev e2e (TEST data): SO 0010/CB/11/2026 customer credit → BCA PAY-20261118-00002 (D Counter CB / K Customer CB, pending) → settlement 0002/CB/11/2026 (D Bank BCA / K Counter CB); Customer CB and Counter CB net 0.
+- [x] Dev e2e (TEST data): online SO 0011/CB/11/2026 GoFood → D Piutang Dagang Customer CB / K Pendapatan Counter CB; payout D Bank 5.000 + D Jasa Go Resto 500 / K Piutang Dagang Customer CB.
+- [ ] Run `docs/sql/2026-11-18_fix_credit_tender_company1_account.sql`: 13 legacy Credit-tender journals (27 Oct) still debit company 1's 13-51-000 Piutang Karyawan (12 customer → Piutang Customer, net zero; 1 employee → Piutang Counter BT + payment pending).
+- [ ] Payment Methods: set CASH (and DP / CARD if collected at the outlet) to "settle later" so outlet cash goes through Piutang Counter → settlement.
+- [ ] Commit + deploy API and web; dedicated settlement permission (deferred).
+- [x] `docs/sql/2026-11-18_sales_revenue_online_per_branch.sql` run by the user: all 18 company-2 branches have `sales_revenue_online` = their own Pendapatan Counter (PP rows included), no duplicates, no other company touched.

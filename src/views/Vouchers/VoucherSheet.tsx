@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import Select from 'react-select'
 import { vouchersService } from '@/services/vouchers.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { isProductTypeAllowed } from '@/hooks/useProductTypes'
@@ -148,20 +149,18 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editData, voucherDetailData, open, reset])
 
-  // Both pickers search on the server (filter[search]); the old per_page=100
-  // + client-side filtering hid every row past the first page.
-  const [branchSearch, setBranchSearch] = useState('')
+  // The product picker searches on the server (filter[search]). Branches are
+  // few (~30), so the branch picker loads them all (with company) and searches
+  // client-side — that keeps each pickup point next to its premiere.
   const [productSearch, setProductSearch] = useState('')
-  const branchSearchDebounced = useDebounce(branchSearch, 400)
   const productSearchDebounced = useDebounce(productSearch, 400)
 
   const { data: branchesData, isFetching: branchesLoading } = useQuery({
-    queryKey: ['voucher-branch-options', branchSearchDebounced],
+    queryKey: ['voucher-branch-options', 'all-with-company'],
     enabled: open,
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
     queryFn: async () => {
-      const res = await branchesService.list({ 'filter[search]': branchSearchDebounced || undefined, per_page: 20 } as any)
+      const res = await branchesService.list({ per_page: 100, include: 'company' } as any)
       return (res.data as any)?.data || []
     }
   })
@@ -229,7 +228,15 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
     for (const b of [...selectedBranchesData, ...(branchesData || [])]) {
       branchLabelsRef.current.set(b.id, b.name)
     }
-    return (branchesData || []).map((b: any) => ({ label: b.name, value: b.id }))
+    // Grouped by company, pickup points indented under their premiere.
+    const flat = branchSelectOptions(branchesData || [], (b: any) => b.name, (b: any) => ({ code: b.code ?? '' }))
+    const groups: { label: string; options: typeof flat }[] = []
+    for (const o of flat) {
+      const last = groups[groups.length - 1]
+      if (last && last.label === o.group) last.options.push(o)
+      else groups.push({ label: o.group, options: [o] })
+    }
+    return groups
   }, [branchesData, selectedBranchesData])
 
   const productUomOptions = React.useMemo(() => {
@@ -564,10 +571,24 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
                       isMulti
                       options={branchOptions}
                       value={toSelected(field.value, branchLabelsRef.current)}
-                      filterOption={null}
+                      filterOption={(candidate: any, input: string) => {
+                        const needle = input.trim().toLowerCase()
+                        const o = candidate.data
+                        return !needle
+                          || String(o.label ?? '').toLowerCase().includes(needle)
+                          || String(o.code ?? '').toLowerCase().includes(needle)
+                      }}
+                      formatOptionLabel={(o: any, meta: any) =>
+                        meta?.context === 'menu' && (o.indent ?? 0) > 0 ? (
+                          <span style={{ paddingLeft: o.indent * 14 }}>
+                            <span style={{ color: 'var(--foreground-subtle)', marginRight: 4 }}>↳</span>
+                            {o.label}
+                          </span>
+                        ) : (
+                          o.label
+                        )
+                      }
                       isLoading={branchesLoading}
-                      onInputChange={(val, { action }) => { if (action === 'input-change') setBranchSearch(val) }}
-                      onMenuClose={() => setBranchSearch('')}
                       noOptionsMessage={() => (branchesLoading ? 'Searching...' : 'No branches found')}
                       onChange={(selected: any) => field.onChange(selected.map((o: any) => o.value))}
                       styles={{

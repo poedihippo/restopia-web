@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState,  useEffect } from 'react'
+import React, { useState,  useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,11 +10,13 @@ import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { productUomsService } from '@/services/product-uoms.service'
 import { useAuth } from '@/hooks/useAuth'
 import { Plus, Trash2, Loader2, Save } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import RecipeImportModal from '@/views/PurchaseOrders/RecipeImportModal'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
@@ -118,8 +120,10 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   }, [focusNewRowIndex, fields.length])
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', debouncedDropdownSearch],
-    queryFn: () => branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
+    // Whole list (small) with company so the selector can group company → premiere → pickup points;
+    // the select filters client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
@@ -129,13 +133,17 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   const activeBranchType = ((user as any)?.branch?.type as string | undefined) || undefined
   // Outlet hanya boleh memesan produk wip.
   const productTypesFilter = activeBranchType === 'outlet' ? 'wip' : 'wip,raw,supply'
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
+  // Product UOMs for the row pickers — paged (20 per page, next page on
+  // scroll), search delegated to the server (`filter[search]`).
+  const productUomOpts = useInfiniteOptions<any>({
     queryKey: ['product-uoms-all', activeBranchType, productTypesFilter, debouncedDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           'filter[search]': debouncedDropdownSearch || undefined,
-          per_page: 1000,
+          per_page: 20,
+          sort: 'id',
           include: 'product,uom',
           'filter[product_types]': productTypesFilter,
           'filter[branch_type]': activeBranchType,
@@ -143,8 +151,44 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
         } as any)
         .then((r) => r.data),
   })
-  const allProductUoms = (productUomsData as any)?.data ?? []
+  const productUomsLoading = productUomOpts.loading
+  const allProductUoms = productUomOpts.items
   const productUoms = allProductUoms
+
+  // Every product UOM seen so far, by id. Rows chosen earlier (edit mode,
+  // recipe import, or picked before the search changed) may not be on a loaded
+  // page — those are fetched by id (`filter[ids]`) so their labels always show.
+  const productUomCacheRef = useRef<Map<number, any>>(new Map())
+  useMemo(() => {
+    allProductUoms.forEach((pu: any) => {
+      if (pu?.id != null) productUomCacheRef.current.set(Number(pu.id), pu)
+    })
+  }, [allProductUoms])
+  const missingProductUomIds: number[] = Array.from(
+    new Set<number>(
+      (watch('details') ?? [])
+        .map((d: any) => Number(d?.product_uom_id ?? 0))
+        .filter((v: number) => v > 0 && !productUomCacheRef.current.has(v)),
+    ),
+  ).sort((a, b) => a - b)
+  const { data: chosenProductUomsData } = useQuery({
+    queryKey: ['product-uoms-by-ids', missingProductUomIds.join(','), 'product,uom'],
+    enabled: missingProductUomIds.length > 0,
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[ids]': missingProductUomIds.join(','),
+          per_page: Math.max(20, missingProductUomIds.length),
+          include: 'product,uom',
+        } as any)
+        .then((r) => r.data),
+  })
+  const chosenProductUoms: any[] = (chosenProductUomsData as any)?.data ?? []
+  useMemo(() => {
+    chosenProductUoms.forEach((pu: any) => {
+      if (pu?.id != null) productUomCacheRef.current.set(Number(pu.id), pu)
+    })
+  }, [chosenProductUomsData])
 
   const companyId = Number((user as any)?.branch?.company_id ?? (user as any)?.branch?.company?.id) || 0
   const defaultSourceName = DEFAULT_SOURCE_BRANCH_BY_COMPANY[companyId]
@@ -169,23 +213,29 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
 
   // Internal-source branches: every branch except our own (plus the default,
   // so its label shows even when the dropdown search hides it).
-  const sourceBranchOptions = [
-    ...branches,
-    ...(defaultSourceBranch && !branches.some((b: any) => b.id === defaultSourceBranch.id) ? [defaultSourceBranch] : []),
-  ]
-    .filter((b: any) => b.id !== myBranchId)
-    .map((b: any) => ({
-      value: b.id as number,
-      label: (b.name as string) ?? `Branch #${b.id}`,
-      sublabel: b.code as string | undefined,
-    }))
-  const productUomOptions = productUoms.map((pu: any) => ({
+  const sourceBranchOptions = branchSelectOptions(
+    [
+      ...branches,
+      ...(defaultSourceBranch && !branches.some((b: any) => b.id === defaultSourceBranch.id) ? [defaultSourceBranch] : []),
+    ].filter((b: any) => b.id !== myBranchId),
+    (b: any) => (b.name as string) ?? `Branch #${b.id}`,
+    (b: any) => ({ sublabel: b.code as string | undefined }),
+  )
+  const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu, pu.product?.name) || '', pu.product?.type),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
     price: pu.base_price ?? 0,
-  }))
+  })
+  const productUomOptions = productUoms.map(toProductUomOption)
+  // Loaded options plus the row's chosen product UOM when it is not on a loaded page.
+  const productUomOptionsFor = (selectedId: number) => {
+    const id = Number(selectedId)
+    if (!id || productUomOptions.some((o: any) => o.value === id)) return productUomOptions
+    const cached = productUomCacheRef.current.get(id)
+    return cached ? [toProductUomOption(cached), ...productUomOptions] : productUomOptions
+  }
 
   const handleImportRecipes = (selectedRecipes: any[]) => {
     const currentDetails = watch('details')
@@ -453,10 +503,12 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             style={{
               padding: 20,
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
               gap: 16,
             }}
           >
+            {/* Left column: all fields stacked. Right column: Notes, full height. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
             {/* Date */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -507,7 +559,6 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                     searchPlaceholder="Search branches..."
                     loading={branchesLoading}
                     error={errors.supplier_branch_id?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
 />
                 )}
               />
@@ -580,14 +631,16 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
               />
             </div>
 
-            {/* Notes — full width */}
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
+            </div>
+
+            {/* Notes — right column, fills the height of the fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
                 rows={2}
                 placeholder="Optional order notes"
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }}
+                style={{ ...inputStyle, height: 'auto', resize: 'vertical', minHeight: 112 }}
               />
             </div>
           </div>
@@ -725,7 +778,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                         f.onChange(val)
                         const opt = productUomOptions.find((o: any) => o.value === val)
                       }}
-                      options={productUomOptions.filter((o: any) => {
+                      options={productUomOptionsFor(Number(f.value)).filter((o: any) => {
                         const selectedIds = watch('details').map(d => d.product_uom_id).filter(id => id > 0)
                         return !selectedIds.includes(o.value) || o.value === f.value
                       })}
@@ -738,6 +791,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                         | undefined
                       }
                       onSearchChange={setDropdownSearch}
+                      {...productUomOpts.selectProps}
                     />
                   )}
                 />

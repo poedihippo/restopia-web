@@ -9,6 +9,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { companiesService } from '@/services/companies.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
@@ -16,6 +17,7 @@ import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import api from '@/hooks/useApi'
 import { Plus, Trash2, Loader2, X } from 'lucide-react'
@@ -123,9 +125,10 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   )
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', 'company', debouncedDropdownSearch],
-    queryFn: () =>
-      branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100, include: 'company' } as any).then((r) => r.data),
+    // Whole list (small) with company so the selector can group company → premiere → pickup points;
+    // the select filters client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
@@ -148,21 +151,35 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
 
   const activeProductTypes = useActiveBranchProductTypes()
 
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
+  // Product UOMs for the row pickers — paged (20 per page, next page on
+  // scroll), search delegated to the server (`filter[search]`).
+  const productUomOpts = useInfiniteOptions<any>({
     queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           'filter[search]': debouncedDropdownSearch || undefined,
-          per_page: 1000,
+          per_page: 20,
+          sort: 'id',
           include: 'product,uom',
           'filter[product_types]': activeProductTypes,
           'filter[is_active]': true,
         } as any)
         .then((r) => r.data),
   })
-  const allProductUoms = (productUomsData as any)?.data ?? []
+  const productUomsLoading = productUomOpts.loading
+  const allProductUoms = productUomOpts.items
   const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
+
+  // Every product UOM ever loaded, by id — rows already chosen keep their label
+  // (and the shortage message its name) after the search / loaded pages change.
+  const productUomCacheRef = React.useRef<Map<number, any>>(new Map())
+  React.useMemo(() => {
+    allProductUoms.forEach((pu: any) => {
+      if (pu?.id != null) productUomCacheRef.current.set(Number(pu.id), pu)
+    })
+  }, [allProductUoms])
 
   // Available stock at the SOURCE branch for the selected owner/stage/location.
   // filter[stage]/filter[owner_ref]/filter[location_ref] are supported by
@@ -261,8 +278,9 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
           need -= take
         }
         if (need > 1e-9) {
+          const cachedPu = productUomCacheRef.current.get(Number(d.product_uom_id))
           const name =
-            productUomOptions.find((o: any) => o.value === Number(d.product_uom_id))?.label ??
+            (cachedPu ? toProductUomOption(cachedPu).label : undefined) ??
             `row ${i + 1}`
           shortages.push(`${name} (kurang ${need.toLocaleString('id-ID', { maximumFractionDigits: 3 })})`)
         }
@@ -282,20 +300,26 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
     return dim ? `${base} · ${dim}` : base
   }
 
-  const branchOptions = branches
-    .filter((b: any) => b.id !== (user as any)?.employee?.branch_id)
-    .map((b: any) => ({
-      value: b.id as number,
-      label: (b.name as string) ?? '',
-      sublabel: (b.company?.name as string) ?? '',
-    }))
+  const branchOptions = branchSelectOptions(
+    branches.filter((b: any) => b.id !== (user as any)?.employee?.branch_id),
+    (b: any) => (b.name as string) ?? '',
+    (b: any) => ({ sublabel: [b.code, b.company?.name].filter(Boolean).join(' · ') }),
+  )
 
-  const productUomOptions = productUoms.map((pu: any) => ({
+  const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu, pu.product?.name), pu.product?.type),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
-  }))
+  })
+  const productUomOptions = productUoms.map(toProductUomOption)
+  // Loaded options plus the row's chosen product UOM when it is not on a loaded page.
+  const productUomOptionsFor = (selectedId: number) => {
+    const id = Number(selectedId)
+    if (!id || productUomOptions.some((o: any) => o.value === id)) return productUomOptions
+    const cached = productUomCacheRef.current.get(id)
+    return cached ? [toProductUomOption(cached), ...productUomOptions] : productUomOptions
+  }
 
   const createMutation = useMutation({
     mutationFn: (values: FormValues) => {
@@ -465,7 +489,6 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                 searchPlaceholder="Search branches..."
                 loading={branchesLoading}
                 error={errors.target_branch_id?.message as string | undefined}
-                onSearchChange={setDropdownSearch}
 />
             )}
           />
@@ -622,12 +645,12 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                         value={f.value ?? 0}
                         onChange={(val) => {
                           f.onChange(val)
-                          const selectedPu = productUoms.find((pu: any) => pu.id === Number(val))
+                          const selectedPu = productUomCacheRef.current.get(Number(val))
                           if (selectedPu && selectedPu.base_price !== undefined) {
                             setValue(`details.${index}.price`, Number(selectedPu.base_price))
                           }
                         }}
-                        options={productUomOptions.filter((o: any) => {
+                        options={productUomOptionsFor(Number(f.value)).filter((o: any) => {
                           const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
                           return !selectedIds.includes(o.value) || o.value === f.value
                         })}
@@ -640,6 +663,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                           | undefined
                         }
                         onSearchChange={setDropdownSearch}
+                        {...productUomOpts.selectProps}
 />
                     )}
                   />

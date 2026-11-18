@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react'
 import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 
 interface User {
   id: number
@@ -262,11 +263,7 @@ export default function UsersView() {
             {canReadBranches && (
               <FilterSelect value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
                 <option value="">All Branches</option>
-                {branchOptions.map((b) => (
-                  <option key={b.id} value={String(b.id)}>
-                    {b.name}
-                  </option>
-                ))}
+                <BranchOptionGroups branches={branchOptions} label={(b) => b.name} getValue={(b) => String(b.id)} />
               </FilterSelect>
             )}
             {canReadDepartments && (

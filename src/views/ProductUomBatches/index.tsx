@@ -10,6 +10,7 @@ import { withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import api from '@/hooks/useApi'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import ProductUomBatchSheet from './ProductUomBatchSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -176,28 +177,31 @@ export default function ProductUomBatchesView() {
   })
   const categories = (categoriesData as any)?.data ?? []
 
-  // Product UOMs for the filter dropdown — single call, no loop.
-  // Search is delegated to the server (`filter[search]`) so the picker stays
-  // responsive even with thousands of SKUs; SearchableSelect also narrows the
-  // fetched list client-side while typing.
-  const { data: puData, isLoading: puLoading } = useQuery({
+  // Product UOMs for the filter dropdown — paged (20 per page, next page on
+  // scroll) with search delegated to the server (`filter[search]`).
+  // SearchableSelect caches the chosen option, so the selected filter keeps its
+  // label after the search changes.
+  const puOpts = useInfiniteOptions<any>({
     queryKey: [
       'product-uoms-all',
       activeProductTypes,
       debouncedPuDropdownSearch,
     ],
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           'filter[search]': debouncedPuDropdownSearch || undefined,
-          per_page: 1000,
+          per_page: 20,
+          sort: 'id',
           include: 'product,uom',
           'filter[product_types]': activeProductTypes,
           'filter[is_active]': true,
         } as any)
         .then((r) => r.data),
   })
-  const allProductUoms: any[] = (puData as any)?.data ?? []
+  const puLoading = puOpts.loading
+  const allProductUoms: any[] = puOpts.items
   const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
 
   const puFilterOptions = [
@@ -311,6 +315,7 @@ export default function ProductUomBatchesView() {
                 searchPlaceholder="Search product UOM..."
                 loading={puLoading}
                 onSearchChange={setPuDropdownSearch}
+                {...puOpts.selectProps}
                 triggerStyle={{
                   height: 36,
                   padding: '0 12px',

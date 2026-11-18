@@ -41,7 +41,10 @@ export const paymentsService = {
     payment_ids?: number[]
     date_gte?: string
     date_lte?: string
-    bank_account_id: number
+    // Money: the bank account it landed in. Employee credit (Credit method):
+    // chart_of_account_id instead (e.g. payroll), received = total, no fees.
+    bank_account_id?: number
+    chart_of_account_id?: number
     received_amount: number
     fees?: { chart_of_account_id: number; amount: number; description?: string }[]
     date: string

@@ -265,11 +265,9 @@
 :root[data-ui="v2"] .v2-table tbody tr[data-row]:hover {
   background: var(--surface-muted);
 }
+/* Row actions stay at full strength (faded icons read as disabled); each
+   icon button still gets its own hover background. */
 :root[data-ui="v2"] .v2-table tbody tr[data-row] .v2-row-actions {
-  opacity: 0.55;
-  transition: opacity 120ms ease;
-}
-:root[data-ui="v2"] .v2-table tbody tr[data-row]:hover .v2-row-actions {
   opacity: 1;
 }
 
@@ -583,35 +581,159 @@
   opacity: 0.6;
 }
 
-:root[data-ui="v2"] .branch-menu {
-  width: 260px !important;
-  padding: 4px;
-  border-radius: var(--radius-lg) !important;
-  animation: v2-pop-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+/* Branch switcher menu (top bar) — command-palette style: search on top,
+   outlets with an icon tile, pickup points indented under them (no lines). */
+.branch-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  max-height: min(500px, 70vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px -8px rgba(0, 0, 0, 0.16);
+  z-index: 50;
+  overflow: hidden;
+  animation: v2-pop-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-:root[data-ui="v2"] .branch-option {
-  border-bottom: none !important;
-  border-radius: var(--radius-md);
-  padding: 8px 10px !important;
-  transition: background 120ms ease;
+.branch-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px 6px 4px;
+  border-bottom: 1px solid var(--border);
 }
-:root[data-ui="v2"] .branch-option:hover {
-  background: var(--surface-muted) !important;
+.branch-menu-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  color: var(--foreground-subtle);
 }
-:root[data-ui="v2"] .branch-option[data-active="true"] {
-  background: var(--accent-light-bg) !important;
-  box-shadow: inset 3px 0 0 var(--caramel);
+.branch-menu-search input {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  height: auto !important;
+  font-size: 13px;
+  color: var(--foreground);
 }
-:root[data-ui="v2"] .branch-option[data-active="true"] > div:first-child {
-  background: var(--success) !important;
-  box-shadow: 0 0 0 3px var(--success-bg);
+.branch-menu-search input::placeholder { color: var(--foreground-subtle); }
+.branch-menu-refresh {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--foreground-subtle);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
-:root[data-ui="v2"] .branch-option[data-active="true"] > span:last-child {
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--success-bg);
-  color: var(--success) !important;
+.branch-menu-refresh:hover:not(:disabled) {
+  background: var(--surface-muted, var(--background));
+  color: var(--foreground);
+}
+.branch-menu-refresh:disabled { cursor: not-allowed; opacity: 0.6; }
+.branch-menu-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 6px 6px;
+  scrollbar-width: thin;
+}
+.branch-menu-empty {
+  padding: 24px 10px;
+  font-size: 12.5px;
+  color: var(--foreground-muted);
+  text-align: center;
+}
+.branch-group {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  padding: 10px 8px 4px;
+  background: var(--surface);
+  font-size: 11.5px;
   font-weight: 500;
+  color: var(--foreground-subtle);
+}
+.branch-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--foreground);
+  transition: background 100ms ease;
+}
+.branch-row + .branch-row[data-indent="0"],
+.branch-group + .branch-row { margin-top: 0; }
+.branch-row[data-indent="1"] {
+  min-height: 30px;
+  padding-left: 46px;
+  font-weight: 400;
+  color: var(--foreground-muted);
+}
+.branch-row-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--surface-muted, var(--background));
+  color: var(--foreground-muted);
+  transition: background 100ms ease, color 100ms ease;
+}
+.branch-row:hover {
+  background: var(--surface-muted, var(--background));
+  color: var(--foreground);
+}
+.branch-row:hover .branch-row-icon { background: var(--surface); }
+.branch-row[data-active="true"] {
+  background: var(--accent-light-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+.branch-row[data-active="true"] .branch-row-icon {
+  background: var(--accent);
+  color: #fff;
+}
+.branch-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.branch-row-check {
+  flex-shrink: 0;
+  color: var(--accent);
 }
 
 /* ── Phone widths ─────────────────────────────────────────────────────────── */
@@ -945,4 +1067,172 @@
 }
 :root[data-ui="v2"] .sidebar-head > * {
   width: 100%;
+}
+
+/* ── Native <select>: consistent chevron spacing ─────────────────────────────
+   Browsers draw the native arrow flush against the right edge (and ignore
+   padding-right for it), so every single-value select gets a drawn chevron
+   12px from the edge plus room for it. !important beats the many inline
+   `background` / `padding` shorthands on legacy and filter selects. */
+:root[data-ui="v2"] select:not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 34px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b8f99' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 14px 14px !important;
+  text-overflow: ellipsis;
+}
+:root[data-ui="v2"] select:not([multiple]):not([size])::-ms-expand {
+  display: none;
+}
+
+/* ── Native <select>: styled option list (Chromium "customizable select") ────
+   Where supported, the open list matches the app instead of the OS menu:
+   rounded panel, roomy rows, accent hover/selected state. Other browsers
+   keep their native list. The drawn chevron above stays the only arrow. */
+@supports (appearance: base-select) {
+  :root[data-ui="v2"] select:not([multiple]):not([size]) {
+    appearance: base-select;
+    display: inline-flex;
+    align-items: center;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size])::picker-icon {
+    display: none;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size])::picker(select) {
+    appearance: base-select;
+    margin-top: 4px;
+    padding: 4px;
+    min-width: anchor-size(width);
+    max-height: min(320px, 60vh);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: var(--font-sans);
+    color: var(--foreground);
+    background: transparent;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option:hover,
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option:focus-visible {
+    background: var(--background);
+    outline: none;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option:checked {
+    background: var(--accent-light-bg);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option::checkmark {
+    order: 1;
+    margin-left: auto;
+    color: var(--accent);
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option:disabled {
+    color: var(--foreground-subtle);
+    cursor: not-allowed;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) optgroup {
+    padding: 6px 10px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--foreground-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* ── Hover feedback for every interactive control ────────────────────────────
+   Many legacy/inline-styled buttons and links had no hover state at all.
+   One global layer: pointer cursor + a subtle darken on hover (deeper on
+   press) that works for filled, outlined and icon-only controls without
+   touching their own colours. The sidebar/nav keeps its own hover styling;
+   disabled controls and held (loading) submit buttons are left alone. */
+:root[data-ui="v2"] button:not(:disabled),
+:root[data-ui="v2"] [role="button"]:not([aria-disabled="true"]),
+:root[data-ui="v2"] a[href],
+:root[data-ui="v2"] label:has(> input[type="checkbox"]),
+:root[data-ui="v2"] label:has(> input[type="radio"]) {
+  cursor: pointer;
+}
+:root[data-ui="v2"] button:not(:disabled):not(aside *):not(nav *):not([data-loading-held]),
+:root[data-ui="v2"] [role="button"]:not([aria-disabled="true"]):not(aside *):not(nav *),
+:root[data-ui="v2"] a[href]:not(aside *):not(nav *) {
+  transition: filter 120ms ease, background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+:root[data-ui="v2"] button:not(:disabled):not(aside *):not(nav *):not([data-loading-held]):hover,
+:root[data-ui="v2"] [role="button"]:not([aria-disabled="true"]):not(aside *):not(nav *):hover {
+  filter: brightness(0.94);
+}
+:root[data-ui="v2"] button:not(:disabled):not(aside *):not(nav *):not([data-loading-held]):active,
+:root[data-ui="v2"] [role="button"]:not([aria-disabled="true"]):not(aside *):not(nav *):active {
+  filter: brightness(0.88);
+}
+:root[data-ui="v2"] a[href]:not(aside *):not(nav *):hover {
+  filter: brightness(0.82);
+}
+/* Selects / text fields: stronger border on hover, never over the focus ring. */
+:root[data-ui="v2"] select:not(:disabled):not(:focus):hover,
+:root[data-ui="v2"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(:disabled):not(:focus):not([readonly]):hover,
+:root[data-ui="v2"] textarea:not(:disabled):not(:focus):not([readonly]):hover {
+  border-color: var(--border-strong) !important;
+}
+
+/* ── Row action icons: same hover as Products' .v2-icon-btn ─────────────────
+   Many lists draw their View / Edit / Delete icons as inline-styled
+   borderless buttons. Give every icon-only, borderless button in a table row
+   the Products treatment: rounded grey background on hover (light red for
+   destructive ones), no darken filter. Bordered pills (e.g. "Deliver") are
+   not matched. */
+:root[data-ui="v2"] td button:has(> svg:only-child):is(.v2-icon-btn, [style*="border-style: none"]) {
+  border-radius: var(--radius-sm) !important;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+:root[data-ui="v2"] td button:not(:disabled):has(> svg:only-child):is(.v2-icon-btn, [style*="border-style: none"]):hover {
+  background: var(--surface-muted) !important;
+  filter: none !important;
+}
+:root[data-ui="v2"] td button:not(:disabled):has(> svg:only-child):is(.v2-icon-btn, [style*="border-style: none"]):is([data-tone="danger"], [style*="var(--destructive)"]):hover {
+  background: var(--destructive-bg) !important;
+}
+:root[data-ui="v2"] td button:not(:disabled):has(> svg:only-child):is(.v2-icon-btn, [style*="border-style: none"]):active {
+  filter: brightness(0.94) !important;
+}
+
+/* ── Every table row is hoverable, in the same colour as Products ───────────
+   Lists mixed three behaviours (v2-table rows, JS-driven inline tints, none).
+   One rule for all body rows; !important so the old inline hover tints all
+   end up the same colour. Single full-width cells (empty / loading / error
+   rows) are skipped. */
+:root[data-ui="v2"] table tbody tr {
+  transition: background-color 120ms ease;
+}
+:root[data-ui="v2"] table tbody tr:not(:has(> td[colspan]:only-child)):hover {
+  background-color: var(--surface-muted) !important;
+}
+/* Cells with their own background (e.g. sticky columns) take the row tint
+   while hovered, so the whole row lights up evenly. */
+:root[data-ui="v2"] table tbody tr:not(:has(> td[colspan]:only-child)):hover > td {
+  background-color: inherit !important;
+}
+
+/* Cards that hold a table clip it to their rounded corners — otherwise the
+   square header / row (hover) backgrounds paint over the card border. Only
+   cards whose table sits directly inside (or in its scroll wrapper), so
+   dropdowns elsewhere in a card are not clipped. */
+:root[data-ui="v2"] .v2-card:has(> table, > div > table) {
+  overflow: hidden;
 }

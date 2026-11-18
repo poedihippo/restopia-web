@@ -8,6 +8,7 @@ import { branchesService } from '@/services/branches.service'
 import { companiesService } from '@/services/companies.service'
 import { useAuth } from '@/hooks/useAuth'
 import BranchSheet from './BranchSheet'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { toastMutationApiError } from '@/utils/apiError';
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
@@ -76,8 +77,8 @@ export default function BranchesView() {
   const companyOptions: { id: number; name: string }[] = (companiesData as any)?.data ?? []
 
   const { data: parentBranchesData } = useQuery({
-    queryKey: ['branches-all', 'by-name'],
-    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
     enabled: canRead,
   })
   const parentBranchOptions: { id: number; name: string }[] = (parentBranchesData as any)?.data ?? []
@@ -244,11 +245,7 @@ export default function BranchesView() {
               }}
             >
               <option value="">All Parent Branches</option>
-              {parentBranchOptions.map((b) => (
-                <option key={b.id} value={String(b.id)}>
-                  {b.name}
-                </option>
-              ))}
+              <BranchOptionGroups branches={parentBranchOptions} label={(b) => b.name} getValue={(b) => String(b.id)} />
             </FilterSelect>
           </>
         }

@@ -13,6 +13,7 @@ import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { X, Loader2, ArrowRight } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 
 const schema = z.object({
@@ -73,21 +74,25 @@ export default function ProductConversionSheet({
     },
   })
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
+  // Products for the picker — paged (20 per page, next page on scroll),
+  // search delegated to the server (`filter[search]`).
+  const productOpts = useInfiniteOptions<any>({
     queryKey: ['products-all', 'active', activeProductTypes, debouncedDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productsService
         .list({
+          page,
           'filter[search]': debouncedDropdownSearch || undefined,
-          per_page: 1000,
-          sort: 'name',
+          per_page: 20,
+          sort: 'name,id',
           'filter[status]': 'active',
           'filter[is_active]': true,
           'filter[types]': activeProductTypes,
-        })
+        } as any)
         .then((r) => r.data),
   })
-  const products = (productsData as any)?.data ?? []
+  const productsLoading = productOpts.loading
+  const products = productOpts.items
 
   const { data: uomsData, isLoading: uomsLoading } = useQuery({
     queryKey: ['uoms-all', debouncedDropdownSearch],
@@ -101,11 +106,18 @@ export default function ProductConversionSheet({
   })
   const uoms = (uomsData as any)?.data ?? []
 
-  const productOptions = products.map((p: any) => ({
+  const toProductOption = (p: any) => ({
     value: p.id as number,
     label: withProductType((p.name as string) ?? '', p.type),
     sublabel: p.code as string | undefined,
-  }))
+  })
+  const productOptions = products.map(toProductOption)
+  // Edit mode: the saved product may not be on a loaded page — keep its label
+  // from the row's included `product` relation.
+  const editProduct = (editData as any)?.product
+  if (editProduct?.id && !productOptions.some((o: any) => o.value === editProduct.id)) {
+    productOptions.unshift(toProductOption(editProduct))
+  }
   const uomOptions = uoms.map((u: any) => ({
     value: u.id as number,
     label: (u.name as string) ?? '',
@@ -345,6 +357,7 @@ export default function ProductConversionSheet({
                   loading={productsLoading}
                   error={errors.product_id?.message as string | undefined}
                   onSearchChange={setDropdownSearch}
+                  {...productOpts.selectProps}
 />
               )}
             />

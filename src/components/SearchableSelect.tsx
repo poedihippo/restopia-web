@@ -12,6 +12,10 @@ export interface SearchableSelectOption {
   description?: string
   /** Optional extra line under the sublabel (e.g. packaging chain). */
   meta?: string
+  /** Group header shown above the first option of each run (e.g. a branch's company). */
+  group?: string
+  /** Nesting level under the previous option (e.g. 1 = pickup point under its premiere). */
+  indent?: number
 }
 
 export interface SearchableSelectProps {
@@ -163,6 +167,15 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
         ?.querySelector<HTMLElement>(`[data-ss-idx="${highlightedIndex}"]`)
         ?.scrollIntoView({ block: 'nearest' })
     }, [open, highlightedIndex])
+
+    // A paged source loads its next page on scroll — but when the loaded options don't
+    // fill the list (few rows matched this page), there is nothing to scroll, so keep
+    // loading until the list overflows or the source has no more pages.
+    useEffect(() => {
+      if (!open || loading || loadingMore || !hasMore || !onLoadMore) return
+      const el = listRef.current
+      if (el && el.scrollHeight <= el.clientHeight + 24) onLoadMore()
+    }, [open, loading, loadingMore, hasMore, onLoadMore, filteredOptions.length])
 
     const close = () => {
       setOpen(false)
@@ -377,10 +390,28 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
               filteredOptions.map((option, idx) => {
                 const isSel = option.value === value
                 const isHighlighted = idx === highlightedIndex
+                const showGroup = !!option.group && option.group !== filteredOptions[idx - 1]?.group
+                const indent = option.indent ?? 0
                 return (
+                  <React.Fragment key={option.value}>
+                  {showGroup && (
+                    <div
+                      style={{
+                        padding: '6px 10px 4px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                        color: 'var(--foreground-subtle)',
+                        background: 'var(--background)',
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                    >
+                      {option.group}
+                    </div>
+                  )}
                   <button
                     type="button"
-                    key={option.value}
                     data-ss-idx={idx}
                     onMouseEnter={() => setHighlightedIndex(idx)}
                     onMouseDown={(e) => {
@@ -395,6 +426,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
                       flexDirection: 'column',
                       alignItems: 'flex-start',
                       padding: '6px 10px',
+                      paddingLeft: 10 + indent * 16,
                       background: isHighlighted
                         ? 'var(--accent-light-bg)'
                         : isSel
@@ -418,6 +450,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
                       }}
                       title={option.label}
                     >
+                      {indent > 0 && <span style={{ color: 'var(--foreground-subtle)', marginRight: 4 }}>↳</span>}
                       {option.label}
                     </span>
                     {(option.sublabel || option.description) && (
@@ -456,6 +489,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
                       </span>
                     )}
                   </button>
+                  </React.Fragment>
                 )
               })
             )}

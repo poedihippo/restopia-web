@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import HeaderCheckbox from '@/components/HeaderCheckbox'
 import { X, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { getCanReadPrice } from '@/utils/price'
@@ -161,6 +162,10 @@ export default function AcceptPOModal({
     setDetails(newDetails)
   }
 
+  const handleTaxableAll = (value: boolean) => {
+    setDetails(details.map((d) => ({ ...d, is_taxable: value })))
+  }
+
   const handleDiscountTypeChange = (index: number, value: 'percent' | 'nominal' | null) => {
     const newDetails = [...details]
     newDetails[index].discount_type = value
@@ -294,7 +299,17 @@ export default function AcceptPOModal({
                     <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}`, textAlign: 'center' }}>Qty</th>
                     <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}` }}>Unit Price</th>
                     <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}`, textAlign: 'center' }}>Discount</th>
-                    <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}`, textAlign: 'center' }}>PPN</th>
+                    <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}`, textAlign: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                        <span>PPN</span>
+                        <HeaderCheckbox
+                          total={details.length}
+                          checkedCount={details.filter((d) => d.is_taxable).length}
+                          onToggleAll={handleTaxableAll}
+                          title="Mark all lines taxable"
+                        />
+                      </div>
+                    </th>
                     <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}` }}>Notes</th>
                     <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}`, textAlign: 'right' }}>Subtotal</th>
                   </tr>

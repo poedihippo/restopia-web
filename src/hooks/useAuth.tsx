@@ -13,6 +13,11 @@ import api from "./useApi";
 import { authService } from "@/services/auth.service";
 import { setPricePermission } from "@/utils/price";
 import { matchesAnyPermission } from "@/lib/permissions";
+import { sortBranches } from "@/utils/branchOrder";
+
+// Branch pickers fed from auth/me (top-bar switcher, report filters) use the business order.
+const withSortedBranches = (u: any) =>
+  Array.isArray(u?.branches) ? { ...u, branches: sortBranches(u.branches) } : u;
 
 type AuthContextType = {
   user: IUserMe | null;
@@ -94,7 +99,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           );
           if (ignore) return;
           if (response.data && response.data.data) {
-            const userData = response.data.data;
+            const userData = withSortedBranches(response.data.data);
             setUser(userData);
             setPricePermission(
               userData.type === "superadmin" || 
@@ -175,7 +180,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         "auth/me?include=created_by,updated_by,branch,branch.company,roles,permissions,branches",
       );
       if (response.data && response.data.data) {
-        const userData = response.data.data;
+        const userData = withSortedBranches(response.data.data);
         setUser(userData);
         setPricePermission(
           userData.type === "superadmin" || 
@@ -195,7 +200,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         "auth/me?include=created_by,updated_by,branch,branch.company,roles,permissions,branches"
       );
       if (response.data && response.data.data) {
-        const userData = response.data.data;
+        const userData = withSortedBranches(response.data.data);
         setUser(userData);
         setPricePermission(
           userData.type === "superadmin" || 

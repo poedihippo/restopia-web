@@ -7,6 +7,7 @@ import { buyersService } from '@/services/buyers.service'
 import { accountSettingsService } from '@/services/account-settings.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useAuth } from '@/hooks/useAuth'
 import BuyerAccountSettingSheet from './BuyerAccountSettingSheet'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -60,21 +61,29 @@ export default function BuyerAccountSettingsView() {
     const t = setTimeout(() => setDebouncedCoaFilterSearch(coaFilterSearch), 400)
     return () => clearTimeout(t)
   }, [coaFilterSearch])
-  const { data: coaFilterData, isFetching: coaFilterLoading } = useQuery({
+  const coaFilterOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-all', 'buyer-filter', debouncedCoaFilterSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
-    placeholderData: (prev: any) => prev,
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 20, sort: 'code,id', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
   })
   const coaFilterOptions = [
     { value: 0, label: 'All Accounts' },
-    ...((coaFilterData as any)?.data ?? []).map((a: any) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
+    ...coaFilterOpts.items.map((a: any) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
   ]
 
-  const { data: buyersData } = useQuery({
-    queryKey: ['buyers-all'],
-    queryFn: () => buyersService.list({ per_page: 1000, sort: 'name' } as any).then(r => r.data),
+  const [buyerFilterSearch, setBuyerFilterSearch] = useState('')
+  const [debouncedBuyerFilterSearch, setDebouncedBuyerFilterSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedBuyerFilterSearch(buyerFilterSearch), 400)
+    return () => clearTimeout(t)
+  }, [buyerFilterSearch])
+  const buyerFilterOpts = useInfiniteOptions<any>({
+    queryKey: ['buyers-all', 'bas-filter', debouncedBuyerFilterSearch],
+    fetchPage: (page) => buyersService.list({ page, per_page: 20, sort: 'name,id', 'filter[search]': debouncedBuyerFilterSearch || undefined } as any).then(r => r.data),
   })
-  const allBuyers: any[] = (buyersData as any)?.data ?? []
+  const buyerFilterOptions = [
+    { value: '', label: 'All Buyers' },
+    ...buyerFilterOpts.items.map((b: any) => ({ value: b.id, label: `${b.code} - ${b.name}` })),
+  ]
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: ['buyer-account-settings', page, perPage, debouncedSearch, buyerFilter, keyFilter, coaFilter],
@@ -139,12 +148,19 @@ export default function BuyerAccountSettingsView() {
         onClear={() => { setBuyerFilter(''); setKeyFilter(''); setCoaFilter(0); setPage(1) }}
         quick={
           <>
-            <FilterSelect value={buyerFilter} onChange={(e) => setBuyerFilter(e.target.value ? Number(e.target.value) : '')} style={{ minWidth: 200 }}>
-              <option value="">All Buyers</option>
-              {allBuyers.map((b: any) => (
-                <option key={b.id} value={b.id}>{b.code} - {b.name}</option>
-              ))}
-            </FilterSelect>
+            <div style={{ minWidth: 200 }}>
+              <SearchableSelect
+                value={buyerFilter}
+                onChange={(val) => setBuyerFilter(val !== '' && val != null ? Number(val) || '' : '')}
+                options={buyerFilterOptions}
+                placeholder="All Buyers"
+                searchPlaceholder="Search buyer..."
+                triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
+                loading={buyerFilterOpts.loading}
+                onSearchChange={setBuyerFilterSearch}
+                {...buyerFilterOpts.selectProps}
+              />
+            </div>
             <FilterSelect value={keyFilter} onChange={(e) => setKeyFilter(e.target.value ? Number(e.target.value) : '')} style={{ maxWidth: 240 }}>
               <option value="">All Account Keys</option>
               {keyOptions.map((k) => (
@@ -159,7 +175,8 @@ export default function BuyerAccountSettingsView() {
                 placeholder="All Accounts"
                 searchPlaceholder="Search account..."
                 triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
-                loading={coaFilterLoading}
+                loading={coaFilterOpts.loading}
+                {...coaFilterOpts.selectProps}
                 onSearchChange={setCoaFilterSearch}
               />
             </div>

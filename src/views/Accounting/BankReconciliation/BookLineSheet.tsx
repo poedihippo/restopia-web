@@ -1,12 +1,13 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import SearchableSelect from '@/components/SearchableSelect'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import { bankReconciliationsService, type BankStatementLine } from '@/services/bank-reconciliations.service'
-import { fetchAllPages } from '@/utils/salesReport'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
+import { useDebounce } from '@/hooks/useDebounce'
 import { formatDate } from '@/utils/date'
 import { toastMutationApiError } from '@/utils/apiError'
 import { Sheet, inputStyle, labelStyle, money, num } from './shared'
@@ -31,16 +32,17 @@ export default function BookLineSheet({
   const [description, setDescription] = useState(line.description ?? '')
   const [error, setError] = useState('')
 
-  const { data: accounts = [], isLoading } = useQuery<any[]>({
-    queryKey: ['chart-of-accounts-all', 'postable-active'],
+  const [accountSearch, setAccountSearch] = useState('')
+  const debouncedAccountSearch = useDebounce(accountSearch, 400)
+  const accountOpts = useInfiniteOptions<any>({
+    queryKey: ['chart-of-accounts-all', 'postable-active', debouncedAccountSearch],
     staleTime: 5 * 60_000,
-    queryFn: () =>
-      fetchAllPages((page) =>
-        chartOfAccountsService
-          .list({ page, per_page: 500, sort: 'code', 'filter[is_header]': false, 'filter[is_active]': true } as any)
-          .then((r) => r.data),
-      ),
+    fetchPage: (page) =>
+      chartOfAccountsService
+        .list({ page, per_page: 20, sort: 'code,id', 'filter[is_header]': false, 'filter[is_active]': true, 'filter[search]': debouncedAccountSearch || undefined } as any)
+        .then((r) => r.data),
   })
+  const accounts = accountOpts.items
 
   const { mutate, isPending } = useMutation({
     mutationFn: () =>
@@ -117,7 +119,9 @@ export default function BookLineSheet({
             setError('')
           }}
           options={accounts.map((a) => ({ value: Number(a.id), label: a.name, sublabel: a.code }))}
-          loading={isLoading}
+          loading={accountOpts.loading}
+          onSearchChange={setAccountSearch}
+          {...accountOpts.selectProps}
           placeholder="-- Select account --"
           searchPlaceholder="Cari kode / nama akun..."
           error={error || undefined}

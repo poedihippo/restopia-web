@@ -1,5 +1,6 @@
 'use client'
 
+import HeaderCheckbox from '@/components/HeaderCheckbox'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -8,6 +9,7 @@ import { FileSpreadsheet, Inbox, Loader2, Undo2, X, ArrowUpRight } from 'lucide-
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { bankAccountsService } from '@/services/bank-accounts.service'
 import { paymentsService } from '@/services/payments.service'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -155,8 +157,8 @@ export default function SettlePayoutView() {
   )
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'settle-payout'],
-    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name' } as any).then((r) => r.data),
+    queryKey: ['branches-all', 'settle-payout', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
   })
   const branches: any[] = (branchesData as any)?.data ?? []
 
@@ -230,6 +232,30 @@ export default function SettlePayoutView() {
       return next
     })
     setFieldErrors({})
+  }
+
+  // Check-all: one payout covers one sales channel + one outlet, so it acts on the
+  // shown pending orders of the selected group (or of the first row's group when
+  // nothing is selected yet).
+  const groupBase = anchor ?? items[0]
+  const bulkGroup =
+    tab === 'pending' && groupBase
+      ? items.filter(
+          (o) =>
+            Number(o.sales_channel_id) === Number(groupBase.sales_channel_id) &&
+            outletKeyOf(o) === outletKeyOf(groupBase),
+        )
+      : []
+  const toggleAll = (checkAll: boolean) => {
+    setSelected((prev) => {
+      const next = new Map(prev)
+      for (const o of bulkGroup) checkAll ? next.set(Number(o.id), o) : next.delete(Number(o.id))
+      return next
+    })
+    setFieldErrors({})
+    if (checkAll && bulkGroup.length < items.length) {
+      toast.info('Hanya order dengan sales channel dan outlet yang sama yang dipilih — satu payout untuk satu channel dan satu outlet.')
+    }
   }
 
   const resetForm = () => {
@@ -460,11 +486,7 @@ export default function SettlePayoutView() {
           style={{ ...controlStyle, width: 200 }}
         >
           <option value="">Semua outlet</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
+          <BranchOptionGroups branches={branches} label={(b: any) => b.name} getValue={(b) => b.id} />
         </select>
         <input type="date" value={dateGte} onChange={(e) => setDateGte(e.target.value)} style={controlStyle} />
         <span style={{ alignSelf: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>s/d</span>
@@ -485,7 +507,18 @@ export default function SettlePayoutView() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {canSettle && <th style={{ ...thStyle, width: 40 }} />}
+                  {canSettle && (
+                    <th style={{ ...thStyle, width: 40 }}>
+                      {tab === 'pending' && (
+                        <HeaderCheckbox
+                          total={bulkGroup.length}
+                          checkedCount={bulkGroup.filter((o) => selected.has(Number(o.id))).length}
+                          onToggleAll={toggleAll}
+                          title="Pilih semua order (channel dan outlet yang sama)"
+                        />
+                      )}
+                    </th>
+                  )}
                   <th style={thStyle}>Kode</th>
                   <th style={thStyle}>Tanggal</th>
                   <th style={thStyle}>Channel</th>
