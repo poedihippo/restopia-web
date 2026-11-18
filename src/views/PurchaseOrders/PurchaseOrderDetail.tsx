@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useBuyerNames } from '@/hooks/useBuyerNames'
 import BackLink from '@/components/BackLink'
+import PrintDocument, { PrintTotals, formatPrintDate, printFileTitle } from '@/components/print/PrintDocument'
 import AcceptPOModal, { AcceptPODetailPayload } from '../RequestedOrders/AcceptPOModal'
 import { purchaseOrderDeleteBlock } from '@/lib/actionGuards'
 
@@ -747,223 +748,69 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         }}
       />
 
-      {/* 🖨️ Printable A4 Purchase Order (hidden on screen, shown only in print) */}
-      <div className="po-print">
-        {/* Header */}
-        <div
-          style={{
-            textAlign: 'center',
-            color: '#5c3a21',
-            padding: '6mm 0',
-            marginBottom: '6mm',
-            borderBottom: '2px solid #5c3a21',
-          }}
-        >
-          <div style={{ fontSize: '24pt', fontWeight: 800, letterSpacing: '2px' }}>
-            PURCHASE ORDER
-          </div>
-        </div>
-
-        {/* PO info */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: '6mm',
-            marginBottom: '8mm',
-            padding: '0 4mm',
-          }}
-        >
-          {/* Kolom kiri dibatasi lebarnya supaya alamat membungkus ke bawah
-              (bukan memanjang ke kanan melewati kolom info PO). */}
-          <div style={{ maxWidth: '58%', wordBreak: 'break-word' }}>
-            <div style={{ fontSize: '10pt', fontWeight: 700, color: '#5c3a21', textTransform: 'uppercase' }}>
-              Buyer
-            </div>
-            <div style={{ fontSize: '12pt', fontWeight: 600, marginTop: '2mm', color: '#333' }}>
-              {buyerName}
-            </div>
-            <div style={{ fontSize: '9.5pt', marginTop: '1.5mm', color: '#666', lineHeight: 1.5 }}>
-              <span style={{ fontWeight: 700 }}>Alamat:</span> {buyerAddress}
-            </div>
-            <div style={{ fontSize: '10pt', fontWeight: 700, color: '#5c3a21', textTransform: 'uppercase', marginTop: '4mm' }}>
-              {sourceLabel}
-            </div>
-            <div style={{ fontSize: '12pt', fontWeight: 600, marginTop: '2mm', color: '#333' }}>
-              {sourceName || '-'}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '10pt', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>PO No:</strong> {order.code || '-'}
-            </div>
-            {/* Tanggal PO = saat PO dibuat (created_at) */}
-            <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>PO Date:</strong>{' '}
-              {order.created_at ? formatDate(order.created_at) : '-'}
-            </div>
-            {/* Delivery PO = tanggal delivery yang diminta (field date) */}
-            <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>Delivery PO:</strong>{' '}
-              {order.date ? formatDate(order.date) : '-'}
-            </div>
-          </div>
-        </div>
-
-        {/* Status label */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6mm', padding: '0 4mm' }}>
-          <div
-            style={{
-              padding: '6px 16px',
-              border: `2px solid ${statusMeta.color}`,
-              color: statusMeta.color,
-              fontWeight: 800,
-              fontSize: '12pt',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-            }}
-          >
-            {statusMeta.label}
-          </div>
-        </div>
-
-        {/* Line items */}
-        <div style={{ padding: '0 4mm', marginBottom: '8mm' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: '8px', overflow: 'hidden' }}>
-            <thead>
-              <tr style={{ color: '#5c3a21' }}>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  No
-                </th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Product
-                </th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Qty
-                </th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Unit Price
-                </th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Line Total
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {details.map((d, i) => (
-                <tr key={d.id} style={{ borderBottom: '1px solid #e5e5e5' }}>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
-                    {getProductUomName(d.product_uom, d.product_uom?.product?.name) || `Item #${d.product_uom_id ?? d.id}`}
-                    {d.product_uom?.uom?.name ? ` (${d.product_uom.uom.name})` : ''}
-                    {d.is_taxable && <span style={{ fontSize: '8pt', color: '#666', marginLeft: 4 }}>(Taxable)</span>}
-                  </td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '10pt', color: '#444' }}>
-                    {d.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                  </td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#444' }}>
-                    {`Rp ${Number(d.price ?? 0).toLocaleString('id-ID')}`}
-                  </td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 600 }}>
-                    {`Rp ${(Number(d.qty ?? 0) * Number(d.price ?? 0)).toLocaleString('id-ID')}`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Totals */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 4mm' }}>
-          <div style={{ width: '50%', padding: '16px', borderRadius: '8px', border: '1px solid #d4c4a8' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
-                    Subtotal
-                  </td>
-                  <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
-                    {`Rp ${Number((order as any).subtotal_price ?? details.reduce((sum, d) => sum + (Number(d.qty ?? 0) * Number(d.price ?? 0)), 0)).toLocaleString('id-ID')}`}
-                  </td>
-                </tr>
-                <tr>
-                      <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>
-                        Tax
-                      </td>
-                      <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', color: '#5c3a21' }}>
-                        {`Rp ${Number((order as any).tax_amount ?? 0).toLocaleString('id-ID')}`}
-                      </td>
-                    </tr>
-                {(order?.additional_charges || []).map((c: any, i: number) => (
-                  <tr key={i}>
-                    <td style={{ padding: '2px 0', fontSize: '9pt', color: '#5c3a21' }}>
-                      {c.name} {c.tax ? `(${c.tax.name})` : ''}
-                    </td>
-                    <td style={{ padding: '2px 0', textAlign: 'right', fontSize: '9pt', color: '#5c3a21' }}>
-                      {`Rp ${Number(c.amount ?? 0).toLocaleString('id-ID')}`}
-                    </td>
-                  </tr>
-                ))}
-                <tr>
-                  <td
-                    style={{
-                      padding: '8px 0',
-                      fontSize: '11pt',
-                      fontWeight: 700,
-                      color: '#5c3a21',
-                      borderTop: '1px solid #d4c4a8',
-                    }}
-                  >
-                    Grand Total
-                  </td>
-                  <td
-                    style={{
-                      padding: '8px 0',
-                      textAlign: 'right',
-                      fontSize: '12pt',
-                      fontWeight: 800,
-                      color: '#5c3a21',
-                      borderTop: '1px solid #d4c4a8',
-                    }}
-                  >
-                    {`Rp ${Number(order.total_price ?? 0).toLocaleString('id-ID')}`}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      {/* Printable A4 Purchase Order (hidden on screen, shown only in print) */}
+      <PrintDocument
+        title="PURCHASE ORDER"
+        company={{ name: buyerName, address: buyerAddress && buyerAddress !== '-' ? buyerAddress : '' }}
+        meta={[
+          { label: 'PO No.', value: order.code || '-' },
+          // PO date = when the PO was created (created_at)
+          { label: 'PO Date', value: order.created_at ? formatPrintDate(order.created_at) : '-' },
+          { label: sourceLabel, value: sourceName || '-' },
+          // Delivery date = requested delivery date (field date)
+          { label: 'Delivery Date', value: order.date ? formatPrintDate(order.date) : '-' },
+          { label: 'Status', value: String(statusMeta.label).toUpperCase() },
+        ]}
+        columns={[
+          { header: 'NO', width: '11mm', align: 'center' },
+          { header: 'PRODUCT' },
+          { header: 'QTY', width: '16mm', align: 'center' },
+          { header: 'UNIT PRICE', width: '32mm', align: 'right', nowrap: true },
+          { header: 'LINE TOTAL', width: '34mm', align: 'right', nowrap: true },
+        ]}
+        rows={details.map((d, i) => ({
+          key: d.id,
+          cells: [
+            i + 1,
+            <>
+              {getProductUomName(d.product_uom, d.product_uom?.product?.name) || `Item #${d.product_uom_id ?? d.id}`}
+              {d.product_uom?.uom?.name ? ` (${d.product_uom.uom.name})` : ''}
+              {d.is_taxable && <span style={{ fontSize: '8pt', marginLeft: 4 }}>(Taxable)</span>}
+            </>,
+            Number(d.qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 }),
+            `Rp ${Number(d.price ?? 0).toLocaleString('id-ID')}`,
+            `Rp ${(Number(d.qty ?? 0) * Number(d.price ?? 0)).toLocaleString('id-ID')}`,
+          ],
+        }))}
+        afterTable={
+          <PrintTotals
+            lines={[
+              {
+                label: 'Subtotal',
+                value: `Rp ${Number((order as any).subtotal_price ?? details.reduce((sum, d) => sum + (Number(d.qty ?? 0) * Number(d.price ?? 0)), 0)).toLocaleString('id-ID')}`,
+              },
+              { label: 'Tax', value: `Rp ${Number((order as any).tax_amount ?? 0).toLocaleString('id-ID')}` },
+              ...((order?.additional_charges || []) as any[]).map((c: any) => ({
+                label: `${c.name}${c.tax ? ` (${c.tax.name})` : ''}`,
+                value: `Rp ${Number(c.amount ?? 0).toLocaleString('id-ID')}`,
+              })),
+              {
+                label: 'Grand Total',
+                value: `Rp ${Number(order.total_price ?? 0).toLocaleString('id-ID')}`,
+                strong: true,
+                ruleAbove: true,
+              },
+            ]}
+          />
+        }
+        fileTitle={printFileTitle(
+          `Purchase Order ${order.code ?? ''}`,
+          sourceName,
+          order.created_at ? formatPrintDate(order.created_at) : '',
+        )}
+      />
 
       <style>{metaGridCss}</style>
-      <style>{`
-        .po-print { display: none; }
-        @media print {
-          @page { size: A4 portrait; margin: 15mm; }
-          /* Enforce background colors in print */
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          /* Defeat the global pos-print.css rule that otherwise collapses #__next and blanks this page. */
-          body > * { display: block !important; }
-          #pos-receipt { display: none !important; }
-          /* Isolate: hide the on-screen detail UI, show only the PO document. */
-          body * { visibility: hidden !important; }
-          .po-print, .po-print * { visibility: visible !important; }
-          .po-print {
-            display: block !important;
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            background: #fff;
-            font-family: 'Inter', Arial, Helvetica, sans-serif;
-          }
-          .po-print thead { display: table-header-group; }
-        }
-      `}</style>
     </div>
   )
 }
