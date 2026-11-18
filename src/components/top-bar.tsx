@@ -321,7 +321,12 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
                           </span>
                         )}
                         <span className="branch-row-name">{titleCase(branch.name)}</span>
-                        {isActive && <Check size={14} className="branch-row-check" />}
+                        {isActive && (
+                          <>
+                            <span className="branch-row-dot" aria-hidden />
+                            <span className="branch-row-active">Active</span>
+                          </>
+                        )}
                       </button>
                     </React.Fragment>
                   );
