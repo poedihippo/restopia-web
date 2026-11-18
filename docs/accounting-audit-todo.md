@@ -240,3 +240,10 @@ Client flow: employee credit order → Piutang Dagang Customer XX; Credit tender
 - [ ] Payment Methods: set CASH (and DP / CARD if collected at the outlet) to "settle later" so outlet cash goes through Piutang Counter → settlement.
 - [ ] Commit + deploy API and web; dedicated settlement permission (deferred).
 - [x] `docs/sql/2026-11-18_sales_revenue_online_per_branch.sql` run by the user: all 18 company-2 branches have `sales_revenue_online` = their own Pendapatan Counter (PP rows included), no duplicates, no other company touched.
+
+## POS Kredit Customer (2026-11-18)
+
+- [x] API checkout: an offline sale with `credit_type=customer` may have no tender (stays credit/unpaid; DP optional).
+- [x] POS: payment modal has a separate "Bayar Nanti (Kredit)" section (Kredit Karyawan / Kredit Customer); Credit is no longer in the money-tender grid. Kredit Customer needs a registered customer, or name + phone (registered on the fly — `POST /customers` returns no id, so the POS looks it up by name + phone). Without DP: no tender; with DP: the DP method is picked from the grid.
+- [x] POS: staff credit balance check (Full / DP / split), and all payment choices reset after an order or an empty cart.
+- [x] Dev e2e (TEST data): order 0015/CB/11/2026 for customer "TEST RS Hospital (Claude)" (customer id 79): credit, pending, no payment; journal D Piutang Dagang Customer CB / K Pendapatan Counter CB.

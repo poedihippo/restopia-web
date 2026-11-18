@@ -54,6 +54,9 @@ interface PosModalsProps {
   setCreditUserSearch?: (val: string) => void
   creditType?: 'user' | 'customer'
   setCreditType?: (val: 'user' | 'customer') => void
+  /** Kredit Customer picked in the credit section (no tender, or a DP). */
+  customerCredit?: boolean
+  setCustomerCredit?: (val: boolean) => void
   selectedCustomerId?: number | null
   /** Picked customer OR typed name — both satisfy customer credit. */
   manualCustomerName?: string
@@ -149,6 +152,8 @@ export default function PosModals({
   setCreditUserSearch,
   creditType = 'user',
   setCreditType,
+  customerCredit = false,
+  setCustomerCredit = () => {},
   selectedCustomerId = null,
   manualCustomerName = '',
   guestName = '',
@@ -283,13 +288,41 @@ export default function PosModals({
     }
   }, [remainingSplitBalance, splitAmount])
 
-  // Customer credit accepts a picked customer OR a manually typed name.
+  // Customer credit needs a real customer: a registered one, or a typed name +
+  // phone (the POS registers it — the API requires a phone for a new customer).
   const hasCustomerForCredit = !!(
     (selectedCustomerId && selectedCustomerId > 0) ||
-    manualCustomerName.trim()
+    (manualCustomerName.trim() && guestPhone.trim())
   )
 
   const isOnline = orderType === 'online'
+  // Credit has its own section; the method grid only lists money tenders.
+  const creditMethod = paymentMethods.find((pm: any) => pm.name?.toLowerCase().includes('credit'))
+  const moneyMethods = paymentMethods.filter((pm: any) => pm !== creditMethod)
+  const staffCreditPicked = isCreditMethod && !customerCredit
+  const creditNoDp = customerCredit && paymentMode !== 'partial'
+  const pickStaffCredit = () => {
+    if (staffCreditPicked) {
+      setPaymentMethodId(null)
+      return
+    }
+    if (!creditMethod) return toast.error('Credit payment method not found')
+    setCustomerCredit(false)
+    setCreditType?.('user')
+    setPaymentMethodId(creditMethod.id)
+    setCashTendered('')
+  }
+  const pickCustomerCredit = () => {
+    if (customerCredit) {
+      setCustomerCredit(false)
+      setCreditType?.('user')
+      return
+    }
+    setCustomerCredit(true)
+    setCreditType?.('customer')
+    setCreditByUserId(null)
+    if (isCreditMethod) setPaymentMethodId(null)
+  }
   const selectedChannelName =
     salesChannels.find((c: any) => c.id === salesChannelId)?.name ?? 'marketplace'
 
@@ -311,6 +344,11 @@ export default function PosModals({
     ? true
     : isSplitPayment
     ? remainingSplitBalance === 0
+    : customerCredit
+    ? hasCustomerForCredit &&
+      (paymentMode !== 'partial' ||
+        (paymentMethodId !== null && !isCreditMethod &&
+          Number(partialAmount.replace(/\D/g, '')) > 0 && Number(partialAmount.replace(/\D/g, '')) < total))
     : (paymentMethodId !== null &&
        (!isCreditMethod ||
          (creditType === 'customer'
@@ -705,12 +743,63 @@ export default function PosModals({
               </div>
             ) : (
               <>
-            {/* Payment method selection */}
+            {/* Credit (pay later) — its own section, apart from the money tenders. */}
+            <div style={{ marginBottom: 20, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12, background: 'var(--background)' }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 2 }}>Bayar Nanti (Kredit)</label>
+              <span style={{ fontSize: 11.5, color: 'var(--foreground-muted)', display: 'block', marginBottom: 8 }}>
+                Pilih jika order tidak dilunasi sekarang.
+              </span>
+              <div role="radiogroup" aria-label="Kredit" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                {([
+                  { key: 'user', label: 'Kredit Karyawan', hint: 'Potong kredit karyawan', selected: staffCreditPicked, onPick: pickStaffCredit },
+                  { key: 'customer', label: 'Kredit Customer', hint: 'Dibayar customer nanti', selected: customerCredit, onPick: pickCustomerCredit },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={opt.selected}
+                    onClick={opt.onPick}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      justifyContent: 'center',
+                      gap: 2,
+                      padding: '8px 12px',
+                      minHeight: 52,
+                      border: '1px solid',
+                      borderColor: opt.selected ? 'var(--accent)' : 'var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      background: opt.selected ? 'var(--accent-light-bg)' : 'var(--surface)',
+                      color: opt.selected ? 'var(--accent)' : 'var(--foreground)',
+                      boxShadow: opt.selected ? '0 0 0 1px var(--accent)' : 'none',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: 'var(--font-sans)',
+                    }}
+                  >
+                    <span style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 13, fontWeight: 600 }}>
+                      {opt.label}
+                      {opt.selected && <Check size={14} />}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontWeight: 400 }}>{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Payment method selection — money tenders only (credit is above). */}
+            {creditNoDp ? (
+              <div style={{ marginBottom: 20, fontSize: 12.5, color: 'var(--foreground-muted)', background: 'var(--info-bg)', borderRadius: 'var(--radius-md)', padding: '10px 12px', lineHeight: 1.5 }}>
+                Tidak ada pembayaran sekarang — order disimpan sebagai <b>Kredit Customer</b> (Belum Dibayar). Pilih <b>Down Payment (DP)</b> bila customer membayar sebagian.
+              </div>
+            ) : (
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
-                Payment Method
+                {customerCredit ? 'Metode untuk DP' : 'Payment Method'}
               </label>
-              {paymentMethods.length === 0 && (
+              {moneyMethods.length === 0 && (
                 <p style={{ fontSize: 13, color: 'var(--destructive)' }}>
                   No payment methods found. Add one in Settings first.
                 </p>
@@ -722,7 +811,7 @@ export default function PosModals({
                   gap: 8,
                 }}
               >
-                {paymentMethods.map((pm: any) => {
+                {moneyMethods.map((pm: any) => {
                   const isSelected = paymentMethodId === pm.id
                   return (
                     <button
@@ -799,11 +888,11 @@ export default function PosModals({
                 })}
               </div>
             </div>
+            )}
 
-            {isCreditMethod && paymentMethodId && (
+            {(staffCreditPicked || customerCredit) && (
               <div style={{ marginBottom: 16 }}>
-                {/* Credit is staff credit only (customer credit removed from the POS). */}
-                {creditType === 'user' && (
+                {staffCreditPicked && (
                   <>
                     <label
                       style={{
@@ -851,7 +940,7 @@ export default function PosModals({
                     )}
                   </>
                 )}
-                {creditType === 'customer' && (
+                {customerCredit && (
                   <div style={{ marginTop: 4 }}>
                     {selectedCustomerId ? (
                       <div
@@ -951,7 +1040,10 @@ export default function PosModals({
                           style={customerFieldInput}
                         />
                         <label style={{ ...customerFieldLabel, marginTop: 10 }}>
-                          Customer Phone <span style={{ color: 'var(--foreground-subtle)' }}>— optional</span>
+                          Customer Phone{' '}
+                          {customerCredit
+                            ? <span style={{ color: 'var(--destructive)' }}>*</span>
+                            : <span style={{ color: 'var(--foreground-subtle)' }}>— optional</span>}
                         </label>
                         <input
                           type="text"
@@ -1144,16 +1236,16 @@ export default function PosModals({
                     return
                   }
                 } else {
-                  if (!paymentMethodId) {
-                    toast.error('Select a payment method')
+                  if (!paymentMethodId && !creditNoDp) {
+                    toast.error(customerCredit ? 'Pilih metode untuk DP' : 'Select a payment method')
                     return
                   }
-                  if (isCreditMethod && creditType === 'user' && !creditByUserId) {
+                  if (staffCreditPicked && !creditByUserId) {
                     toast.error('Please select a credit user')
                     return
                   }
-                  if (isCreditMethod && creditType === 'customer' && !hasCustomerForCredit) {
-                    toast.error('Please select a customer or type a customer name for customer credit')
+                  if (customerCredit && !hasCustomerForCredit) {
+                    toast.error('Pilih customer terdaftar, atau isi nama + no. HP customer untuk kredit customer')
                     return
                   }
                   if (paymentMode === 'partial') {
@@ -1210,8 +1302,10 @@ export default function PosModals({
                   ? 'Select Sales Channel'
                   : isOnline
                     ? 'Place Online Order'
-                  : isCreditMethod && creditType === 'customer' && !hasCustomerForCredit
+                  : customerCredit && !hasCustomerForCredit
                     ? 'Enter Customer First'
+                    : creditNoDp
+                      ? 'Simpan Kredit Customer'
                     : isCreditMethod && creditType === 'user' && !creditByUserId
                       ? 'Select Credit User First'
                       : creditShort
