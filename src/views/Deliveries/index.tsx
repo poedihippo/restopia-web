@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { receiptsService } from '@/services/receipts.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups, withBranchDetails } from '@/lib/branchOptions'
 import { useAuth } from '@/hooks/useAuth'
 import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -124,13 +125,12 @@ export default function DeliveriesView() {
   // Branch options for the From/To filters: superadmin sees every branch,
   // other users only the branches they're assigned to.
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
-    enabled: !!isSuperadmin,
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const availableBranches: any[] = isSuperadmin
     ? (branchesData as any)?.data ?? []
-    : (user as any)?.branches ?? []
+    : withBranchDetails((user as any)?.branches, (branchesData as any)?.data ?? [], (user as any)?.branch?.company)
   const showBranchFilters = !!isSuperadmin || availableBranches.length > 1
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
@@ -339,11 +339,7 @@ export default function DeliveriesView() {
                 }}
               >
                 <option value="">All From Branches</option>
-                {availableBranches.map((b: any) => (
-                  <option key={b.id} value={String(b.id)}>
-                    {b.name}
-                  </option>
-                ))}
+                <BranchOptionGroups branches={availableBranches} label={(b: any) => b.name} getValue={(b: any) => String(b.id)} />
               </FilterSelect>
             </FilterField>
             <FilterField label="To branch">
@@ -356,11 +352,7 @@ export default function DeliveriesView() {
                 }}
               >
                 <option value="">All To Branches</option>
-                {availableBranches.map((b: any) => (
-                  <option key={b.id} value={String(b.id)}>
-                    {b.name}
-                  </option>
-                ))}
+                <BranchOptionGroups branches={availableBranches} label={(b: any) => b.name} getValue={(b: any) => String(b.id)} />
               </FilterSelect>
             </FilterField>
           </FilterGroup>

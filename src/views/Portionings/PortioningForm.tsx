@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Trash2, Loader2, Save, Eye, Scissors, ArrowRight, ChevronDown } from 'lucide-react'
+import { Trash2, Loader2, Save, Scissors, ArrowRight, ChevronDown } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 import { portioningsService } from '@/services/portionings.service'
 import { companiesService } from '@/services/companies.service'
@@ -166,205 +166,6 @@ const formatNumber = (v: unknown, maxFractionDigits = 2): string => {
   return Number.isFinite(n) ? n.toLocaleString('id-ID', { maximumFractionDigits: maxFractionDigits }) : '—'
 }
 
-/** Signature of the raw form state; `status` is excluded because the save buttons override it. */
-const formSignature = (values: unknown): string =>
-  JSON.stringify({ ...(values as object), status: undefined })
-
-// ── Preview (P5: POST /portionings/preview — dry run, persists nothing) ──────
-
-interface PreviewSource {
-  product_inventory_id: number
-  product_id: number
-  source_qty: number
-  sum_fractions: number
-  scrap_qty: number
-  available_base_qty: number
-}
-
-interface PreviewDetail {
-  detail_index: number
-  product_uom_id: number
-  qty: number
-  fraction: number
-  source_qty: number
-  scrap_qty: number
-  yield_qty: number
-  batch_code: string
-  expiry_date: string
-}
-
-interface PreviewShortfall {
-  product_inventory_id: number
-  product_id: number
-  requested_qty: number
-  available_qty: number
-  owner_ref?: string
-  stage?: string
-  location_ref?: string
-}
-
-interface PreviewResult {
-  sufficient: boolean
-  sources: PreviewSource[]
-  details: PreviewDetail[]
-  shortfalls: PreviewShortfall[]
-}
-
-function normalizePreview(resp: any): PreviewResult {
-  const root = resp?.data ?? resp
-  return {
-    sufficient: root?.sufficient !== false,
-    sources: Array.isArray(root?.sources) ? root.sources : [],
-    details: Array.isArray(root?.details) ? root.details : [],
-    shortfalls: Array.isArray(root?.shortfalls) ? root.shortfalls : [],
-  }
-}
-
-function PreviewPanel({ result, stale }: { result: PreviewResult; stale: boolean }) {
-  const shortfallText = (s: PreviewShortfall) =>
-    `Kurang stok: diminta ${formatNumber(s.requested_qty)}, tersedia ${formatNumber(s.available_qty)}` +
-    `${s.owner_ref || s.stage ? ` di ${s.stage ?? '—'}/${s.owner_ref ?? '—'}` : ''}`
-
-  return (
-    <div style={cardStyle}>
-      <div
-        style={{
-          ...cardHeaderStyle,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 12,
-          flexWrap: 'wrap',
-        }}
-      >
-        <span style={sectionTitleStyle}>Hasil Preview</span>
-        <span
-          style={{
-            padding: '3px 10px',
-            borderRadius: 99,
-            fontSize: 11,
-            fontWeight: 700,
-            background: result.sufficient ? 'var(--success-bg)' : 'var(--destructive-bg)',
-            color: result.sufficient ? 'var(--success)' : 'var(--destructive)',
-          }}
-        >
-          {result.sufficient ? 'Cukup' : 'Stok kurang'}
-        </span>
-        {stale && (
-          <span style={{ fontSize: 11, color: 'var(--warning)' }}>
-            Form berubah sejak preview — jalankan Preview ulang
-          </span>
-        )}
-      </div>
-      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {result.shortfalls.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {result.shortfalls.map((s, i) => (
-              <div
-                key={i}
-                style={{
-                  padding: '6px 10px',
-                  fontSize: 12,
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--destructive)',
-                  background: 'var(--destructive-bg)',
-                  color: 'var(--destructive)',
-                }}
-              >
-                {shortfallText(s)}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Per-source summary — how many whole source units each row burns, and its scrap. */}
-        {result.sources.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)' }}>
-              Sumber
-            </span>
-            {result.sources.map((s, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  gap: 12,
-                  flexWrap: 'wrap',
-                  fontSize: 12,
-                  color: 'var(--foreground-muted)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '8px 12px',
-                }}
-              >
-                <span>
-                  Baris #{s.product_inventory_id} — butuh{' '}
-                  <strong style={{ color: 'var(--foreground)' }}>{formatNumber(s.source_qty)}</strong> unit
-                  (fraksi {formatNumber(s.sum_fractions, 6)}, scrap{' '}
-                  {formatNumber(s.scrap_qty, 6)}), tersedia{' '}
-                  <strong style={{ color: 'var(--foreground)' }}>{formatNumber(s.available_base_qty)}</strong>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Per-detail result — the numbers create will use. */}
-        {result.details.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)' }}>
-              Potongan
-            </span>
-            {result.details.map((d, i) => (
-              <div
-                key={i}
-                style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--background)',
-                  padding: '10px 12px',
-                  display: 'flex',
-                  gap: 16,
-                  flexWrap: 'wrap',
-                  fontSize: 12,
-                  color: 'var(--foreground-muted)',
-                }}
-              >
-                <span>
-                  #{d.detail_index + 1} · hasil{' '}
-                  <strong style={{ color: 'var(--foreground)' }}>{formatNumber(d.qty)}</strong>
-                </span>
-                <span>
-                  yield <strong style={{ color: 'var(--foreground)' }}>{formatNumber(d.yield_qty)}</strong>
-                </span>
-                <span>
-                  fraksi <strong style={{ color: 'var(--foreground)' }}>{formatNumber(d.fraction, 6)}</strong>
-                </span>
-                <span>
-                  source <strong style={{ color: 'var(--foreground)' }}>{formatNumber(d.source_qty, 6)}</strong>
-                </span>
-                <span>
-                  scrap <strong style={{ color: 'var(--foreground)' }}>{formatNumber(d.scrap_qty, 6)}</strong>
-                </span>
-                {d.batch_code && <span>batch {d.batch_code}</span>}
-                {d.expiry_date && <span>exp {String(d.expiry_date).slice(0, 10)}</span>}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {result.sources.length === 0 &&
-          result.details.length === 0 &&
-          result.shortfalls.length === 0 && (
-            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-              Preview tidak mengembalikan detail.
-            </span>
-          )}
-      </div>
-    </div>
-  )
-}
-
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function PortioningForm({ editId }: { editId?: number } = {}) {
@@ -372,8 +173,6 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
   const queryClient = useQueryClient()
   const isEdit = editId != null
   const validEditId = !!editId && Number.isFinite(Number(editId)) && Number(editId) > 0
-
-  const [preview, setPreview] = useState<{ sig: string; result: PreviewResult } | null>(null)
 
   const {
     register,
@@ -686,17 +485,6 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
     })),
   })
 
-  const previewMutation = useMutation({
-    // `sig` rides along in the variables so onSuccess can store it; it is not
-    // needed to call the endpoint itself.
-    mutationFn: ({ body }: { body: PortioningRequest; sig: string }) =>
-      portioningsService.preview(body).then((r) => r.data),
-    onSuccess: (resp, { sig }) => {
-      setPreview({ sig, result: normalizePreview(resp) })
-    },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal memuat preview'),
-  })
-
   const saveMutation = useMutation({
     mutationFn: (body: PortioningRequest) =>
       isEdit ? portioningsService.update(Number(editId), body) : portioningsService.create(body),
@@ -738,23 +526,12 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
     toast.error(getFirstErrorMessage(errs) ?? 'Form tidak valid, periksa kembali data.')
   }
 
-  const onPreview = (values: FormValues) => {
-    // `sig` must be built from the FORM details (not the API payload) so it
-    // compares equal to `formSignature(watchedValues.details)` below —
-    // otherwise the panel shows "Form berubah sejak preview" permanently.
-    previewMutation.mutate({ body: buildPayload(values, values.status), sig: formSignature(values.details) })
-  }
-
   const saveAs = (status: 'pending' | 'final') =>
     handleSubmit((values) => {
       setValue('status', status)
       saveMutation.mutate(buildPayload(values, status))
     }, onInvalid)()
 
-  // Preview's `sufficient` is the authoritative gate for saving (P5: "Use
-  // sufficient to enable or disable the Save button").
-  const insufficient = !!preview && !preview.result.sufficient
-  const previewStale = !!preview && preview.sig !== formSignature(watchedValues.details)
   const isPending = saveMutation.isPending
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -844,44 +621,6 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                   style={{ ...fieldInputStyle, border: `1px solid ${errors.date ? 'var(--destructive)' : 'var(--border)'}` }}
                 />
                 {errors.date && <span style={errorTextStyle}>{errors.date.message}</span>}
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <label style={labelStyle}>
-                  Status <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
-                <Controller
-                  name="status"
-                  control={control}
-                  render={({ field }) => (
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {([
-                        { value: 'pending', label: 'Draft' },
-                        { value: 'final', label: 'Final' },
-                      ] as const).map((s) => {
-                        const isSel = field.value === s.value
-                        const tone = s.value === 'final' ? 'success' : 'warning'
-                        return (
-                          <button
-                            key={s.value}
-                            type="button"
-                            onClick={() => field.onChange(s.value)}
-                            style={{
-                              height: 34, padding: '0 16px', borderRadius: 'var(--radius-md)', fontSize: 13,
-                              fontWeight: 500, cursor: 'pointer',
-                              border: isSel ? `1px solid var(--${tone})` : '1px solid var(--border)',
-                              background: isSel ? `var(--${tone}-bg)` : 'var(--surface)',
-                              color: isSel ? `var(--${tone})` : 'var(--foreground-muted)',
-                            }}
-                          >
-                            {s.label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                />
-                <span style={hintStyle}>Draft tidak memindah stok.</span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gridColumn: '1 / -1', minWidth: 0 }}>
@@ -1330,9 +1069,6 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
           </div>
         </div>
 
-        {/* Preview result */}
-        {preview && <PreviewPanel result={preview.result} stale={previewStale} />}
-
         {/* Form actions */}
         <div
           style={{
@@ -1342,11 +1078,6 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
             borderTop: '1px solid var(--border)', flexWrap: 'wrap',
           }}
         >
-          {insufficient && (
-            <span style={{ fontSize: 12, color: 'var(--destructive)', marginRight: 'auto' }}>
-              Stok kurang pada preview — Simpan &amp; Final dinonaktifkan.
-            </span>
-          )}
           <button
             type="button"
             className="v2-btn v2-btn-ghost"
@@ -1355,35 +1086,12 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
           >
             Cancel
           </button>
-          <button
-            type="button"
-            className="v2-btn v2-btn-outline"
-            onClick={handleSubmit(onPreview, onInvalid)}
-            disabled={previewMutation.isPending || isPending}
-            style={{ height: 36, padding: '0 18px' }}
-          >
-            {previewMutation.isPending ? (
-              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-            ) : (
-              <Eye size={14} />
-            )}
-            {previewMutation.isPending ? 'Memuat...' : 'Preview'}
-          </button>
-          <button
-            type="button"
-            className="v2-btn v2-btn-outline"
-            onClick={() => saveAs('pending')}
-            disabled={isPending}
-            style={{ height: 36, padding: '0 18px' }}
-          >
-            Simpan Draft
-          </button>
+          {/* Saving always finalizes (moves stock) — no draft / preview step. */}
           <button
             type="button"
             className="v2-btn v2-btn-primary"
             onClick={() => saveAs('final')}
-            disabled={isPending || insufficient}
-            title={insufficient ? 'Perbaiki stok lalu Preview ulang' : undefined}
+            disabled={isPending}
             style={{ height: 36, padding: '0 18px' }}
           >
             {isPending ? (
@@ -1391,7 +1099,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
             ) : (
               <Save size={14} />
             )}
-            {isPending ? 'Menyimpan...' : 'Simpan & Final'}
+            {isPending ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Portioning'}
           </button>
         </div>
       </form>

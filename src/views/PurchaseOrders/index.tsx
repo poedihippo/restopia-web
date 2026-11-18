@@ -14,6 +14,7 @@ import { useBuyerNames } from '@/hooks/useBuyerNames'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { suppliersService } from '@/services/suppliers.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { buyersService } from '@/services/buyers.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -142,8 +143,6 @@ export default function PurchaseOrdersView() {
   const [buyerFilter, setBuyerFilter] = useState<number>(0)
   const [supplierSearch, setSupplierSearch] = useState('')
   const [debouncedSupplierSearch, setDebouncedSupplierSearch] = useState('')
-  const [supplierBranchSearch, setSupplierBranchSearch] = useState('')
-  const [debouncedSupplierBranchSearch, setDebouncedSupplierBranchSearch] = useState('')
   const [buyerSearch, setBuyerSearch] = useState('')
   const [debouncedBuyerSearch, setDebouncedBuyerSearch] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -156,11 +155,10 @@ export default function PurchaseOrdersView() {
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSupplierSearch(supplierSearch)
-      setDebouncedSupplierBranchSearch(supplierBranchSearch)
       setDebouncedBuyerSearch(buyerSearch)
     }, 400)
     return () => clearTimeout(t)
-  }, [supplierSearch, supplierBranchSearch, buyerSearch])
+  }, [supplierSearch, buyerSearch])
 
   useEffect(() => {
     setPage(1)
@@ -190,20 +188,19 @@ export default function PurchaseOrdersView() {
   ]
 
   const { data: supplierBranchesData, isLoading: supplierBranchesLoading } = useQuery({
-    queryKey: ['branches-all', 'po-filter', debouncedSupplierBranchSearch],
-    queryFn: () =>
-      branchesService
-        .list({ 'filter[search]': debouncedSupplierBranchSearch || undefined, per_page: 100 } as any)
-        .then((r) => r.data),
+    // Whole list (small) with company so the selector can group company → premiere → pickup points;
+    // the select filters client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
     enabled: showSupplierBranchFilter,
   })
   const supplierBranchOptions = [
     { value: 0, label: 'All supplier branches' },
-    ...((supplierBranchesData as any)?.data ?? []).map((b: any) => ({
-      value: b.id as number,
-      label: (b.name as string) ?? `Branch #${b.id}`,
-      sublabel: b.code as string | undefined,
-    })),
+    ...branchSelectOptions(
+      (supplierBranchesData as any)?.data ?? [],
+      (b: any) => (b.name as string) ?? `Branch #${b.id}`,
+      (b: any) => ({ sublabel: b.code as string | undefined }),
+    ),
   ]
 
   const buyerOpts = useInfiniteOptions<any>({
@@ -396,7 +393,6 @@ export default function PurchaseOrdersView() {
                 placeholder="All supplier branches"
                 searchPlaceholder="Search supplier branches..."
                 loading={supplierBranchesLoading}
-                onSearchChange={setSupplierBranchSearch}
               />
             </FilterField>
           )}

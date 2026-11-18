@@ -9,6 +9,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { companiesService } from '@/services/companies.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
@@ -124,9 +125,10 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   )
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', 'company', debouncedDropdownSearch],
-    queryFn: () =>
-      branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100, include: 'company' } as any).then((r) => r.data),
+    // Whole list (small) with company so the selector can group company → premiere → pickup points;
+    // the select filters client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
@@ -298,13 +300,11 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
     return dim ? `${base} · ${dim}` : base
   }
 
-  const branchOptions = branches
-    .filter((b: any) => b.id !== (user as any)?.employee?.branch_id)
-    .map((b: any) => ({
-      value: b.id as number,
-      label: (b.name as string) ?? '',
-      sublabel: (b.company?.name as string) ?? '',
-    }))
+  const branchOptions = branchSelectOptions(
+    branches.filter((b: any) => b.id !== (user as any)?.employee?.branch_id),
+    (b: any) => (b.name as string) ?? '',
+    (b: any) => ({ sublabel: [b.code, b.company?.name].filter(Boolean).join(' · ') }),
+  )
 
   const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
@@ -489,7 +489,6 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                 searchPlaceholder="Search branches..."
                 loading={branchesLoading}
                 error={errors.target_branch_id?.message as string | undefined}
-                onSearchChange={setDropdownSearch}
 />
             )}
           />

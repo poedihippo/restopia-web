@@ -21,6 +21,7 @@ import {
   Building2,
 } from 'lucide-react'
 import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 
 interface Employee {
   id: number
@@ -261,11 +262,7 @@ export default function EmployeesView() {
             {canReadBranches && (
               <FilterSelect value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
                 <option value="">All Branches</option>
-                {branchOptions.map((b) => (
-                  <option key={b.id} value={String(b.id)}>
-                    {b.name}
-                  </option>
-                ))}
+                <BranchOptionGroups branches={branchOptions} label={(b) => b.name} getValue={(b) => String(b.id)} />
               </FilterSelect>
             )}
             {canReadDepartments && (

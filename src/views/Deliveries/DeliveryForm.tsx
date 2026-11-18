@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
@@ -129,13 +130,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     if (productSearchTimer.current) clearTimeout(productSearchTimer.current)
   }, [])
 
-  const [branchSearch, setBranchSearch] = useState('')
-  const [branchSearchDebounced, setBranchSearchDebounced] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => setBranchSearchDebounced(branchSearch), 400)
-    return () => clearTimeout(t)
-  }, [branchSearch])
-
   const [companySearch, setCompanySearch] = useState('')
   const [companySearchDebounced, setCompanySearchDebounced] = useState('')
   useEffect(() => {
@@ -237,8 +231,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const [dimTransferDescription, setDimTransferDescription] = useState('')
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', branchSearchDebounced],
-    queryFn: () => branchesService.list({ 'filter[search]': branchSearchDebounced || undefined,  per_page: 100 }).then((r) => r.data),
+    // Whole list (small) with company so the selector can group company → premiere → pickup points;
+    // the select filters client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
@@ -891,11 +887,11 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     })
   }, [sourceInventory, requiresBatch, puomToProduct])
 
-  const branchOptions = branches.map((b: any) => ({
-    value: b.id as number,
-    label: (b.name as string) ?? `Branch #${b.id}`,
-    sublabel: b.code as string | undefined,
-  }))
+  const branchOptions = branchSelectOptions(
+    branches,
+    (b: any) => (b.name as string) ?? `Branch #${b.id}`,
+    (b: any) => ({ sublabel: b.code as string | undefined }),
+  )
   const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu), pu.product?.type),
@@ -1430,7 +1426,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       searchPlaceholder="Search branches..."
                       loading={branchesLoading}
                       error={errors.target_branch_id?.message as string | undefined}
-                      onSearchChange={setBranchSearch}
                     />
                   )}
                 />

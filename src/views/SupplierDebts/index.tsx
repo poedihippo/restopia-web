@@ -11,6 +11,7 @@ import { buyersService } from '@/services/buyers.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { fetchAllPages } from '@/utils/salesReport'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 import { formatDate, parseApiDate } from '@/utils/date'
 import { formatCurrency } from '@/utils/price'
@@ -124,17 +125,17 @@ export default function SupplierDebtsView({ mode = 'report' }: { mode?: Supplier
   ]
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', 'basic'],
+    queryKey: ['branches-all', 'with-company'],
     enabled: canRead && isCentral,
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branchOptions = [
     { value: 0, label: 'Semua Cabang' },
-    ...((branchesData as any)?.data ?? []).map((b: any) => ({
-      value: b.id as number,
-      label: (b.name as string) ?? `Cabang #${b.id}`,
-      sublabel: b.code as string | undefined,
-    })),
+    ...branchSelectOptions(
+      (branchesData as any)?.data ?? [],
+      (b: any) => (b.name as string) ?? `Cabang #${b.id}`,
+      (b: any) => ({ sublabel: b.code as string | undefined }),
+    ),
   ]
 
   const { data: posData, isLoading: posLoading } = useQuery({

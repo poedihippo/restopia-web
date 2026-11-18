@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { shiftRulesService } from '@/services/shift-rules.service';
 import { branchesService } from '@/services/branches.service';
 import { useAuth } from '@/hooks/useAuth';
+import { BranchOptionGroups, withBranchDetails } from '@/lib/branchOptions';
 import ShiftRuleSheet from './ShiftRuleSheet';
 import { Plus, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settings2 } from 'lucide-react';
 import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters';
@@ -57,11 +58,10 @@ export default function ShiftRulesView() {
 
   // Filter lookup: branches (superadmin sees all, others their assigned branches — same as the sheet)
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'by-name'],
-    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
-    enabled: isSuperadmin,
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
   });
-  const branchOptions: any[] = isSuperadmin ? (branchesData as any)?.data ?? [] : user?.branches ?? [];
+  const branchOptions: any[] = isSuperadmin ? (branchesData as any)?.data ?? [] : withBranchDetails((user as any)?.branches, (branchesData as any)?.data ?? [], (user as any)?.branch?.company);
 
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
@@ -122,9 +122,7 @@ export default function ShiftRulesView() {
         quick={
           <FilterSelect value={branchFilter} onChange={(ev) => { setBranchFilter(ev.target.value); setPage(1); }}>
             <option value="">All Branches</option>
-            {branchOptions.map((o: any) => (
-              <option key={o.id} value={String(o.id)}>{o.name}</option>
-            ))}
+            <BranchOptionGroups branches={branchOptions} label={(o: any) => o.name} getValue={(o: any) => String(o.id)} />
           </FilterSelect>
         }
       />

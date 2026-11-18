@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -135,8 +136,8 @@ export default function RequestedOrdersView() {
   // Requesting-branch options (the PO's branch_id). supplier_branch_id is
   // pinned to my branch and type to 'branch', so neither is exposed.
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
     enabled: !!myBranchId,
   })
   const requesterBranches: any[] = ((branchesData as any)?.data ?? []).filter(
@@ -296,11 +297,7 @@ export default function RequestedOrdersView() {
               }}
             >
               <option value="">All Requesting Branches</option>
-              {requesterBranches.map((b: any) => (
-                <option key={b.id} value={String(b.id)}>
-                  {b.name}
-                </option>
-              ))}
+              <BranchOptionGroups branches={requesterBranches} label={(b: any) => b.name} getValue={(b: any) => String(b.id)} />
             </FilterSelect>
           </FilterField>
         </FilterGroup>

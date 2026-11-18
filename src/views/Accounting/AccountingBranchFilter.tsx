@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
 import { branchesService } from '@/services/branches.service'
 import { FilterSelect } from '@/components/ListFilters'
+import { orderBranches } from '@/lib/branchOptions'
 
 /**
  * Accounting is run by the company's head office: the journal, cash
@@ -19,9 +20,13 @@ interface CompanyBranch {
   name: string
   format?: string | null
   parentId?: number | null
+  /** Raw fields read by orderBranches (company grouping, pickup point nesting). */
+  parent_id?: number | null
+  company_id?: number | null
+  company?: { id?: number; name?: string } | null
 }
 
-/** Branches of the active branch's company, in business order (branchesService sorts them). */
+/** Branches of the active branch's company. */
 export function useAccountingBranches(): CompanyBranch[] {
   const { user } = useAuth()
   const companyId = (user as any)?.branch?.company?.id ?? (user as any)?.branch?.company_id
@@ -31,7 +36,7 @@ export function useAccountingBranches(): CompanyBranch[] {
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: () =>
-      branchesService.list({ per_page: 100, 'filter[company_id]': companyId } as any).then((r) => r.data),
+      branchesService.list({ per_page: 100, include: 'company', 'filter[company_id]': companyId } as any).then((r) => r.data),
   })
 
   const listed: any[] = (data as any)?.data ?? []
@@ -45,6 +50,9 @@ export function useAccountingBranches(): CompanyBranch[] {
       name: b.name ?? `Branch ${b.id}`,
       format: b.format ?? null,
       parentId: b.parent_id != null ? Number(b.parent_id) : null,
+      parent_id: b.parent_id != null ? Number(b.parent_id) : null,
+      company_id: b.company_id ?? b.company?.id ?? null,
+      company: b.company ?? null,
     }))
 }
 
@@ -88,36 +96,37 @@ export default function AccountingBranchFilter({
   style?: React.CSSProperties
 }) {
   const branches = useAccountingBranches()
-  const premieres = branches.filter((b) => b.format !== 'pickup_point')
-  const premiereIds = new Set(premieres.map((b) => b.id))
-  const childrenOf = (id: number) => branches.filter((b) => b.format === 'pickup_point' && b.parentId === id)
-  const orphans = branches.filter(
-    (b) => b.format === 'pickup_point' && !(b.parentId != null && premiereIds.has(b.parentId))
-  )
+  // Company → premiere (or standalone branch) → its own pickup points, indented.
+  const ordered = orderBranches(branches)
+  const groups: { company: string; rows: typeof ordered }[] = []
+  for (const row of ordered) {
+    const last = groups[groups.length - 1]
+    if (last && last.company === row.company) last.rows.push(row)
+    else groups.push({ company: row.company, rows: [row] })
+  }
+  const childrenOf = (id: number) =>
+    ordered.filter((r) => r.indent > 0 && r.branch.parentId === id).map((r) => r.branch)
 
   return (
     <FilterSelect value={value} onChange={(e) => onChange(e.target.value)} style={{ maxWidth: 240, ...style }}>
       <option value="">All branches</option>
-      {premieres.map((p) => {
-        const children = childrenOf(p.id)
-        if (children.length === 0) return <option key={p.id} value={String(p.id)}>{p.name}</option>
-        return (
-          <optgroup key={p.id} label={p.name}>
-            <option value={[p.id, ...children.map((c) => c.id)].join(',')}>{p.name} (+ pickup point)</option>
-            <option value={String(p.id)}>{p.name} only</option>
-            {children.map((c) => (
-              <option key={c.id} value={String(c.id)}>{'  ↳ '}{c.name}</option>
-            ))}
-          </optgroup>
-        )
-      })}
-      {orphans.length > 0 && (
-        <optgroup label="Pickup point">
-          {orphans.map((b) => (
-            <option key={b.id} value={String(b.id)}>{b.name}</option>
-          ))}
+      {groups.map((g) => (
+        <optgroup key={g.company} label={g.company}>
+          {g.rows.map(({ branch: b, indent }) => {
+            if (indent > 0) {
+              return <option key={b.id} value={String(b.id)}>{'\u00A0\u00A0\u00A0↳ '}{b.name}</option>
+            }
+            const children = childrenOf(b.id)
+            if (children.length === 0) return <option key={b.id} value={String(b.id)}>{b.name}</option>
+            return (
+              <React.Fragment key={b.id}>
+                <option value={[b.id, ...children.map((c) => c.id)].join(',')}>{b.name} (+ pickup point)</option>
+                <option value={String(b.id)}>{b.name} only</option>
+              </React.Fragment>
+            )
+          })}
         </optgroup>
-      )}
+      ))}
     </FilterSelect>
   )
 }

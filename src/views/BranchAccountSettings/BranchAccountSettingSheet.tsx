@@ -16,6 +16,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { BRANCH_OVERRIDABLE_KEYS, PREMIERE_ONLY_KEYS } from '@/lib/actionGuards'
+import { branchSelectOptions } from '@/lib/branchOptions'
 
 const createSchema = z.object({
   branch_id: z.coerce.number().min(1, 'Branch is required'),
@@ -72,17 +73,15 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
     }
   }, [editData, open, reset])
 
-  // Branch + COA selects search on the server; each has its own term.
-  const [branchSearch, setBranchSearch] = useState('')
+  // COA select searches on the server; the branch select loads the whole list
+  // (~30 branches, grouped by company / premiere) and searches client-side.
   const [coaSearch, setCoaSearch] = useState('')
-  const debouncedBranchSearch = useDebounce(branchSearch, 400)
   const debouncedCoaSearch = useDebounce(coaSearch, 400)
 
   const { data: branchesData, isFetching: branchesLoading } = useQuery({
-    queryKey: ['branch-account-branch-options', debouncedBranchSearch],
-    queryFn: () => branchesService.list({ 'filter[search]': debouncedBranchSearch || undefined, per_page: 30, sort: 'name' } as any).then(r => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then(r => r.data),
     enabled: open,
-    placeholderData: (prev: any) => prev,
   })
 
   const { data: accountSettingsData } = useQuery({
@@ -157,7 +156,7 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
   const coaItems = coaOpts.items
 
   const branchLabel = (b: any) => `${b.code} - ${b.name}${b.format === 'pickup_point' ? ' (Pickup Point)' : ''}`
-  const branchOptions: SelectOption[] = allBranches.map((b: any) => ({ value: b.id, label: branchLabel(b) }))
+  const branchOptions: SelectOption[] = branchSelectOptions(allBranches, branchLabel)
   const selectedBranchOption: SelectOption | null = selectedBranch ? { value: selectedBranch.id, label: branchLabel(selectedBranch) } : null
 
   const coaOptions: SelectOption[] = useMemo(() => {
@@ -224,12 +223,10 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
               <SearchableSelect
                 value={selectedBranchOption}
                 options={branchOptions}
-                filterOption={null}
                 isLoading={branchesLoading}
                 onChange={(val: any) => {
                   setValue('branch_id', val?.value || 0, { shouldValidate: true })
                 }}
-                onInputChange={(val, { action }) => { if (action === 'input-change') setBranchSearch(val) }}
                 placeholder="Search branch..."
                 isClearable
               />

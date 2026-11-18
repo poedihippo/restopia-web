@@ -9,6 +9,7 @@ import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useAuth } from '@/hooks/useAuth'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import BranchAccountSettingSheet from './BranchAccountSettingSheet'
 import AccountSettingUsageCell, { AccountSettingDetailDialog } from '@/components/AccountSettingUsage'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -73,8 +74,8 @@ export default function BranchAccountSettingsView() {
   ]
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'by-name'],
-    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then(r => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then(r => r.data),
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []
 
@@ -143,9 +144,7 @@ export default function BranchAccountSettingsView() {
           <>
             <FilterSelect value={branchFilter} onChange={(e) => setBranchFilter(e.target.value ? Number(e.target.value) : '')} style={{ minWidth: 200 }}>
               <option value="">All Branches</option>
-              {allBranches.map((b: any) => (
-                <option key={b.id} value={b.id}>{b.code} - {b.name}</option>
-              ))}
+              <BranchOptionGroups branches={allBranches} label={(b: any) => `${b.code} - ${b.name}`} getValue={(b: any) => b.id} />
             </FilterSelect>
             <FilterSelect value={keyFilter} onChange={(e) => setKeyFilter(e.target.value ? Number(e.target.value) : '')} style={{ maxWidth: 240 }}>
               <option value="">All Account Keys</option>

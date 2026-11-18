@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState,  useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -11,6 +11,7 @@ import { branchesService } from '@/services/branches.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useAuth } from '@/hooks/useAuth'
+import { branchSelectOptions, withBranchDetails } from '@/lib/branchOptions'
 import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
@@ -29,31 +30,27 @@ interface ShiftRuleSheetProps {
 
 export default function ShiftRuleSheet({ open, onClose, editData }: ShiftRuleSheetProps) {
 
-  const [dropdownSearch, setDropdownSearch] = useState('')
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { user, isSuperadmin } = useAuth()
   const qc = useQueryClient()
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches', 'options', debouncedDropdownSearch],
-    queryFn: () => branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined, per_page: 30 } as any).then((r) => r.data),
-    enabled: isSuperadmin && open,
-    placeholderData: (prev: any) => prev,
+    // Whole list (~30 branches) so each pickup point sits under its premiere; search is client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
+    enabled: open,
   })
   const allBranches = (branchesData as any)?.data ?? []
-  // Keep the edited record's branch selectable even when it is not in the
-  // current search page.
-  const branchSource = isSuperadmin ? allBranches : user?.branches ?? []
+  // Keep the edited record's branch selectable even when it is not in the list.
+  const branchSource = isSuperadmin ? allBranches : withBranchDetails((user as any)?.branches, allBranches, (user as any)?.branch?.company)
   const branchRows =
     editData?.branch?.id && !branchSource.some((b: any) => b.id === editData.branch.id)
       ? [editData.branch, ...branchSource]
       : branchSource
-  const branchOptions = branchRows.map((b: any) => ({
-    value: b.id as number,
-    label: (b.name as string) ?? '',
-    sublabel: b.code as string | undefined,
-  }))
+  const branchOptions = branchSelectOptions(
+    branchRows,
+    (b: any) => (b.name as string) ?? '',
+    (b: any) => ({ sublabel: b.code as string | undefined }),
+  )
 
   const {
     register,
@@ -148,7 +145,6 @@ export default function ShiftRuleSheet({ open, onClose, editData }: ShiftRuleShe
                     searchPlaceholder="Search branch..."
                     loading={branchesLoading}
                     error={errors.branch_id?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
 />
                 )}
               />

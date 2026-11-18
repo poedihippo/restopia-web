@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { usersService } from '@/services/users.service'
 import { rolesService } from '@/services/roles.service'
 import { branchesService } from '@/services/branches.service'
+import { orderBranches, type OrderedBranch } from '@/lib/branchOptions'
 import { departmentsService, Department } from '@/services/departments.service'
 import { X, Loader2 } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -492,12 +493,12 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
                     )
                   }
 
-                  const branchesByCompany = branches.reduce((acc, branch) => {
-                    const companyName = branch.company?.name ?? 'Other'
-                    if (!acc[companyName]) acc[companyName] = []
-                    acc[companyName].push(branch)
+                  // Company → premiere (or standalone branch) → its own pickup points (↳).
+                  const branchesByCompany = orderBranches(branches).reduce((acc, row) => {
+                    if (!acc[row.company]) acc[row.company] = []
+                    acc[row.company].push(row)
                     return acc
-                  }, {} as Record<string, BranchOption[]>)
+                  }, {} as Record<string, OrderedBranch<BranchOption>[]>)
 
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -507,7 +508,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
                             {companyName}
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {companyBranches.map((branch) => {
+                            {companyBranches.map(({ branch, indent }) => {
                               const selected = value.includes(branch.id)
                               return (
                                 <button
@@ -527,6 +528,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
                                       : '1px solid var(--border)',
                                   }}
                                 >
+                                  {indent > 0 && <span style={{ opacity: 0.7, marginRight: 4 }}>↳</span>}
                                   {branch.name}
                                 </button>
                               )
