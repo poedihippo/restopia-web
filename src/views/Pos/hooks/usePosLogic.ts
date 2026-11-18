@@ -704,6 +704,13 @@ export function usePosLogic() {
     setCashTendered('')
     setPaymentMode('full')
     setPartialAmount('')
+    // Split / credit choices belong to one order only.
+    setPaymentError(null)
+    setCreditByUserId(null)
+    setCreditType('user')
+    setCreditUserSearch('')
+    setIsSplitPayment(false)
+    setSplitPayments([])
     setShowReceipt(false)
     setEditingOrderId(null)
     setEditingOrderCode(null)
@@ -712,6 +719,21 @@ export function usePosLogic() {
     setCompletedTransaction(null)
     idemRef.current = null
   }, [])
+
+  // An empty cart (Clear, last item removed, order done) starts the next order
+  // with fresh payment choices: no split lines, credit user or DP left over.
+  useEffect(() => {
+    if (cart.length > 0 || bundleCart.length > 0) return
+    setPaymentMethodId(null)
+    setCashTendered('')
+    setPaymentMode('full')
+    setPartialAmount('')
+    setPaymentError(null)
+    setCreditByUserId(null)
+    setCreditType('user')
+    setIsSplitPayment(false)
+    setSplitPayments([])
+  }, [cart.length, bundleCart.length])
 
   const addLotToCart = useCallback((lot: any) => {
     if (!lot) return
@@ -1393,6 +1415,16 @@ export function usePosLogic() {
       }
 
       setShowPayment(false)
+      // The receipt keeps its own snapshot (tx); the payment choices are done.
+      setPaymentMethodId(null)
+      setCashTendered('')
+      setPaymentMode('full')
+      setPartialAmount('')
+      setPaymentError(null)
+      setCreditByUserId(null)
+      setCreditType('user')
+      setIsSplitPayment(false)
+      setSplitPayments([])
       setCompletedTransaction(tx)
       toast.success(editingOrderId ? 'Order updated!' : 'Order placed!')
 
