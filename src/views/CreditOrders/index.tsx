@@ -165,20 +165,6 @@ export default function CreditOrdersView() {
   const items: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
-  // Count per stage, so the outlet sees where its credit sits.
-  const { data: counts } = useQuery({
-    queryKey: ['credit-orders', 'counts', type, debouncedSearch, dateFrom, dateTo],
-    queryFn: async () => {
-      const entries = await Promise.all(
-        typeDef.stages.map(async (st) => {
-          const r = await salesOrdersService.list({ ...filtersFor(st), page: 1, per_page: 1 } as any)
-          return [st.key, Number((r.data as any)?.meta?.total ?? 0)] as const
-        }),
-      )
-      return Object.fromEntries(entries) as Record<string, number>
-    },
-  })
-
   const partyOf = (o: any) => {
     if (type === 'online') return o.sales_channel?.name ?? '—'
     if (type === 'user') return o.credit_by?.name ?? '—'
@@ -220,7 +206,8 @@ export default function CreditOrdersView() {
             style={chipStyle(stage.key === st.key)}
           >
             {st.label}
-            {counts?.[st.key] != null && <span style={{ marginLeft: 6, opacity: 0.75 }}>{counts[st.key]}</span>}
+            {/* Only the shown list is fetched (one request per click), so only its total is known. */}
+            {stage.key === st.key && meta?.total != null && <span style={{ marginLeft: 6, opacity: 0.75 }}>{meta.total}</span>}
           </button>
         ))}
         <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>{stage.hint}</span>
