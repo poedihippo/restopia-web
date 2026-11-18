@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { describeSuggestionReason } from '@/utils/productUomName'
 import { X, Loader2, Plus, Trash2, Repeat, Sparkles } from 'lucide-react'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
+import ActiveToggle from '@/components/ActiveToggle'
 
 const conversionSchema = z.object({
   id: z.coerce.number().min(0),
@@ -192,6 +193,36 @@ interface ProductSheetProps {
   } | null
 }
 
+/** Stable, type-normalised view of the UOM section, used to detect edits. */
+const normalizeUoms = (list: any[] = []): string =>
+  JSON.stringify(
+    list.map((u) => ({
+      id: Number(u?.id ?? 0),
+      uom_id: Number(u?.uom_id ?? 0),
+      branch_types: [...(u?.branch_types ?? [])].map(String).sort(),
+      code: String(u?.code ?? '').trim(),
+      name: String(u?.name ?? '').trim(),
+      base_price: Number(u?.base_price ?? 0),
+      online_price: Number(u?.online_price ?? 0),
+      franchise_price: Number(u?.franchise_price ?? 0),
+      price_editable: !!u?.price_editable,
+      is_default: !!u?.is_default,
+      is_active: !!u?.is_active,
+      conversions: (u?.conversions ?? []).map((c: any) => ({
+        id: Number(c?.id ?? 0),
+        target_uom_id: Number(c?.target_uom_id ?? 0),
+        amount: Number(c?.amount ?? 0),
+      })),
+    })),
+  )
+
+/** What the edit form loaded, to send only real UOM changes and explicit deletes. */
+type UomSnapshot = {
+  json: string
+  uomIds: number[]
+  convIdsByUomId: Map<number, number[]>
+}
+
 export default function ProductSheet({ open, onClose, editData }: ProductSheetProps) {
   const queryClient = useQueryClient()
   const activeProductTypes = useActiveBranchProductTypes()
@@ -303,6 +334,13 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     enabled: open && !!editData,
   })
   const detail = (detailQuery.data as any)?.data
+  const uomSnapshotRef = useRef<UomSnapshot | null>(null)
+  // product_uom id → why it is locked (stock / recipes / vouchers).
+  const inUseReasonsById = new Map<number, string[]>(
+    ((detail?.product_uoms ?? []) as any[])
+      .filter((pu) => pu?.in_use)
+      .map((pu) => [Number(pu.id), (pu.in_use_reasons ?? []) as string[]]),
+  )
 
   useEffect(() => {
     if (!open) return
@@ -321,6 +359,36 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       return
     }
     if (!detail) return
+    const loadedUoms = (detail.product_uoms ?? []).map((pu: any) => ({
+      id: pu.id ?? 0,
+      uom_id: pu.uom_id ?? 0,
+      branch_types: pu.branch_types ?? [],
+      code: pu.code ?? '',
+      name: pu.name ?? '',
+      base_price: pu.base_price ?? 0,
+      online_price: pu.online_price ?? 0,
+      franchise_price: pu.franchise_price ?? 0,
+      price_editable: !!pu.price_editable,
+      is_default: !!pu.is_default,
+      is_active: pu.is_active ?? true,
+      uom_name: pu.uom_name ?? pu.uom?.name ?? '',
+      uom_code: pu.uom_code ?? pu.uom?.code ?? '',
+      conversions: (pu.conversions ?? []).map((c: any) => ({
+        id: c.id ?? 0,
+        target_uom_id: c.target_uom_id ?? 0,
+        amount: c.amount ?? 0,
+      })),
+    }))
+    uomSnapshotRef.current = {
+      json: normalizeUoms(loadedUoms),
+      uomIds: loadedUoms.map((u: any) => Number(u.id)).filter((x: number) => x > 0),
+      convIdsByUomId: new Map(
+        loadedUoms.map((u: any) => [
+          Number(u.id),
+          (u.conversions ?? []).map((c: any) => Number(c.id)).filter((x: number) => x > 0),
+        ]),
+      ),
+    }
     reset({
       name: detail.name ?? editData.name ?? '',
       code: detail.code ?? editData.code ?? '',
@@ -330,30 +398,12 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       is_active: detail.is_active ?? editData.is_active ?? true,
       base_uom_id: detail.base_uom_id ?? null,
       reorder_point: detail.reorder_point ?? null,
-      uoms: (detail.product_uoms ?? []).map((pu: any) => ({
-        id: pu.id ?? 0,
-        uom_id: pu.uom_id ?? 0,
-        branch_types: pu.branch_types ?? [],
-        code: pu.code ?? '',
-        name: pu.name ?? '',
-        base_price: pu.base_price ?? 0,
-        online_price: pu.online_price ?? 0,
-        franchise_price: pu.franchise_price ?? 0,
-        price_editable: !!pu.price_editable,
-        is_default: !!pu.is_default,
-        is_active: pu.is_active ?? true,
-        uom_name: pu.uom_name ?? pu.uom?.name ?? '',
-        uom_code: pu.uom_code ?? pu.uom?.code ?? '',
-        conversions: (pu.conversions ?? []).map((c: any) => ({
-          id: c.id ?? 0,
-          target_uom_id: c.target_uom_id ?? 0,
-          amount: c.amount ?? 0,
-        })),
-      })),
+      uoms: loadedUoms,
     })
   }, [open, editData, detail, reset])
 
   const buildPayload = (values: FormValues, extra?: { confirm_conversion_factor_change?: boolean; reason?: string }) => {
+    const confirmFactor = extra?.confirm_conversion_factor_change
     const payload: Record<string, unknown> = {
       product_category_id: values.product_category_id,
       code: values.code ?? '',
@@ -363,7 +413,6 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       is_active: values.is_active,
       base_uom_id: values.base_uom_id ?? null,
       reorder_point: values.reorder_point ?? null,
-      ...extra,
     }
     const uoms = values.uoms.map((u) => ({
       ...(u.id > 0 ? { id: u.id } : {}),
@@ -384,12 +433,39 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         ...(c.id > 0 ? { id: c.id } : {}),
         target_uom_id: c.target_uom_id,
         amount: c.amount,
+        // The API reads the factor-change confirmation per conversion.
+        ...(confirmFactor ? { confirm_conversion_factor_change: true, reason: extra?.reason } : {}),
       })),
     }))
+
     // Create: omit `uoms` entirely when none added (header-only).
-    // Update: always send the full desired UOM state (replace-by-diff);
-    // `uoms: []` means delete all.
-    if (editData || uoms.length > 0) payload.uoms = uoms
+    if (!editData) {
+      if (uoms.length > 0) payload.uoms = uoms
+      return payload
+    }
+
+    // Update: leave UOMs out when the section was not edited, so a name /
+    // active / category change can never touch (or fail on) used UOMs.
+    const snap = uomSnapshotRef.current
+    if (snap && normalizeUoms(values.uoms) === snap.json) return payload
+
+    payload.uoms = uoms
+    if (snap) {
+      // Explicit deletes: only rows the user removed in this form are deleted;
+      // anything missing for another reason (e.g. added elsewhere) is kept.
+      const keptUomIds = new Set(values.uoms.map((u) => Number(u.id)).filter((x) => x > 0))
+      payload.uoms_delete_ids = snap.uomIds.filter((uomId) => !keptUomIds.has(uomId))
+      const convDeleteIds: number[] = []
+      for (const u of values.uoms) {
+        const uomId = Number(u.id)
+        if (!(uomId > 0)) continue
+        const keptConv = new Set(u.conversions.map((c) => Number(c.id)).filter((x) => x > 0))
+        for (const convId of snap.convIdsByUomId.get(uomId) ?? []) {
+          if (!keptConv.has(convId)) convDeleteIds.push(convId)
+        }
+      }
+      payload.conversions_delete_ids = convDeleteIds
+    }
     return payload
   }
 
@@ -835,33 +911,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
               name="is_active"
               control={control}
               render={({ field }) => (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {([true, false] as const).map((val) => (
-                    <button
-                      key={String(val)}
-                      type="button"
-                      onClick={() => field.onChange(val)}
-                      style={{
-                        padding: '6px 16px',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: 13,
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        background: field.value === val
-                          ? val ? 'var(--success-bg)' : 'var(--destructive-bg)'
-                          : 'var(--surface-muted, var(--background))',
-                        color: field.value === val
-                          ? val ? 'var(--success)' : 'var(--destructive)'
-                          : 'var(--foreground-muted)',
-                        border: field.value === val
-                          ? `1px solid ${val ? 'var(--success)' : 'var(--destructive)'}`
-                          : '1px solid var(--border)',
-                      }}
-                    >
-                      {val ? 'Yes' : 'No'}
-                    </button>
-                  ))}
-                </div>
+                <ActiveToggle value={field.value} onChange={field.onChange} />
               )}
             />
           </div>
@@ -991,8 +1041,25 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                           </button>
                         )}
                       />
+                      {/* Used by stock / recipes / vouchers: unit locked, row can't be removed. */}
+                      {inUseReasonsById.has(Number(watchedUoms[i]?.id)) && (
+                        <span
+                          title={`In use (${(inUseReasonsById.get(Number(watchedUoms[i]?.id)) ?? []).join(', ')}) — unit can't be changed and the row can't be removed`}
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 500,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: 'var(--warning-bg)',
+                            color: 'var(--warning)',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          In use · {(inUseReasonsById.get(Number(watchedUoms[i]?.id)) ?? []).join(', ')}
+                        </span>
+                      )}
                       {/* The base unit's row can't be removed while it is the base unit. */}
-                      {baseUomId && Number(watchedUoms[i]?.uom_id) === Number(baseUomId) ? (
+                      {inUseReasonsById.has(Number(watchedUoms[i]?.id)) ? null : baseUomId && Number(watchedUoms[i]?.uom_id) === Number(baseUomId) ? (
                         <span
                           title="Base unit — change the Base Unit first to remove this row"
                           style={{
@@ -1038,6 +1105,12 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                         render={({ field }) => (
                           <select
                             value={field.value ?? 0}
+                            disabled={inUseReasonsById.has(Number(watchedUoms[i]?.id))}
+                            title={
+                              inUseReasonsById.has(Number(watchedUoms[i]?.id))
+                                ? "This unit is in use, so it can't be changed"
+                                : undefined
+                            }
                             onChange={(e) => {
                               const uomId = Number(e.target.value)
                               field.onChange(uomId)

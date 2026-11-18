@@ -162,7 +162,7 @@ input[type="week"] {
   color: #111827 !important;
   -webkit-text-fill-color: #111827 !important;
   color-scheme: light !important;
-  border: 1px solid #d1d5db !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius-md) !important;
   font-weight: 500 !important;
 }
@@ -199,6 +199,27 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover,
 input[type="month"]::-webkit-calendar-picker-indicator:hover,
 input[type="week"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
+}
+
+/* The whole date field is clickable, not just the calendar icon: the field
+   shows a pointer, and src/lib/datePickerClick.ts opens the calendar on a
+   click anywhere in it. Disabled / read-only fields are left alone. */
+input[type="date"]:not(:disabled):not([readonly]),
+input[type="datetime-local"]:not(:disabled):not([readonly]),
+input[type="month"]:not(:disabled):not([readonly]),
+input[type="week"]:not(:disabled):not([readonly]) {
+  cursor: pointer;
+  transition: filter 120ms ease, border-color 120ms ease;
+}
+
+/* Hover feedback matching the select triggers (buttons darken slightly):
+   the forced white background above would otherwise show no change. */
+input[type="date"]:not(:disabled):not([readonly]):not(:focus):hover,
+input[type="datetime-local"]:not(:disabled):not([readonly]):not(:focus):hover,
+input[type="month"]:not(:disabled):not([readonly]):not(:focus):hover,
+input[type="week"]:not(:disabled):not([readonly]):not(:focus):hover {
+  filter: brightness(0.96);
+  border-color: var(--border-strong) !important;
 }
 
 

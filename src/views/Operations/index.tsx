@@ -129,8 +129,8 @@ export default function OperationsView() {
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <CalendarDays size={14} style={{ color: 'var(--foreground-muted)' }} />
-        <div style={{ width: 300 }}>
-          <DateRange from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+        <div style={{ maxWidth: '100%' }}>
+          <DateRange inline from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
         </div>
         {(dateFrom || dateTo) && (
           <button type="button" className="v2-btn v2-btn-ghost" onClick={() => { setDateFrom(''); setDateTo('') }}>

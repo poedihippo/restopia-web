@@ -265,11 +265,9 @@
 :root[data-ui="v2"] .v2-table tbody tr[data-row]:hover {
   background: var(--surface-muted);
 }
+/* Row actions stay at full strength (faded icons read as disabled); each
+   icon button still gets its own hover background. */
 :root[data-ui="v2"] .v2-table tbody tr[data-row] .v2-row-actions {
-  opacity: 0.55;
-  transition: opacity 120ms ease;
-}
-:root[data-ui="v2"] .v2-table tbody tr[data-row]:hover .v2-row-actions {
   opacity: 1;
 }
 
@@ -945,4 +943,172 @@
 }
 :root[data-ui="v2"] .sidebar-head > * {
   width: 100%;
+}
+
+/* ── Native <select>: consistent chevron spacing ─────────────────────────────
+   Browsers draw the native arrow flush against the right edge (and ignore
+   padding-right for it), so every single-value select gets a drawn chevron
+   12px from the edge plus room for it. !important beats the many inline
+   `background` / `padding` shorthands on legacy and filter selects. */
+:root[data-ui="v2"] select:not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 34px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b8f99' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 14px 14px !important;
+  text-overflow: ellipsis;
+}
+:root[data-ui="v2"] select:not([multiple]):not([size])::-ms-expand {
+  display: none;
+}
+
+/* ── Native <select>: styled option list (Chromium "customizable select") ────
+   Where supported, the open list matches the app instead of the OS menu:
+   rounded panel, roomy rows, accent hover/selected state. Other browsers
+   keep their native list. The drawn chevron above stays the only arrow. */
+@supports (appearance: base-select) {
+  :root[data-ui="v2"] select:not([multiple]):not([size]) {
+    appearance: base-select;
+    display: inline-flex;
+    align-items: center;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size])::picker-icon {
+    display: none;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size])::picker(select) {
+    appearance: base-select;
+    margin-top: 4px;
+    padding: 4px;
+    min-width: anchor-size(width);
+    max-height: min(320px, 60vh);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: var(--font-sans);
+    color: var(--foreground);
+    background: transparent;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option:hover,
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option:focus-visible {
+    background: var(--background);
+    outline: none;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option:checked {
+    background: var(--accent-light-bg);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option::checkmark {
+    order: 1;
+    margin-left: auto;
+    color: var(--accent);
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) option:disabled {
+    color: var(--foreground-subtle);
+    cursor: not-allowed;
+  }
+  :root[data-ui="v2"] select:not([multiple]):not([size]) optgroup {
+    padding: 6px 10px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--foreground-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* ── Hover feedback for every interactive control ────────────────────────────
+   Many legacy/inline-styled buttons and links had no hover state at all.
+   One global layer: pointer cursor + a subtle darken on hover (deeper on
+   press) that works for filled, outlined and icon-only controls without
+   touching their own colours. The sidebar/nav keeps its own hover styling;
+   disabled controls and held (loading) submit buttons are left alone. */
+:root[data-ui="v2"] button:not(:disabled),
+:root[data-ui="v2"] [role="button"]:not([aria-disabled="true"]),
+:root[data-ui="v2"] a[href],
+:root[data-ui="v2"] label:has(> input[type="checkbox"]),
+:root[data-ui="v2"] label:has(> input[type="radio"]) {
+  cursor: pointer;
+}
+:root[data-ui="v2"] button:not(:disabled):not(aside *):not(nav *):not([data-loading-held]),
+:root[data-ui="v2"] [role="button"]:not([aria-disabled="true"]):not(aside *):not(nav *),
+:root[data-ui="v2"] a[href]:not(aside *):not(nav *) {
+  transition: filter 120ms ease, background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+:root[data-ui="v2"] button:not(:disabled):not(aside *):not(nav *):not([data-loading-held]):hover,
+:root[data-ui="v2"] [role="button"]:not([aria-disabled="true"]):not(aside *):not(nav *):hover {
+  filter: brightness(0.94);
+}
+:root[data-ui="v2"] button:not(:disabled):not(aside *):not(nav *):not([data-loading-held]):active,
+:root[data-ui="v2"] [role="button"]:not([aria-disabled="true"]):not(aside *):not(nav *):active {
+  filter: brightness(0.88);
+}
+:root[data-ui="v2"] a[href]:not(aside *):not(nav *):hover {
+  filter: brightness(0.82);
+}
+/* Selects / text fields: stronger border on hover, never over the focus ring. */
+:root[data-ui="v2"] select:not(:disabled):not(:focus):hover,
+:root[data-ui="v2"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(:disabled):not(:focus):not([readonly]):hover,
+:root[data-ui="v2"] textarea:not(:disabled):not(:focus):not([readonly]):hover {
+  border-color: var(--border-strong) !important;
+}
+
+/* ── Row action icons: same hover as Products' .v2-icon-btn ─────────────────
+   Many lists draw their View / Edit / Delete icons as inline-styled
+   borderless buttons. Give every icon-only, borderless button in a table row
+   the Products treatment: rounded grey background on hover (light red for
+   destructive ones), no darken filter. Bordered pills (e.g. "Deliver") are
+   not matched. */
+:root[data-ui="v2"] td button:has(> svg:only-child):is(.v2-icon-btn, [style*="border-style: none"]) {
+  border-radius: var(--radius-sm) !important;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+:root[data-ui="v2"] td button:not(:disabled):has(> svg:only-child):is(.v2-icon-btn, [style*="border-style: none"]):hover {
+  background: var(--surface-muted) !important;
+  filter: none !important;
+}
+:root[data-ui="v2"] td button:not(:disabled):has(> svg:only-child):is(.v2-icon-btn, [style*="border-style: none"]):is([data-tone="danger"], [style*="var(--destructive)"]):hover {
+  background: var(--destructive-bg) !important;
+}
+:root[data-ui="v2"] td button:not(:disabled):has(> svg:only-child):is(.v2-icon-btn, [style*="border-style: none"]):active {
+  filter: brightness(0.94) !important;
+}
+
+/* ── Every table row is hoverable, in the same colour as Products ───────────
+   Lists mixed three behaviours (v2-table rows, JS-driven inline tints, none).
+   One rule for all body rows; !important so the old inline hover tints all
+   end up the same colour. Single full-width cells (empty / loading / error
+   rows) are skipped. */
+:root[data-ui="v2"] table tbody tr {
+  transition: background-color 120ms ease;
+}
+:root[data-ui="v2"] table tbody tr:not(:has(> td[colspan]:only-child)):hover {
+  background-color: var(--surface-muted) !important;
+}
+/* Cells with their own background (e.g. sticky columns) take the row tint
+   while hovered, so the whole row lights up evenly. */
+:root[data-ui="v2"] table tbody tr:not(:has(> td[colspan]:only-child)):hover > td {
+  background-color: inherit !important;
+}
+
+/* Cards that hold a table clip it to their rounded corners — otherwise the
+   square header / row (hover) backgrounds paint over the card border. Only
+   cards whose table sits directly inside (or in its scroll wrapper), so
+   dropdowns elsewhere in a card are not clipped. */
+:root[data-ui="v2"] .v2-card:has(> table, > div > table) {
+  overflow: hidden;
 }

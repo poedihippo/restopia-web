@@ -23,7 +23,6 @@ import {
   Trash2,
   Truck,
   CheckCircle,
-  RotateCcw,
   ClipboardList,
 } from 'lucide-react'
 
@@ -247,7 +246,7 @@ export default function DeliveriesView() {
             Deliveries
           </h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-            Kelola pengiriman masuk (dari supplier) dan keluar (ke cabang)
+            Manage incoming deliveries (from suppliers) and outgoing deliveries (to branches)
           </p>
         </div>
         {SHOW_CREATE_BUTTON && canCreate && (<button
@@ -374,20 +373,20 @@ export default function DeliveriesView() {
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
+          overflowX: 'auto',
         }}
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', minWidth: 1060, borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
-              <th style={{ ...thStyle, width: 160 }}>Code</th>
-              <th style={thStyle}>From Branch</th>
-              <th style={{ ...thStyle, width: 160 }}>To Branch</th>
-              <th style={{ ...thStyle, width: 140 }}>PO</th>
-              <th style={{ ...thStyle, width: 120 }}>Date</th>
-              <th style={{ ...thStyle, width: 100 }}>Status</th>
-              <th style={{ ...thStyle, width: 100 }} />
+              <th style={{ ...thStyle, width: 56, textAlign: 'center', whiteSpace: 'nowrap' }}>No.</th>
+              <th style={{ ...thStyle, width: 170, whiteSpace: 'nowrap' }}>Code</th>
+              <th style={{ ...thStyle, minWidth: 200, whiteSpace: 'nowrap' }}>From Branch</th>
+              <th style={{ ...thStyle, width: 220, whiteSpace: 'nowrap' }}>To Branch</th>
+              <th style={{ ...thStyle, width: 170, whiteSpace: 'nowrap' }}>PO</th>
+              <th style={{ ...thStyle, width: 120, whiteSpace: 'nowrap' }}>Date</th>
+              <th style={{ ...thStyle, width: 150, whiteSpace: 'nowrap' }}>Status</th>
+              <th style={{ ...thStyle, width: 130 }} />
             </tr>
           </thead>
           <tbody>
@@ -468,7 +467,7 @@ export default function DeliveriesView() {
                         style={{
                           fontFamily: 'monospace',
                           fontSize: 13,
-                          fontWeight: 600,
+                          fontWeight: 400,
                           color: 'var(--accent)',
                         }}
                       >
@@ -476,7 +475,7 @@ export default function DeliveriesView() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                      <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--foreground)' }}>
                         {fromLabel}
                       </span>
                     </td>
@@ -528,7 +527,7 @@ export default function DeliveriesView() {
                           justifyContent: 'flex-end',
                         }}
                       >
-                        {canEdit && (item.status === 'pending' ? (
+                        {canEdit && item.status === 'pending' && (
                           <button
                             type="button"
                             onClick={() =>
@@ -540,28 +539,26 @@ export default function DeliveriesView() {
                           >
                             <CheckCircle size={14} />
                           </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              toggleStatusMutation.mutate({ id: item.id, status: 'pending' })
-                            }
-                            disabled={toggleStatusMutation.isPending}
-                            title="Revert to Pending"
-                            style={{ ...actionBtnStyle, color: 'var(--warning)' }}
-                          >
-                            <RotateCcw size={14} />
-                          </button>
-                        ))}
+                        )}
                         {item.status === 'final' &&
                           canCreateReceipt &&
                           canUserCreateReceiptForDelivery(item, user, isSuperadmin) && (
                           <button
+                            type="button"
                             onClick={() => handleEditReceipt(item.id)}
-                            style={actionBtnStyle}
                             title="Process Receipt"
+                            // The row's main next step — same tinted pill as
+                            // "Deliver" on the PO list, in the brand accent.
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6,
+                              height: 28, padding: '0 10px', marginRight: 6,
+                              borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
+                              border: '1px solid var(--accent-light)', background: 'var(--accent-light-bg)', color: 'var(--accent)',
+                              fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-sans)',
+                            }}
                           >
                             <ClipboardList size={14} />
+                            Receipt
                           </button>
                         )}
                         <button

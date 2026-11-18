@@ -3,6 +3,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { useEffect } from "react";
 import { installClickGuard } from "@/lib/clickGuard";
 import { installLoadingGuard } from "@/lib/loadingGuard";
+import { installDatePickerClick } from "@/lib/datePickerClick";
 import "@/styles/globals.css";
 import "@/styles/pos-print.css";
 import "@/styles/ui-v2.css";
@@ -27,6 +28,10 @@ export default function App({ Component, pageProps }: AppProps) {
   // Submit buttons are held (disabled) while any on-screen query is still on
   // its first load, so nothing is saved before its data has arrived.
   useEffect(() => installLoadingGuard(document, queryClient), []);
+
+  // Clicking anywhere in a native date field opens its calendar, not just
+  // the icon.
+  useEffect(() => installDatePickerClick(document), []);
 
   const isPos = router.pathname.startsWith('/pos');
   const noLayout = NO_LAYOUT_ROUTES.includes(router.pathname) || isPos;

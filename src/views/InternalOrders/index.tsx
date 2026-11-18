@@ -299,19 +299,19 @@ export default function InternalOrdersView() {
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
+          overflowX: 'auto',
         }}
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', minWidth: 1060, borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
-              <th style={{ ...thStyle, width: 160 }}>Code</th>
-              <th style={thStyle}>Source Branch</th>
-              <th style={{ ...thStyle, width: 160 }}>Branch</th>
-              <th style={{ ...thStyle, width: 130 }}>Date</th>
-              <th style={{ ...thStyle, width: 110 }}>Status</th>
-              <th style={{ ...thStyle, width: 100 }} />
+              <th style={{ ...thStyle, width: 56, textAlign: 'center', whiteSpace: 'nowrap' }}>No.</th>
+              <th style={{ ...thStyle, width: 170, whiteSpace: 'nowrap' }}>Code</th>
+              <th style={{ ...thStyle, minWidth: 200, whiteSpace: 'nowrap' }}>Source Branch</th>
+              <th style={{ ...thStyle, width: 220, whiteSpace: 'nowrap' }}>Branch</th>
+              <th style={{ ...thStyle, width: 120, whiteSpace: 'nowrap' }}>Date</th>
+              <th style={{ ...thStyle, width: 150, whiteSpace: 'nowrap' }}>Status</th>
+              <th style={{ ...thStyle, width: 130 }} />
             </tr>
           </thead>
           <tbody>

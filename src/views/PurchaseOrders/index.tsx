@@ -440,18 +440,18 @@ export default function PurchaseOrdersView() {
       {/* Table */}
       <div className="v2-card" style={{ overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-        <table className="v2-table">
+        <table className="v2-table" style={{ minWidth: 1200 }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
-              <th style={{ ...thStyle, width: 160 }}>Code</th>
-              <th style={thStyle}>Order From</th>
-              <th style={{ ...thStyle, width: 180 }}>Buyer</th>
-              <th style={{ ...thStyle, width: 130 }}>Date</th>
-              <th style={{ ...thStyle, width: 150, textAlign: 'right' }}>Total</th>
-              <th style={{ ...thStyle, width: 110 }}>Status</th>
-              <th style={{ ...thStyle, width: 120 }}>Payment</th>
-              <th style={{ ...thStyle, width: 100 }} />
+              <th style={{ ...thStyle, width: 56, textAlign: 'center', whiteSpace: 'nowrap' }}>No.</th>
+              <th style={{ ...thStyle, width: 170, whiteSpace: 'nowrap' }}>Code</th>
+              <th style={{ ...thStyle, width: '20%', minWidth: 200, whiteSpace: 'nowrap' }}>Order From</th>
+              <th style={{ ...thStyle, width: '20%', minWidth: 200, whiteSpace: 'nowrap' }}>Buyer</th>
+              <th style={{ ...thStyle, width: 120, whiteSpace: 'nowrap' }}>Date</th>
+              <th style={{ ...thStyle, width: 150, textAlign: 'right', whiteSpace: 'nowrap' }}>Total</th>
+              <th style={{ ...thStyle, width: 150, whiteSpace: 'nowrap' }}>Status</th>
+              <th style={{ ...thStyle, width: 140, whiteSpace: 'nowrap' }}>Payment</th>
+              <th style={{ ...thStyle, width: 210 }} />
             </tr>
           </thead>
           <tbody>
@@ -666,10 +666,19 @@ export default function PurchaseOrdersView() {
                               const sourceType = item.type === 'branch' ? 'po_from_branch' : 'po_from_supplier'
                               router.push(`/transfer/deliveries/create?po_id=${item.id}&source_type=${sourceType}`)
                             }}
-                            className="v2-icon-btn"
                             title="Create Delivery"
+                            // The row's main next step, so it is a labelled,
+                            // tinted pill rather than another grey icon.
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6,
+                              height: 28, padding: '0 10px', marginRight: 6,
+                              borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
+                              border: '1px solid var(--info)', background: 'var(--info-bg)', color: 'var(--info)',
+                              fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-sans)',
+                            }}
                           >
                             <Truck size={14} />
+                            Deliver
                           </button>
                         )}
                         <button

@@ -615,6 +615,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             </span>
           </div>
           <div className="rcpt-form-grid" style={{ padding: 20 }}>
+            {/* Left column: all fields stacked. Right column: Notes, full height. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <label style={labelStyle}>
@@ -627,21 +629,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 style={errors.date ? inputErrorStyle : inputStyle}
               />
               {errors.date && <span style={errorStyle}>{errors.date.message}</span>}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <label style={labelStyle}>
-                Status
-                {requiredMark}
-              </label>
-              <select
-                {...register('status')}
-                style={{ ...(errors.status ? inputErrorStyle : inputStyle), cursor: 'pointer' }}
-              >
-                <option value="pending">Pending</option>
-                <option value="final">Final</option>
-              </select>
-              {errors.status && <span style={errorStyle}>{errors.status.message}</span>}
             </div>
 
             <div className="rcpt-form-span" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -702,13 +689,50 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               )}
             </div>
 
-            <div className="rcpt-form-span" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <label style={labelStyle}>
+                Status
+                {requiredMark}
+              </label>
+              {/* Segmented Pending / Final toggle — same control as the PO form. */}
+              <Controller
+                name="status"
+                control={control}
+                render={({ field }) => (
+                  <div className="v2-seg" style={{ alignSelf: 'flex-start' }}>
+                    {(['pending', 'final'] as const).map((s) => {
+                      const isSelected = field.value === s
+                      const isPending = s === 'pending'
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          aria-selected={isSelected}
+                          onClick={() => field.onChange(s)}
+                          style={
+                            isSelected
+                              ? { color: isPending ? 'var(--warning)' : 'var(--success)', fontWeight: 600 }
+                              : undefined
+                          }
+                        >
+                          {s.charAt(0).toUpperCase() + s.slice(1)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              />
+              {errors.status && <span style={errorStyle}>{errors.status.message}</span>}
+            </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
                 rows={2}
                 placeholder="Optional notes"
-                style={{ ...inputStyle, height: 'auto', padding: '9px 12px', resize: 'vertical', minHeight: 64 }}
+                style={{ ...inputStyle, height: 'auto', padding: '9px 12px', resize: 'vertical', minHeight: 112 }}
               />
             </div>
 

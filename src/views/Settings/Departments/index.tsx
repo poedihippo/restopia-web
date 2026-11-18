@@ -20,6 +20,7 @@ import {
   X, Loader2, Building, FolderTree, Eye, CheckCircle2, AlertCircle, CornerDownRight,
 } from 'lucide-react'
 import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import ActiveToggle from '@/components/ActiveToggle'
 
 const schema = z.object({
   company_id: z.coerce.number().optional().default(1),
@@ -793,16 +794,13 @@ export default function DepartmentsView() {
               </div>
 
               {/* Active Toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  {...register('is_active')}
-                  style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Status</label>
+                <Controller
+                  name="is_active"
+                  control={control}
+                  render={({ field }) => <ActiveToggle value={field.value} onChange={field.onChange} />}
                 />
-                <label htmlFor="is_active" style={{ fontSize: 13, color: 'var(--foreground)', cursor: 'pointer', userSelect: 'none' }}>
-                  Active
-                </label>
               </div>
             </form>
 

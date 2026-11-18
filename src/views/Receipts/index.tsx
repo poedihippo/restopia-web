@@ -20,11 +20,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  Pencil,
-  Trash2,
   ReceiptText,
   CheckCircle,
   RotateCcw,
+  ListChecks,
   X,
 } from 'lucide-react'
 
@@ -79,7 +78,6 @@ export default function ReceiptsView() {
   const canRead = hasPermission("receipt.read");
   const canCreate = hasPermission('receipt.create')
   const canEdit = hasPermission('receipt.update')
-  const canDelete = hasPermission('receipt.delete')
 
   // The "New Receipt" button is hidden on request — NOT removed. Flip this to
   // true to bring it back.
@@ -93,7 +91,6 @@ export default function ReceiptsView() {
   const [dateTo, setDateTo] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
   const [targetBranchFilter, setTargetBranchFilter] = useState('')
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const deliveryIdParam = router.query.delivery_id ? String(router.query.delivery_id) : ''
 
   useEffect(() => {
@@ -159,16 +156,6 @@ export default function ReceiptsView() {
     if (!filteredDelivery) return false
     return !canUserCreateReceiptForDelivery(filteredDelivery, user, isSuperadmin)
   }, [filteredDelivery, user, isSuperadmin])
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => receiptsService.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['receipts'] })
-      toast.success('Receipt deleted')
-      setDeleteConfirmId(null)
-    },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
-  })
 
   const toggleStatusMutation = useMutation({
     // PATCH /v1/receipts/{id} (UpdateReceiptRequest) requires `details`, each
@@ -447,20 +434,20 @@ export default function ReceiptsView() {
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
+          overflowX: 'auto',
         }}
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', minWidth: 1060, borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
-              <th style={{ ...thStyle, width: 160 }}>Code</th>
-              <th style={{ ...thStyle, width: 160 }}>Branch</th>
-              <th style={{ ...thStyle, width: 160 }}>Delivery</th>
-              <th style={{ ...thStyle, width: 160 }}>Supplier</th>
-              <th style={{ ...thStyle, width: 120 }}>Date</th>
-              <th style={{ ...thStyle, width: 100 }}>Status</th>
-              <th style={{ ...thStyle, width: 100 }} />
+              <th style={{ ...thStyle, width: 56, textAlign: 'center', whiteSpace: 'nowrap' }}>No.</th>
+              <th style={{ ...thStyle, width: 170, whiteSpace: 'nowrap' }}>Code</th>
+              <th style={{ ...thStyle, minWidth: 180, whiteSpace: 'nowrap' }}>Branch</th>
+              <th style={{ ...thStyle, width: 170, whiteSpace: 'nowrap' }}>Delivery</th>
+              <th style={{ ...thStyle, width: 210, whiteSpace: 'nowrap' }}>Supplier</th>
+              <th style={{ ...thStyle, width: 120, whiteSpace: 'nowrap' }}>Date</th>
+              <th style={{ ...thStyle, width: 130, whiteSpace: 'nowrap' }}>Status</th>
+              <th style={{ ...thStyle, width: 110 }} />
             </tr>
           </thead>
           <tbody>
@@ -535,7 +522,7 @@ export default function ReceiptsView() {
                         style={{
                           fontFamily: 'monospace',
                           fontSize: 13,
-                          fontWeight: 600,
+                          fontWeight: 400,
                           color: 'var(--accent)',
                         }}
                       >
@@ -543,7 +530,7 @@ export default function ReceiptsView() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                      <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--foreground)' }}>
                         {item.branch?.name ?? '—'}
                       </span>
                     </td>
@@ -589,29 +576,27 @@ export default function ReceiptsView() {
                           justifyContent: 'flex-end',
                         }}
                       >
-                        {canEdit && (item.status === 'pending' ? (
+                        {/* Accept (pending) is the highlighted primary action on the left; View,
+                            then Revert (accepted) on the far right. Receipts are not deleted from the list. */}
+                        {canEdit && item.status === 'pending' && (
                           <button
                             type="button"
                             onClick={() => router.push(`/transfer/receipts/${item.id}/edit`)}
-                            title="Edit / Accept"
-                            style={{ ...actionBtnStyle, color: 'var(--success)' }}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (confirm('Revert receipt to pending?')) {
-                                toggleStatusMutation.mutate({ id: item.id, status: 'pending' })
-                              }
+                            title="Accept receipt"
+                            // The row's main next step — same tinted pill as
+                            // "Deliver" on the PO list, in success green.
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6,
+                              height: 28, padding: '0 10px', marginRight: 6,
+                              borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
+                              border: '1px solid var(--success)', background: 'var(--success-bg)', color: 'var(--success)',
+                              fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-sans)',
                             }}
-                            title="Revert to Pending"
-                            style={{ ...actionBtnStyle, color: 'var(--warning)' }}
                           >
-                            <RotateCcw size={14} />
+                            <ListChecks size={14} />
+                            Accept
                           </button>
-                        ))}
+                        )}
                         <button
                           onClick={() => router.push(`/transfer/receipts/${item.id}/detail`)}
                           style={actionBtnStyle}
@@ -619,12 +604,31 @@ export default function ReceiptsView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {canDelete && (<button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                          title="Delete">
-                          <Trash2 size={14} />
-                        </button>)}
+                        {/* Always rendered so View / Revert stay aligned (like the PO list);
+                            disabled while the receipt is still pending. */}
+                        {canEdit && (() => {
+                          const isPending = item.status === 'pending'
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isPending) return
+                                if (confirm('Revert receipt to pending?')) {
+                                  toggleStatusMutation.mutate({ id: item.id, status: 'pending' })
+                                }
+                              }}
+                              disabled={isPending || toggleStatusMutation.isPending}
+                              title={isPending ? 'Already pending — accept it first' : 'Revert to Pending'}
+                              style={{
+                                ...actionBtnStyle,
+                                color: 'var(--warning)',
+                                ...(isPending ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
+                              }}
+                            >
+                              <RotateCcw size={14} />
+                            </button>
+                          )
+                        })()}
                       </div>
                     </td>
                   </tr>
@@ -636,85 +640,6 @@ export default function ReceiptsView() {
       </div>
       {/* Pagination */}
       <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
-      {/* Delete confirm dialog */}
-      {deleteConfirmId !== null && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 60,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            onClick={() => setDeleteConfirmId(null)}
-            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
-          />
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 70,
-              background: 'var(--surface)',
-              borderRadius: 'var(--radius-lg)',
-              padding: '28px 28px 24px',
-              width: 360,
-              boxShadow: 'var(--shadow-lg)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <h3
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 17,
-                fontWeight: 600,
-                margin: '0 0 8px',
-                color: 'var(--foreground)',
-              }}
-            >
-              Delete Receipt
-            </h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>
-              This will permanently remove the receipt and its details.
-            </p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setDeleteConfirmId(null)}
-                style={{
-                  padding: '7px 16px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate(deleteConfirmId)}
-                disabled={deleteMutation.isPending}
-                style={{
-                  padding: '7px 16px',
-                  background: 'var(--destructive)',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'white',
-                  cursor: 'pointer',
-                  opacity: deleteMutation.isPending ? 0.7 : 1,
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }

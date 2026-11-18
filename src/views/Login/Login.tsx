@@ -98,7 +98,7 @@ const errorStyle: React.CSSProperties = {
 };
 
 const Login = () => {
-  const { form, isLoading, onSubmit, showPassword, setShowPassword } =
+  const { form, isLoading, isRedirecting, onSubmit, showPassword, setShowPassword } =
     useLogin();
 
   return (
@@ -210,7 +210,7 @@ const Login = () => {
               }}
             >
               {isLoading && <Loader2 size={16} style={{ animation: "login-spin 1s linear infinite" }} />}
-              {isLoading ? "Signing in…" : "Sign in"}
+              {isRedirecting ? "Opening dashboard…" : isLoading ? "Signing in…" : "Sign in"}
             </button>
           </form>
         </div>

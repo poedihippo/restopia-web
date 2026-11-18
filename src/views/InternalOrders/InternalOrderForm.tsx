@@ -503,10 +503,12 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             style={{
               padding: 20,
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
               gap: 16,
             }}
           >
+            {/* Left column: all fields stacked. Right column: Notes, full height. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
             {/* Date */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -629,14 +631,16 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
               />
             </div>
 
-            {/* Notes — full width */}
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
+            </div>
+
+            {/* Notes — right column, fills the height of the fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
                 rows={2}
                 placeholder="Optional order notes"
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }}
+                style={{ ...inputStyle, height: 'auto', resize: 'vertical', minHeight: 112 }}
               />
             </div>
           </div>

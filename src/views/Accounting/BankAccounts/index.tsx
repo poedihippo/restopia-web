@@ -35,6 +35,7 @@ import {
   Scale,
 } from 'lucide-react'
 import Link from 'next/link'
+import ActiveToggle from '@/components/ActiveToggle'
 
 const schema = z.object({
   company_id: z.coerce.number().optional().default(1),
@@ -1019,19 +1020,13 @@ export default function BankAccountsView() {
                 </div>
 
                 {/* Is Active toggle */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                  <input
-                    type="checkbox"
-                    id="is_active_bank"
-                    {...register('is_active')}
-                    style={{ width: 16, height: 16, cursor: 'pointer' }}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={labelStyle}>Status</label>
+                  <Controller
+                    name="is_active"
+                    control={control}
+                    render={({ field }) => <ActiveToggle value={field.value} onChange={field.onChange} />}
                   />
-                  <label
-                    htmlFor="is_active_bank"
-                    style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}
-                  >
-                    Active Account
-                  </label>
                 </div>
               </div>
 
