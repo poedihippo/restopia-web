@@ -16,7 +16,7 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
  * by type, with the outlet's stages first and accounting's last:
  *
  *   Online Order    : Menunggu Payout → Sudah Settle (marketplace payout)
- *   Kredit Karyawan : Belum Dibayar → Menunggu Potong Gaji → Sudah Settle
+ *   Kredit Karyawan : Menunggu Potong Gaji (default) · Belum Dibayar · Sudah Settle
  *   Kredit Customer : Belum Dibayar → Menunggu Setor → Lunas
  *
  * Settling (payouts, deposits, payroll) is done by accounting under
@@ -50,8 +50,10 @@ const TYPES: { key: CreditType; label: string; base: Record<string, string>; sta
     label: 'Kredit Karyawan',
     base: { 'filter[type]': 'offline', 'filter[credit_type]': 'user', 'filter[status]': 'final' },
     stages: [
-      { key: 'unpaid', label: 'Belum Dibayar', hint: 'Belum dipotong dari kredit karyawan.', params: UNPAID, tone: 'warning' },
+      // POS employee credit is paid at checkout (Credit tender), so the work sits
+      // in "Menunggu Potong Gaji": it comes first and is the default.
       { key: 'awaiting', label: 'Menunggu Potong Gaji', hint: 'Sudah dipotong dari kredit karyawan, menunggu accounting memotong gaji.', params: { 'filter[payment_status]': 'paid', 'filter[funds_status]': 'awaiting_settlement' }, tone: 'info' },
+      { key: 'unpaid', label: 'Belum Dibayar', hint: 'Belum dipotong dari kredit karyawan (mis. order dari Sales Order tanpa pembayaran).', params: UNPAID, tone: 'warning' },
       { key: 'done', label: 'Sudah Settle', hint: 'Sudah dipotong dari gaji.', params: { 'filter[payment_status]': 'paid', 'filter[funds_status]': 'cleared' }, tone: 'success' },
     ],
   },

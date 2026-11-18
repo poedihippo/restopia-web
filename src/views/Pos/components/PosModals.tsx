@@ -832,8 +832,9 @@ export default function PosModals({
             <div role="radiogroup" aria-label="Cara bayar" style={{ ...segContainerStyle, marginBottom: 12 }}>
               {([
                 { key: 'now', label: 'Bayar Langsung', onPick: choosePayNow, show: !hidePayNowForDp },
-                { key: 'staff', label: 'Kredit Karyawan', onPick: chooseStaffCredit, show: true },
+                // Kredit Customer is used far more often than Kredit Karyawan: it comes first.
                 { key: 'customer', label: 'Kredit Customer', onPick: chooseCustomerCredit, show: paymentMode === 'partial' },
+                { key: 'staff', label: 'Kredit Karyawan', onPick: chooseStaffCredit, show: true },
               ] as const).filter((t) => t.show).map((t, i) => (
                 <button
                   key={t.key}
