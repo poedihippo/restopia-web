@@ -285,6 +285,20 @@ export default function PosModals({
   const selectedChannelName =
     salesChannels.find((c: any) => c.id === salesChannelId)?.name ?? 'marketplace'
 
+  // Staff credit draws on users.credit: the amount charged to it (the total, or
+  // the DP amount) can't exceed the user's balance — the API refuses it too
+  // ("Insufficient credit"). Users are cached by id so a search that filters the
+  // picked user out of the list does not lose its balance.
+  const seenCreditUsersRef = React.useRef(new Map<number, any>())
+  for (const u of creditUsers) seenCreditUsersRef.current.set(Number(u.id), u)
+  const creditBalanceOf = (userId: number | null | undefined) =>
+    userId ? Number(seenCreditUsersRef.current.get(Number(userId))?.credit ?? 0) : 0
+  const creditCharge = paymentMode === 'partial' ? Number(partialAmount.replace(/\D/g, '')) || 0 : total
+  const creditBalance = creditBalanceOf(creditByUserId)
+  const creditShort =
+    !isOnline && !isSplitPayment && isCreditMethod && creditType === 'user' &&
+    creditByUserId !== null && creditCharge > creditBalance
+
   const canConfirm = isOnline
     ? true
     : isSplitPayment
@@ -294,7 +308,8 @@ export default function PosModals({
          (creditType === 'customer'
            ? hasCustomerForCredit
            : creditByUserId !== null)) &&
-       (paymentMode !== 'partial' || (Number(partialAmount.replace(/\D/g, '')) > 0 && Number(partialAmount.replace(/\D/g, '')) < total)))
+       (paymentMode !== 'partial' || (Number(partialAmount.replace(/\D/g, '')) > 0 && Number(partialAmount.replace(/\D/g, '')) < total)) &&
+       !creditShort)
 
   const handleAddSplit = () => {
     if (!splitMethodId) return toast.error('Select payment method')
@@ -305,6 +320,16 @@ export default function PosModals({
     const isCredit = method?.name?.toLowerCase().includes('credit')
     
     if (isCredit && !creditByUserId) return toast.error('Select credit user')
+    if (isCredit) {
+      // The same user's credit across every split line can't exceed the balance.
+      const alreadyUsed = (splitPayments || [])
+        .filter((p) => p.creditByUserId === creditByUserId)
+        .reduce((sum, p) => sum + p.amount, 0)
+      const balance = creditBalanceOf(creditByUserId)
+      if (alreadyUsed + amt > balance) {
+        return toast.error(`Kredit tidak cukup: sisa Rp ${Math.max(0, balance - alreadyUsed).toLocaleString('id-ID')}`)
+      }
+    }
     
     if (setSplitPayments && splitPayments) {
       setSplitPayments([...splitPayments, {
@@ -810,6 +835,12 @@ export default function PosModals({
                     >
                       ⚠ Select the user whose credit will be used for this transaction.
                     </span>
+                    {creditShort && (
+                      <span style={{ fontSize: 12, color: 'var(--destructive)', display: 'block', marginTop: 6, lineHeight: 1.5 }}>
+                        Kredit tidak cukup: sisa Rp {creditBalance.toLocaleString('id-ID')}, dibutuhkan Rp {creditCharge.toLocaleString('id-ID')}.
+                        Gunakan <b>Down Payment (DP)</b> maksimal Rp {creditBalance.toLocaleString('id-ID')}, atau <b>Split Payment</b> dengan metode lain.
+                      </span>
+                    )}
                   </>
                 )}
                 {creditType === 'customer' && (
@@ -1175,6 +1206,8 @@ export default function PosModals({
                     ? 'Enter Customer First'
                     : isCreditMethod && creditType === 'user' && !creditByUserId
                       ? 'Select Credit User First'
+                      : creditShort
+                        ? 'Kredit Tidak Cukup'
                       : paymentMode === 'partial'
                         ? 'Confirm DP'
                         : 'Confirm Payment'}
