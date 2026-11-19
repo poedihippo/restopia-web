@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -10,9 +10,11 @@ import { dimensionTransfersService } from '@/services/dimension-transfers.servic
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions, withBranchDetails } from '@/lib/branchOptions'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Loader2, ArrowRightLeft, Layers } from 'lucide-react'
 import BulkDimensionTransfer from './BulkDimensionTransfer'
@@ -78,11 +80,11 @@ export default function DimensionTransferView() {
 
   // Fetch available branches
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []
-  const availableBranches: any[] = isSuperadmin ? allBranches : user?.branches ?? []
+  const availableBranches: any[] = isSuperadmin ? allBranches : withBranchDetails((user as any)?.branches, allBranches, (user as any)?.branch?.company)
   const effectiveBranchId = selectedBranchId || user?.branch?.id
 
   const queryClient = useQueryClient()
@@ -110,24 +112,37 @@ export default function DimensionTransferView() {
     },
   })
 
-  const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
-    queryKey: ['dimension-transfer-source-inventory', effectiveBranchId, debouncedDropdownSearch],
-    enabled: !!effectiveBranchId,
-    queryFn: () =>
+  const fromStage = watch('from_stage')
+
+  // Paged (20/page), server-searched rows of the chosen source stage that still have
+  // stock (stock is numeric(20,2), so >= 0.01 means > 0).
+  const inventoryOpts = useInfiniteOptions<DimensionInventoryRow>({
+    queryKey: ['dimension-transfer-source-inventory', effectiveBranchId, 'single', fromStage, debouncedDropdownSearch],
+    enabled: !!effectiveBranchId && !!fromStage,
+    fetchPage: (page) =>
       productInventoriesService
         .list({
-          per_page: 1000,
+          page,
+          per_page: 20,
+          sort: 'id',
           'filter[branch_id]': effectiveBranchId,
           'filter[search]': debouncedDropdownSearch || undefined,
+          'filter[stock_gte]': 0.01,
+          'filter[stage]': fromStage,
           include:
             'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
         } as any)
         .then((r) => r.data),
   })
+  const inventoryLoading = inventoryOpts.loading
 
-  const inventoryRows: DimensionInventoryRow[] = ((inventoryData as any)?.data ?? []).filter(
+  const inventoryRows: DimensionInventoryRow[] = inventoryOpts.items.filter(
     (r: any) => Number(r.display_qty ?? r.stock ?? r.qty ?? 0) > 0,
   )
+  // Rows seen in any loaded page/search — the chosen source row must keep resolving
+  // after the search is cleared or when it sits outside the loaded pages.
+  const seenRowsRef = useRef(new Map<number, DimensionInventoryRow>())
+  for (const r of inventoryRows) seenRowsRef.current.set(r.id, r)
 
   const { data: companiesData } = useQuery({
     queryKey: ['companies-all'],
@@ -164,10 +179,9 @@ export default function DimensionTransferView() {
   }
 
   const sourceInventoryId = watch('source_inventory_id')
-  const selectedRow = inventoryRows.find((r) => r.id === Number(sourceInventoryId))
+  const selectedRow = seenRowsRef.current.get(Number(sourceInventoryId))
 
   const fromOwner = watch('from_owner_ref')
-  const fromStage = watch('from_stage')
   const fromLocation = watch('from_location_ref') || 'GENERAL'
 
   // Stage asal dipilih dulu → hanya tawarkan inventori di stage tersebut.
@@ -216,7 +230,23 @@ export default function DimensionTransferView() {
   const isSameDimension = !!fromStage && fromStage === toStage
 
   const targetBatchId = selectedRow?.product_uom_batch_id ?? selectedRow?.product_uom_batch?.id
-  const targetRow = inventoryRows.find((r) => {
+  // The target dimension row may not be among the paged dropdown rows — fetch it directly.
+  const { data: targetData } = useQuery({
+    queryKey: ['dimension-transfer-source-inventory', 'target', effectiveBranchId, targetBatchId, toOwnerRef, toStage, toLocationRef],
+    enabled: !!effectiveBranchId && !!targetBatchId && !!toOwnerRef && !!toStage,
+    queryFn: () =>
+      productInventoriesService
+        .list({
+          per_page: 5,
+          'filter[branch_id]': effectiveBranchId,
+          'filter[product_uom_batch_id]': targetBatchId,
+          'filter[owner_ref]': toOwnerRef,
+          'filter[stage]': toStage,
+          'filter[location_ref]': toLocationRef,
+        } as any)
+        .then((r) => r.data),
+  })
+  const targetRow = (((targetData as any)?.data ?? []) as DimensionInventoryRow[]).find((r) => {
     const batchId = r.product_uom_batch_id ?? r.product_uom_batch?.id
     return (
       batchId === targetBatchId &&
@@ -259,7 +289,7 @@ export default function DimensionTransferView() {
   })
 
   const onSubmit = (values: FormValues) => {
-    const row = inventoryRows.find((r) => r.id === Number(values.source_inventory_id))
+    const row = seenRowsRef.current.get(Number(values.source_inventory_id))
     if (!row) {
       toast.error('Pilih item sumber yang valid')
       return
@@ -395,11 +425,11 @@ export default function DimensionTransferView() {
             onChange={(val) => {
               setSelectedBranchId(val as number)
             }}
-            options={availableBranches.map((b: any) => ({
-              value: b.id,
-              label: b.name,
-              sublabel: b.company?.name,
-            }))}
+            options={branchSelectOptions(
+              availableBranches,
+              (b: any) => b.name,
+              (b: any) => ({ sublabel: b.company?.name }),
+            )}
             placeholder="Pilih cabang..."
             searchPlaceholder="Cari cabang..."
           />
@@ -510,7 +540,7 @@ export default function DimensionTransferView() {
                   value={field.value ?? 0}
                   onChange={(val) => {
                     field.onChange(val)
-                    const row = inventoryRows.find((r) => r.id === Number(val))
+                    const row = seenRowsRef.current.get(Number(val))
                     if (row) {
                       setValue('from_owner_ref', row.owner_ref ?? 'GENERAL')
                       setValue('from_location_ref', row.location_ref ?? 'GENERAL')
@@ -525,6 +555,7 @@ export default function DimensionTransferView() {
                   disabled={!fromStage}
                   error={errors.source_inventory_id?.message as string | undefined}
                   onSearchChange={setDropdownSearch}
+                  {...inventoryOpts.selectProps}
                 />
               )}
             />

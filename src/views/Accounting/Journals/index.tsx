@@ -19,10 +19,12 @@ import { referenceLabel, referenceHref } from '@/lib/references'
 import ReferenceLink from '@/components/ReferenceLink'
 import { journalEditBlock, journalDeleteBlock, journalReverseBlock, blockedStyle } from '@/lib/actionGuards'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { useDeepLinkId } from '@/views/Operations/shared'
 import { FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, countActive } from '@/components/ListFilters'
+import AccountingBranchFilter, { accountingBranchParam, useBranchNameOf, useOtherBranchBlock } from '../AccountingBranchFilter'
 import {
   Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, FileText, CheckCircle2, Send, AlertCircle, Eye, Download,
@@ -183,6 +185,10 @@ export default function JournalsView() {
   })
   const [postedFilter, setPostedFilter] = useState(initialParams?.get('posted') ?? '')
   const [reversedFilter, setReversedFilter] = useState('')
+  // '' = every branch of the company (accounting is run by head office).
+  const [branchFilter, setBranchFilter] = useState('')
+  const branchNameOf = useBranchNameOf()
+  const otherBranchBlock = useOtherBranchBlock()
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -206,7 +212,7 @@ export default function JournalsView() {
   useEffect(() => { const t = setTimeout(() => setDebouncedCoaSearch(coaSearch), 400); return () => clearTimeout(t) }, [coaSearch])
 
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
-  useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter, branchFilter])
 
   // Shared by the list and the Excel export (the export reads the same filter[...] keys).
   const listFilters = {
@@ -217,10 +223,11 @@ export default function JournalsView() {
     'filter[is_posted]': postedFilter || undefined,
     'filter[is_reversed]': reversedFilter || undefined,
     'filter[chart_of_account_id]': accountFilter?.ids || undefined,
+    ...accountingBranchParam(branchFilter),
   }
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
-    queryKey: ['journals', page, perPage, debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter?.ids],
+    queryKey: ['journals', page, perPage, debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter?.ids, branchFilter],
     queryFn: () => journalsService.list({
       page, per_page: perPage, sort: '-id', include: 'period,journal_details,created_by',
       ...listFilters,
@@ -245,17 +252,23 @@ export default function JournalsView() {
     queryFn: () => periodsService.list({ 'filter[is_closed]': 'false', per_page: 1000, sort: '-id' } as any).then((r) => r.data),
   })
 
-  const { data: coaData } = useQuery({
+  const coaOpts = useInfiniteOptions<CoA>({
     queryKey: ['chart-of-accounts-all', 'journals-active', debouncedCoaSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true', 'filter[is_header]': 'false', 'filter[search]': debouncedCoaSearch || undefined } as any).then((r) => r.data),
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 20, sort: 'code,id', 'filter[is_active]': 'true', 'filter[is_header]': 'false', 'filter[search]': debouncedCoaSearch || undefined } as any).then((r) => r.data),
   })
 
   const items: Journal[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
   const periods: Period[] = ((periodsData as any)?.data ?? []).filter((p: Period) => !p.is_closed)
-  const accounts: CoA[] = (coaData as any)?.data ?? []
   const periodOptions = periods.map((p) => ({ value: String(p.id), label: p.name }))
-  const accountOptions = accounts.map((a) => ({ value: String(a.id), label: `${a.code} ${a.name}` }))
+  // id → account cache (loaded pages + accounts included on journal lines) so a line's
+  // chosen account keeps its label even when it is not in the currently loaded pages.
+  const seenCoaRef = React.useRef(new Map<number, CoA>())
+  const rememberAccounts = (lines?: JournalDetail[]) => {
+    for (const d of lines ?? []) if (d.chart_of_account?.id) seenCoaRef.current.set(d.chart_of_account.id, d.chart_of_account)
+  }
+  for (const a of coaOpts.items) seenCoaRef.current.set(a.id, a)
+  for (const j of items) rememberAccounts(j.journal_details)
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => journalsService.delete(id),
@@ -296,6 +309,12 @@ export default function JournalsView() {
   const watchedDetails = watch('details')
   const watchedDate = watch('date')
   const watchedPeriodId = watch('period_id')
+
+  const loadedAccountIds = new Set(coaOpts.items.map((a) => a.id))
+  const selectedExtraAccounts = Array.from(new Set((watchedDetails ?? []).map((d) => Number(d.chart_of_account_id) || 0)))
+    .filter((id) => id && !loadedAccountIds.has(id) && seenCoaRef.current.has(id))
+    .map((id) => seenCoaRef.current.get(id)!)
+  const accountOptions = [...coaOpts.items, ...selectedExtraAccounts].map((a) => ({ value: String(a.id), label: `${a.code} ${a.name}` }))
 
   const totalDebit = watchedDetails?.reduce((s, d) => s + (Number(d.debit) || 0), 0) ?? 0
   const totalCredit = watchedDetails?.reduce((s, d) => s + (Number(d.credit) || 0), 0) ?? 0
@@ -342,6 +361,7 @@ export default function JournalsView() {
       }
     }
 
+    rememberAccounts(journalToEdit.journal_details)
     const sorted = sortJournalLinesDebitFirst(journalToEdit.journal_details ?? [])
     setEditData({ ...journalToEdit, journal_details: sorted })
     reset({
@@ -376,6 +396,7 @@ export default function JournalsView() {
       }
     }
 
+    rememberAccounts(journalToCopy.journal_details)
     const sorted = sortJournalLinesDebitFirst(journalToCopy.journal_details ?? [])
     setEditData(null)
     const today = getTodayDateString()
@@ -535,8 +556,8 @@ export default function JournalsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search journal number or description..."
-        activeCount={countActive(typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter)}
-        onClear={() => { setTypeFilter(''); setPeriodFilter(''); setDateFilter(''); setPostedFilter(''); setReversedFilter(''); setAccountFilter(null); setPage(1) }}
+        activeCount={countActive(typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter, branchFilter)}
+        onClear={() => { setBranchFilter(''); setTypeFilter(''); setPeriodFilter(''); setDateFilter(''); setPostedFilter(''); setReversedFilter(''); setAccountFilter(null); setPage(1) }}
         quick={
           <>
             {accountFilter && (
@@ -547,6 +568,7 @@ export default function JournalsView() {
                 </button>
               </span>
             )}
+            <AccountingBranchFilter value={branchFilter} onChange={setBranchFilter} />
             <FilterSelect value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ width: 160 }}>
               <option value="">All Types</option>
               {Object.entries(JOURNAL_TYPE_LABELS).map(([k, v]) => (
@@ -589,6 +611,7 @@ export default function JournalsView() {
             <tr>
               <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 140 }}>Journal No.</th>
+              <th style={{ ...thStyle, width: 130 }}>Branch</th>
               <th style={{ ...thStyle, width: 130 }}>Date</th>
               <th style={{ ...thStyle, width: 130 }}>Type</th>
               <th style={{ ...thStyle, width: 150 }}>Reference</th>
@@ -602,12 +625,12 @@ export default function JournalsView() {
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 10 }).map((__, j) => (
+                <tr key={i}>{Array.from({ length: 11 }).map((__, j) => (
                   <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 9 ? 60 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
                 ))}</tr>
               ))
             ) : items.length === 0 ? (
-              <tr><td colSpan={10} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={11} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <FileText size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No journals found</span>
@@ -622,6 +645,7 @@ export default function JournalsView() {
                     {(page - 1) * perPage + idx + 1}
                   </td>
                   <td style={tdStyle}><span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--foreground-muted)' }}>{item.journal_number}</span></td>
+                  <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{branchNameOf(item as any)}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.date ? fmtDate(item.date) : '—'}</span></td>
                   <td style={tdStyle}>
                     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 99, fontSize: 12, background: 'var(--background)', border: '1px solid var(--border)', color: 'var(--foreground-muted)' }}>
@@ -665,10 +689,12 @@ export default function JournalsView() {
                       <button onClick={() => setDetailItem(item)} title="View Detail"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Eye size={14} /></button>
                       {(() => {
-                        const editBlock = journalEditBlock(item)
-                        const deleteBlock = journalDeleteBlock(item)
-                        const postBlock = (item.period as any)?.is_closed ? 'Period is closed' : null
-                        const reverseBlock = journalReverseBlock(item)
+                        // Writes go to the journal's own branch (the API scopes them to the active branch).
+                        const branchBlock = otherBranchBlock(item as any)
+                        const editBlock = branchBlock ?? journalEditBlock(item)
+                        const deleteBlock = branchBlock ?? journalDeleteBlock(item)
+                        const postBlock = branchBlock ?? ((item.period as any)?.is_closed ? 'Period is closed' : null)
+                        const reverseBlock = branchBlock ?? journalReverseBlock(item)
                         const btn = (color: string, blocked: string | null) => ({ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color, display: 'flex', ...(blocked ? blockedStyle : {}) })
                         return (
                           <>
@@ -847,6 +873,8 @@ export default function JournalsView() {
                                     placeholder="-- Pilih Akun --"
                                     searchPlaceholder="Cari akun..."
                                     onSearchChange={setCoaSearch}
+                                    loading={coaOpts.loading}
+                                    {...coaOpts.selectProps}
                                   />
                                 )}
                               />
@@ -1000,20 +1028,21 @@ export default function JournalsView() {
                 {activeDetailJournal?.is_posted && !activeDetailJournal?.is_reversed && canReverse && (
                   <button
                     type="button"
-                    disabled={!!journalReverseBlock(activeDetailJournal)}
-                    title={journalReverseBlock(activeDetailJournal) ?? 'Reverse Journal'}
+                    disabled={!!(otherBranchBlock(activeDetailJournal as any) ?? journalReverseBlock(activeDetailJournal))}
+                    title={(otherBranchBlock(activeDetailJournal as any) ?? journalReverseBlock(activeDetailJournal)) ?? 'Reverse Journal'}
                     onClick={() => {
-                      if (journalReverseBlock(activeDetailJournal)) return
+                      if ((otherBranchBlock(activeDetailJournal as any) ?? journalReverseBlock(activeDetailJournal))) return
                       const id = activeDetailJournal.id
                       closeDetail()
                       setReverseConfirmId(id)
                     }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500, cursor: 'pointer', ...(journalReverseBlock(activeDetailJournal) ? blockedStyle : {}) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500, cursor: 'pointer', ...((otherBranchBlock(activeDetailJournal as any) ?? journalReverseBlock(activeDetailJournal)) ? blockedStyle : {}) }}
                   >
                     <RotateCcw size={12} /> Reverse Journal
                   </button>
                 )}
-                {activeDetailJournal?.is_reversed && canCreate && (
+                {/* The copy is created on the active branch, so only offer it on the journal's own branch. */}
+                {activeDetailJournal?.is_reversed && canCreate && !otherBranchBlock(activeDetailJournal as any) && (
                   <button
                     type="button"
                     onClick={() => {

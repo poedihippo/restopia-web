@@ -1,4 +1,5 @@
 'use client'
+import HeaderCheckbox from '@/components/HeaderCheckbox'
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { getProductUomName, withProductType } from '@/utils/productUomName';
 import { packagingChains } from '@/utils/unitDisplay';
@@ -17,6 +18,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { suppliersService } from '@/services/suppliers.service'
 import { buyersService } from '@/services/buyers.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { productUomsService } from '@/services/product-uoms.service'
 import { taxesService } from '@/services/taxes.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
@@ -96,6 +98,9 @@ interface PurchaseOrderFormProps {
   initialData?: any
   orderId?: number
 }
+
+// Order types offered on the form (see the hidden "Type" toggle).
+const PO_TYPE_OPTIONS = [{ key: 'supplier', label: 'Supplier' }] as const
 
 export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
@@ -261,8 +266,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const buyers = buyerOpts.items
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', debouncedDropdownSearch],
-    queryFn: () => branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
+    // Whole list (small) with company so the selector can group company → premiere → pickup points;
+    // the select filters client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
@@ -444,23 +451,19 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     })
   }
   // Internal-source branches: every branch except our own.
-  const sourceBranchOptions = branches
-    .filter((b: any) => b.id !== currentBranchId)
-    .map((b: any) => ({
-      value: b.id as number,
-      label: (b.name as string) ?? `Branch #${b.id}`,
-      sublabel: b.code as string | undefined,
-    }))
+  // (plus the saved source branch on edit, so its label shows even if it is not listed)
+  const sourceBranchRows = branches.filter((b: any) => b.id !== currentBranchId)
   if (
     initialData?.supplier_branch?.id &&
-    !sourceBranchOptions.some((o: any) => o.value === initialData.supplier_branch.id)
+    !sourceBranchRows.some((b: any) => b.id === initialData.supplier_branch.id)
   ) {
-    sourceBranchOptions.push({
-      value: initialData.supplier_branch.id,
-      label: initialData.supplier_branch.name ?? `Branch #${initialData.supplier_branch.id}`,
-      sublabel: initialData.supplier_branch.code,
-    })
+    sourceBranchRows.push(initialData.supplier_branch)
   }
+  const sourceBranchOptions = branchSelectOptions(
+    sourceBranchRows,
+    (b: any) => (b.name as string) ?? `Branch #${b.id}`,
+    (b: any) => ({ sublabel: b.code as string | undefined }),
+  )
   const productUomOptions = mergedProductUoms.map((pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu, pu.product?.name), pu.product?.type),
@@ -780,6 +783,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               gap: '16px 20px',
             }}
           >
+            {/* Left column: all fields stacked. Right column: Notes, full height. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+            {/* Order Date + Fulfillment Date share one row */}
+            <div className="po-date-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px 20px' }}>
             {/* Date */}
             <div style={fieldStyle}>
               <label style={labelStyle}>
@@ -803,14 +810,18 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               />
               {errors.fulfillment_date && <span style={errorStyle}>{errors.fulfillment_date.message}</span>}
             </div>
+            </div>
 
-            {/* Order source toggle — external Supplier or internal Branch */}
-            <div className="po-span-2" style={{ ...fieldStyle, gridColumn: 'span 2' }}>
+            {/* Order source toggle — external Supplier or internal Branch.
+                Kept in the form but hidden while there is only one choice;
+                it shows again as soon as a second type is listed. */}
+            <div
+              className="po-span-2"
+              style={{ ...fieldStyle, gridColumn: 'span 2', display: PO_TYPE_OPTIONS.length > 1 ? fieldStyle.display : 'none' }}
+            >
               <label style={labelStyle}>Type</label>
               <div className="v2-seg" style={{ alignSelf: 'flex-start' }}>
-                {([
-                  { key: 'supplier', label: 'Supplier' },
-                ] as const).map(({ key, label }) => {
+                {PO_TYPE_OPTIONS.map(({ key, label }) => {
                   const selected = watchType === key
                   return (
                     <button
@@ -902,7 +913,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       searchPlaceholder="Search branches..."
                       loading={branchesLoading}
                       error={errors.supplier_branch_id?.message as string | undefined}
-                      onSearchChange={setDropdownSearch}
                       triggerStyle={triggerStyle}
                     />
                   )}
@@ -963,14 +973,16 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               />
             </div>
 
-            {/* Notes — full width */}
-            <div className="po-span-2" style={{ ...fieldStyle, gridColumn: 'span 2' }}>
+            </div>
+
+            {/* Notes — right column, fills the height of the fields */}
+            <div style={fieldStyle}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
                 rows={2}
                 placeholder="Optional order notes"
-                style={{ ...inputStyle, height: 'auto', padding: '10px 12px', resize: 'vertical', minHeight: 72, lineHeight: 1.5 }}
+                style={{ ...inputStyle, height: 'auto', padding: '10px 12px', resize: 'vertical', minHeight: 112, lineHeight: 1.5 }}
               />
             </div>
           </div>
@@ -1005,7 +1017,24 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                     <th style={{ ...thStyle, width: 170, textAlign: 'right' }}>Unit Price</th>
                   )}
                   {watchType !== 'branch' && (
-                    <th style={{ ...thStyle, width: 64, textAlign: 'center' }}>Taxable</th>
+                    <th style={{ ...thStyle, width: 112, textAlign: 'left', verticalAlign: 'middle' }}>
+                      {/* "check all" + label; left-aligned so this box sits on the
+                          same vertical line as every row checkbox below it. */}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 16, lineHeight: 1, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <HeaderCheckbox
+                          style={{ margin: 0 }}
+                          total={watchDetails.length}
+                          checkedCount={watchDetails.filter((d) => d.is_taxable).length}
+                          onToggleAll={(checkAll) =>
+                            watchDetails.forEach((_, i) =>
+                              setValue(`details.${i}.is_taxable`, checkAll, { shouldDirty: true }),
+                            )
+                          }
+                          title="Mark all lines taxable"
+                        />
+                        <span>Taxable</span>
+                      </label>
+                    </th>
                   )}
                   <th style={{ ...thStyle, width: 120, textAlign: 'right' }}>Subtotal</th>
                   <th style={{ ...thStyle, width: 150, textAlign: 'left' }}>Notes</th>
@@ -1184,12 +1213,19 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
                         {/* Taxable Checkbox */}
                         {watchType !== 'branch' && (
-                          <td style={{ ...tdStyle, textAlign: 'center' }}>
-                            <input
-                              type="checkbox"
-                              {...register(`details.${index}.is_taxable`)}
-                              style={{ width: 16, height: 16, marginTop: 9, cursor: 'pointer', accentColor: 'var(--accent)' }}
-                            />
+                          <td style={{ ...tdStyle, textAlign: 'left' }}>
+                            {/* Same left edge as the header checkbox; 34px tall = the qty / price inputs. */}
+                            <label
+                              title="Taxable"
+                              style={{ display: 'flex', alignItems: 'center', height: 34, cursor: 'pointer' }}
+                            >
+                              <input
+                                type="checkbox"
+                                aria-label="Taxable"
+                                {...register(`details.${index}.is_taxable`)}
+                                style={{ width: 16, height: 16, margin: 0, cursor: 'pointer', accentColor: 'var(--accent)' }}
+                              />
+                            </label>
                           </td>
                         )}
 
@@ -1302,80 +1338,113 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             </button>
           </div>
 
-          <div style={{ padding: chargeFields.length > 0 ? 20 : '16px 20px' }}>
-            {chargeFields.length > 0 ? (
-              <div style={{ display: 'grid', gap: 10 }}>
-                {chargeFields.map((field, index) => (
-                  <div key={field.id} className="po-charge-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <div style={{ flex: 2, minWidth: 0 }}>
-                      <input
-                        {...register(`additional_charges.${index}.name`)}
-                        placeholder="Charge Name *"
-                        style={errors.additional_charges?.[index]?.name ? { ...lineInputStyle, border: '1px solid var(--destructive)' } : lineInputStyle}
-                      />
-                      {errors.additional_charges?.[index]?.name && (
-                        <span style={{ ...errorStyle, display: 'block' }}>{errors.additional_charges[index].name.message}</span>
-                      )}
-                    </div>
-                    <div style={{ flex: 2, minWidth: 0 }}>
-                      <Controller
-                        name={`additional_charges.${index}.chart_of_account_id`}
-                        control={control}
-                        render={({ field: coaField }) => (
-                          <SearchableSelect
-                            value={coaField.value ?? 0}
-                            onChange={coaField.onChange}
-                            options={coaChargeOptions}
-                            placeholder="Select account... *"
-                            searchPlaceholder="Search account name or code..."
-                            loading={coaOpts.loading}
-                            {...coaOpts.selectProps}
-                            onSearchChange={setCoaSearch}
-                            error={errors.additional_charges?.[index]?.chart_of_account_id?.message}
-                            triggerStyle={{ ...lineTriggerStyle, borderRadius: 'var(--radius-md)' }}
-                          />
-                        )}
-                      />
-                    </div>
-                    <div style={{ flex: 1.5, minWidth: 0 }}>
-                      <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--foreground-muted)' }}>Rp</span>
+          {chargeFields.length > 0 ? (
+            // Same table treatment as "Line items": header row + numbering.
+            <div style={{ overflowX: 'auto' }}>
+              <table className="v2-table" style={{ minWidth: 760, tableLayout: 'auto' }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, width: 44, paddingLeft: 16, textAlign: 'center' }}>#</th>
+                    <th style={{ ...thStyle, textAlign: 'left' }}>
+                      Charge<span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                    </th>
+                    <th style={{ ...thStyle, textAlign: 'left' }}>
+                      Account<span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                    </th>
+                    <th style={{ ...thStyle, width: 170, textAlign: 'right' }}>Amount</th>
+                    <th style={{ ...thStyle, textAlign: 'left' }}>Notes</th>
+                    <th style={{ ...thStyle, width: 44, paddingRight: 16 }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {chargeFields.map((field, index) => (
+                    <tr key={field.id}>
+                      <td
+                        style={{
+                          ...tdStyle,
+                          paddingLeft: 16,
+                          textAlign: 'center',
+                          lineHeight: '34px',
+                          fontSize: 12.5,
+                          color: 'var(--foreground-subtle)',
+                        }}
+                      >
+                        {index + 1}
+                      </td>
+                      <td style={{ ...tdStyle, minWidth: 180 }}>
                         <input
-                          type="number"
-                          step="any"
-                          {...register(`additional_charges.${index}.amount`, { valueAsNumber: true })}
-                          placeholder="Amount (0 = none)"
-                          style={{ ...lineInputStyle, paddingLeft: 32, fontVariantNumeric: 'tabular-nums' }}
+                          {...register(`additional_charges.${index}.name`)}
+                          placeholder="e.g. Shipping"
+                          style={errors.additional_charges?.[index]?.name ? { ...lineInputStyle, border: '1px solid var(--destructive)' } : lineInputStyle}
                         />
-                      </div>
-                      {errors.additional_charges?.[index]?.amount && (
-                        <span style={{ ...errorStyle, display: 'block' }}>{errors.additional_charges[index].amount.message}</span>
-                      )}
-                    </div>
-                    <div style={{ flex: 2, minWidth: 0 }}>
-                      <input
-                        {...register(`additional_charges.${index}.description`)}
-                        placeholder="Optional Note"
-                        style={lineInputStyle}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className="v2-icon-btn"
-                      data-tone="danger"
-                      onClick={() => removeCharge(index)}
-                      title="Remove charge"
-                      style={{ marginTop: 3, flexShrink: 0 }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
+                        {errors.additional_charges?.[index]?.name && (
+                          <span style={{ ...errorStyle, display: 'block' }}>{errors.additional_charges[index].name.message}</span>
+                        )}
+                      </td>
+                      <td style={{ ...tdStyle, minWidth: 200 }}>
+                        <Controller
+                          name={`additional_charges.${index}.chart_of_account_id`}
+                          control={control}
+                          render={({ field: coaField }) => (
+                            <SearchableSelect
+                              value={coaField.value ?? 0}
+                              onChange={coaField.onChange}
+                              options={coaChargeOptions}
+                              placeholder="Select account..."
+                              searchPlaceholder="Search account name or code..."
+                              loading={coaOpts.loading}
+                              {...coaOpts.selectProps}
+                              onSearchChange={setCoaSearch}
+                              error={errors.additional_charges?.[index]?.chart_of_account_id?.message}
+                              triggerStyle={{ ...lineTriggerStyle, borderRadius: 'var(--radius-md)' }}
+                            />
+                          )}
+                        />
+                      </td>
+                      <td style={tdStyle}>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--foreground-muted)' }}>Rp</span>
+                          <input
+                            type="number"
+                            step="any"
+                            {...register(`additional_charges.${index}.amount`, { valueAsNumber: true })}
+                            placeholder="0"
+                            style={{ ...lineInputStyle, paddingLeft: 32, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                          />
+                        </div>
+                        {errors.additional_charges?.[index]?.amount && (
+                          <span style={{ ...errorStyle, display: 'block' }}>{errors.additional_charges[index].amount.message}</span>
+                        )}
+                      </td>
+                      <td style={{ ...tdStyle, minWidth: 160 }}>
+                        <input
+                          {...register(`additional_charges.${index}.description`)}
+                          placeholder="Optional note"
+                          style={lineInputStyle}
+                        />
+                      </td>
+                      <td style={{ ...tdStyle, paddingRight: 16, textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          className="v2-icon-btn"
+                          data-tone="danger"
+                          onClick={() => removeCharge(index)}
+                          title="Remove charge"
+                          style={{ marginTop: 3 }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ padding: '16px 20px' }}>
               <span style={hintStyle}>No additional charges.</span>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Totals */}
           {watchType !== 'branch' && (
@@ -1503,9 +1572,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
         }
         @media (max-width: 720px) {
           .po-order-details-grid { grid-template-columns: 1fr !important; }
+          .po-date-row { grid-template-columns: 1fr !important; }
           .po-order-details-grid > .po-span-2 { grid-column: span 1 !important; }
-          .po-charge-row { flex-wrap: wrap; }
-          .po-charge-row > div { flex: 1 1 100% !important; }
         }
         @media (max-width: 640px) {
           .po-form-container { padding: 16px 12px 48px !important; }

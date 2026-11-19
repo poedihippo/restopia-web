@@ -5,22 +5,23 @@ import { toast } from 'sonner'
 import { productCategoryAccountSettingsService } from '@/services/product-category-account-settings.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
+import { branchesService } from '@/services/branches.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useAuth } from '@/hooks/useAuth'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import ProductCategoryAccountSettingSheet from './ProductCategoryAccountSettingSheet'
 import AccountSettingUsageCell, { AccountSettingDetailDialog } from '@/components/AccountSettingUsage'
 import { PRODUCT_CATEGORY_INVENTORY_KEY } from '@/lib/accountSettingUsages'
 import { toastMutationApiError } from '@/utils/apiError'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { FilterBar, countActive } from '@/components/ListFilters'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { formatDate } from '@/utils/date'
 import { Plus, Pencil, Trash2, BookOpen, X, Eye } from 'lucide-react'
 
 export default function ProductCategoryAccountSettingsView() {
   const qc = useQueryClient()
-  const { hasPermission, user } = useAuth()
-  const myBranchId = (user as any)?.branch_id ?? (user as any)?.branch?.id
+  const { hasPermission } = useAuth()
   const canCreate = hasPermission('product-category-account-setting.create')
   const canEdit = hasPermission('product-category-account-setting.update')
   const canDelete = hasPermission('product-category-account-setting.delete')
@@ -29,6 +30,7 @@ export default function ProductCategoryAccountSettingsView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
+  const [branchFilter, setBranchFilter] = useState<number | ''>('')
   const [categoryFilter, setCategoryFilter] = useState(0)
   const [categoryFilterSearch, setCategoryFilterSearch] = useState('')
   const [debouncedCategoryFilterSearch, setDebouncedCategoryFilterSearch] = useState('')
@@ -45,7 +47,14 @@ export default function ProductCategoryAccountSettingsView() {
     return () => clearTimeout(t)
   }, [search])
 
-  useEffect(() => { setPage(1) }, [debouncedSearch, categoryFilter, coaFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, branchFilter, categoryFilter, coaFilter])
+
+  // Company-wide list (every branch), narrowed with the Branch filter like Per-Branch.
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then(r => r.data),
+  })
+  const allBranches: any[] = (branchesData as any)?.data ?? []
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedCategoryFilterSearch(categoryFilterSearch), 400)
@@ -64,27 +73,26 @@ export default function ProductCategoryAccountSettingsView() {
     const t = setTimeout(() => setDebouncedCoaFilterSearch(coaFilterSearch), 400)
     return () => clearTimeout(t)
   }, [coaFilterSearch])
-  const { data: coaFilterData, isFetching: coaFilterLoading } = useQuery({
+  const coaFilterOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-all', 'pcas-filter', debouncedCoaFilterSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
-    placeholderData: (prev: any) => prev,
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 20, sort: 'code,id', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
   })
   const coaFilterOptions = [
     { value: 0, label: 'All Accounts' },
-    ...((coaFilterData as any)?.data ?? []).map((a: any) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
+    ...coaFilterOpts.items.map((a: any) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
   ]
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
-    queryKey: ['product-category-account-settings', page, perPage, debouncedSearch, myBranchId, categoryFilter, coaFilter],
+    queryKey: ['product-category-account-settings', page, perPage, debouncedSearch, branchFilter, categoryFilter, coaFilter],
     queryFn: () =>
       productCategoryAccountSettingsService
         .list({
           page,
           per_page: perPage,
           sort: '-created_at',
-          include: 'product_category,chart_of_account',
+          include: 'branch,product_category,chart_of_account',
           'filter[search]': debouncedSearch || undefined,
-          'filter[branch_id]': myBranchId || undefined,
+          'filter[branch_id]': branchFilter || undefined,
           'filter[product_category_id]': categoryFilter || undefined,
           'filter[chart_of_account_id]': coaFilter || undefined,
         } as any)
@@ -133,10 +141,14 @@ export default function ProductCategoryAccountSettingsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search settings..."
-        activeCount={countActive(categoryFilter, coaFilter)}
-        onClear={() => { setCategoryFilter(0); setCoaFilter(0); setPage(1) }}
+        activeCount={countActive(branchFilter, categoryFilter, coaFilter)}
+        onClear={() => { setBranchFilter(''); setCategoryFilter(0); setCoaFilter(0); setPage(1) }}
         quick={
           <>
+            <FilterSelect value={branchFilter} onChange={(e) => setBranchFilter(e.target.value ? Number(e.target.value) : '')} style={{ minWidth: 200 }}>
+              <option value="">All Branches</option>
+              <BranchOptionGroups branches={allBranches} label={(b: any) => `${b.code} - ${b.name}`} getValue={(b: any) => b.id} />
+            </FilterSelect>
             <div style={{ minWidth: 220 }}>
               <SearchableSelect
                 value={categoryFilter}
@@ -158,7 +170,8 @@ export default function ProductCategoryAccountSettingsView() {
                 placeholder="All Accounts"
                 searchPlaceholder="Search account..."
                 triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
-                loading={coaFilterLoading}
+                loading={coaFilterOpts.loading}
+                {...coaFilterOpts.selectProps}
                 onSearchChange={setCoaFilterSearch}
               />
             </div>
@@ -171,6 +184,7 @@ export default function ProductCategoryAccountSettingsView() {
           <thead>
             <tr>
               <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
+              <th style={thStyle}>Branch</th>
               <th style={thStyle}>Product Category</th>
               <th style={thStyle}>Chart of Account</th>
               <th style={{ ...thStyle, width: 260 }}>Usage</th>
@@ -181,17 +195,17 @@ export default function ProductCategoryAccountSettingsView() {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 5 }).map((__, j) => (
+                  {Array.from({ length: 6 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
-                      <div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 4 ? 60 : '75%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                      <div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 5 ? 60 : '75%', animation: 'pulse 1.5s ease-in-out infinite' }} />
                     </td>
                   ))}
                 </tr>
               ))
             ) : isError ? (
-              <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}><span style={{ fontSize: 14, color: 'var(--destructive)' }}>Failed to load settings.</span></td></tr>
+              <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}><span style={{ fontSize: 14, color: 'var(--destructive)' }}>Failed to load settings.</span></td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <BookOpen size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No product category account settings found</span>
@@ -201,6 +215,12 @@ export default function ProductCategoryAccountSettingsView() {
               items.map((item: any, idx: number) => (
                 <tr key={item.id} style={{ transition: 'background 120ms' }} onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
                   <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>{(page - 1) * perPage + idx + 1}</td>
+                  <td style={tdStyle}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{item.branch?.name || '—'}</span>
+                      <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontFamily: 'monospace' }}>{item.branch?.code || ''}</span>
+                    </div>
+                  </td>
                   <td style={tdStyle}>
                     <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{item.product_category?.name || '—'}</span>
                   </td>
@@ -261,6 +281,7 @@ export default function ProductCategoryAccountSettingsView() {
         title={detailItem?.product_category?.name ? `Akun persediaan ${detailItem.product_category.name}` : 'Akun persediaan kategori'}
         settingKey={PRODUCT_CATEGORY_INVENTORY_KEY}
         fields={[
+          { label: 'Branch', value: detailItem?.branch ? `${detailItem.branch.name}${detailItem.branch.code ? ` (${detailItem.branch.code})` : ''}` : '—' },
           { label: 'Product Category', value: detailItem?.product_category?.name || '—' },
           { label: 'Chart of Account', value: detailItem?.chart_of_account ? <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span>{detailItem?.chart_of_account.name}</span><span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--foreground-muted)' }}>{detailItem?.chart_of_account.code}</span></div> : null },
           { label: 'Description', value: detailItem?.description || '—' },

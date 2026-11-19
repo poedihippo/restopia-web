@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { receiptsService } from '@/services/receipts.service'
 import { productUomsService } from '@/services/product-uoms.service'
+import PrintDocument, { formatPrintDate, printFileTitle, usePrintCompany } from '@/components/print/PrintDocument'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
@@ -56,7 +57,7 @@ interface DeliveryFull {
     description?: string
     product_uom_id?: number
     product_uom_batch_id?: number
-    // Batch untuk kolom BATCH / EXPIRED DATE di cetakan Delivery Note
+    // Batch untuk kolom BATCH / EXPIRY DATE di cetakan Delivery Note
     product_uom_batch?: {
       id?: number
       batch_code?: string
@@ -125,6 +126,12 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
         .then((r) => r.data),
   })
   const productUoms = (puData as any)?.data ?? []
+
+  // Kop = company of the sending branch (deliveries can't include branch.company).
+  const sjCompany = usePrintCompany(
+    delivery?.branch?.id ?? (delivery as any)?.branch_id,
+    delivery?.branch?.name,
+  )
   const getProductUom = (id: number) =>
     productUoms.find((pu: any) => pu.id === id)
 
@@ -611,179 +618,55 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
         {sharedStyles}
       </div>
 
-      {/* ── Printable A4 Surat Jalan (hidden on screen, shown only in print) ── */}
-      <div className="surat-jalan-print">
-        {/* Letterhead */}
-        <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '6mm', marginBottom: '6mm' }}>
-          <div style={{ fontSize: '13pt', fontWeight: 700 }}>
-            DELIVERY NOTE
-          </div>
-        </div>
-
-        {/* Document meta — two columns */}
-        <table style={{ width: '100%', fontSize: '10pt', marginBottom: '6mm', borderCollapse: 'collapse' }}>
-          <tbody>
-            <tr>
-              <td style={{ width: '50%', verticalAlign: 'top', padding: '1mm 0' }}>
-                <strong>No. Surat Jalan:</strong> {delivery.code}
-              </td>
-              <td style={{ width: '50%', verticalAlign: 'top', padding: '1mm 0' }}>
-                <strong>Tanggal:</strong>{' '}
-                {delivery.date ? String(delivery.date).slice(0, 10) : '-'}
-              </td>
-            </tr>
-            <tr>
-              <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
-                <strong>Dari:</strong> {delivery.branch?.name ?? '-'}
-              </td>
-              <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
-                <strong>Kepada:</strong> {delivery.target_branch?.name ?? '-'}
-              </td>
-            </tr>
-            {delivery.purchase_order?.code && (
-              <tr>
-                <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
-                  <strong>Ref PO:</strong> {delivery.purchase_order.code}
-                </td>
-                <td />
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        {/* Items table */}
-        <table style={{ width: '100%', fontSize: '10pt', borderCollapse: 'collapse' }}>
-          <thead style={{ display: 'table-header-group' }}>
-            <tr>
-              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center', width: '9mm' }}>NO</th>
-              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '22mm' }}>ITEM CODE</th>
-              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left' }}>NAME</th>
-              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '18mm' }}>UNIT</th>
-              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '16mm' }}>DEL</th>
-              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '36mm' }}>BATCH</th>
-              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '22mm' }}>
-                EXPIRED DATE
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {details.map((detail, index) => {
-              const pu = (detail as any).product_uom ?? getProductUom(detail.product_uom_id ?? 0)
-              return (
-                <tr key={detail.id}>
-                  <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center' }}>
-                    {index + 1}
-                  </td>
-                  <td style={{ border: '1px solid #000', padding: '2mm' }}>
-                    {pu?.product?.code ?? '-'}
-                  </td>
-                  <td style={{ border: '1px solid #000', padding: '2mm' }}>
-                    {getProductUomName(pu) || `UOM #${detail.product_uom_id}`}
-                  </td>
-                  <td style={{ border: '1px solid #000', padding: '2mm' }}>
-                    {pu?.uom?.name ?? pu?.uom?.code ?? '-'}
-                  </td>
-                  <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right' }}>
-                    {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                  </td>
-                  {/* Batch (kode batch dari backend) */}
-                  <td
-                    style={{
-                      border: '1px solid #000',
-                      padding: '2mm',
-                      overflowWrap: 'anywhere',
-                    }}
-                  >
-                    {detail.product_uom_batch?.batch_code ?? '-'}
-                  </td>
-                  {/* Expired date batch (jika ada) */}
-                  <td style={{ border: '1px solid #000', padding: '2mm', whiteSpace: 'nowrap' }}>
-                    {detail.product_uom_batch?.expiry_date
-                      ? formatDate(detail.product_uom_batch.expiry_date)
-                      : '-'}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-
-        {/* Notes */}
-        {delivery.description && (
-          <div style={{ fontSize: '10pt', marginTop: '5mm' }}>
-            <strong>Catatan:</strong> {delivery.description}
-          </div>
+      {/* Printable A4 Delivery Note (hidden on screen, shown only in print) */}
+      <PrintDocument
+        title="DELIVERY NOTE"
+        company={sjCompany}
+        meta={[
+          { label: 'Delivery No.', value: delivery.code || '-' },
+          { label: 'Date', value: formatPrintDate(delivery.date as any) },
+          { label: 'From', value: delivery.branch?.name ?? '-' },
+          { label: 'To', value: delivery.target_branch?.name ?? '-' },
+          ...(delivery.purchase_order?.code ? [{ label: 'PO Ref.', value: delivery.purchase_order.code }] : []),
+        ]}
+        columns={[
+          { header: 'NO', width: '11mm', align: 'center' },
+          { header: 'CODE', width: '20mm' },
+          { header: 'NAME' },
+          { header: 'UNIT', width: '13mm' },
+          { header: 'DEL', width: '13mm', align: 'center' },
+          { header: 'BATCH', width: '30mm', breakAnywhere: true },
+          { header: 'EXPIRY DATE', width: '28mm', nowrap: true },
+        ]}
+        rows={details.map((detail, index) => {
+          const pu = (detail as any).product_uom ?? getProductUom(detail.product_uom_id ?? 0)
+          return {
+            key: detail.id,
+            cells: [
+              index + 1,
+              pu?.product?.code ?? '-',
+              getProductUomName(pu) || `UOM #${detail.product_uom_id}`,
+              pu?.uom?.name ?? pu?.uom?.code ?? '-',
+              detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 }),
+              detail.product_uom_batch?.batch_code ?? '-',
+              detail.product_uom_batch?.expiry_date ? formatPrintDate(detail.product_uom_batch.expiry_date) : '-',
+            ],
+          }
+        })}
+        afterTable={
+          delivery.description ? (
+            <div>
+              <strong>Notes:</strong> {delivery.description}
+            </div>
+          ) : undefined
+        }
+        signatures={['Sender', 'Receiver']}
+        fileTitle={printFileTitle(
+          `Delivery Note ${delivery.code ?? ''}`,
+          delivery.target_branch?.name,
+          delivery.date ? formatPrintDate(delivery.date as any) : '',
         )}
-
-        {/* Signatures — 2 columns */}
-        <table
-          style={{
-            width: '100%',
-            fontSize: '10pt',
-            marginTop: '28mm',
-            marginBottom: 0,
-            borderCollapse: 'collapse',
-            pageBreakInside: 'avoid',
-            breakInside: 'avoid',
-          }}
-        >
-          <tbody>
-            <tr>
-              {['Pengirim', 'Penerima'].map((label) => (
-                <td key={label} style={{ width: '50%', textAlign: 'center', verticalAlign: 'top', padding: '0 4mm' }}>
-                  <div>{label}</div>
-                  <div style={{ height: '45mm' }} />
-                  <div style={{ marginTop: '8mm' }}>( ____________ )</div>
-                  <div style={{ fontSize: '8pt', marginTop: '1mm' }}>Nama Jelas</div>
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <style>{`
-      .surat-jalan-print { display: none; }
-      @media print {
-        @page { size: A4 portrait; margin: 18mm; }
-        /* Defeat the global pos-print.css rule (body > * { display:none })
-           that otherwise collapses #__next and blanks this page. */
-        body > * { display: block !important; }
-        #pos-receipt { display: none !important; }
-        /* Isolate: hide the on-screen detail UI, show only the surat jalan.
-           Also collapse every hidden element's box (height/min-height) so the
-           app shell (GlobalLayout's height:100vh sidebar/topbar/main) can't
-           leave residual invisible height in the print flow and push a 2nd page. */
-        body * {
-          visibility: hidden !important;
-          height: auto !important;
-          min-height: 0 !important;
-          max-height: none !important;
-        }
-        .surat-jalan-print, .surat-jalan-print * { visibility: visible !important; }
-        .dd-screen { display: none !important; }
-        /* The app shell (AppSidebar renders <aside>, TopBar renders <header>)
-           isn't part of .dd-screen, so visibility:hidden alone left its full
-           expanded-nav content height in the print flow, forcing a 2nd page.
-           Collapse their boxes outright. */
-        aside, header { display: none !important; }
-        .surat-jalan-print {
-          display: block !important;
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 100%;
-          height: auto;
-          margin: 0;
-          padding: 0;
-          overflow: hidden;
-          color: #000;
-          background: #fff;
-          font-family: Arial, Helvetica, sans-serif;
-        }
-        .surat-jalan-print thead { display: table-header-group; }
-      }
-    `}</style>
+      />
     </>
   )
 }

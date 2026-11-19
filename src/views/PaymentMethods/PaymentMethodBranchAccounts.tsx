@@ -14,6 +14,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toastMutationApiError } from '@/utils/apiError'
+import { branchSelectOptions } from '@/lib/branchOptions'
 
 interface Props {
   paymentMethodId: number
@@ -129,7 +130,7 @@ export default function PaymentMethodBranchAccounts({ paymentMethodId, canEdit, 
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches-all', 'pm-branch-accounts'],
-    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name' } as any).then((r) => r.data),
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
   })
   const branches: any[] = useMemo(() => (branchesData as any)?.data ?? [], [branchesData])
 
@@ -274,7 +275,12 @@ export default function PaymentMethodBranchAccounts({ paymentMethodId, canEdit, 
 
   const branchFilterOptions = [
     { value: 0, label: 'Semua outlet' },
-    ...outletRows.map((r) => ({ value: r.branch_id, label: r.name, sublabel: r.code })),
+    // Grouped by company, each outlet followed by its own pickup points.
+    ...branchSelectOptions(
+      outletRows.map((r) => branches.find((b) => Number(b.id) === r.branch_id) ?? { id: r.branch_id, name: r.name, code: r.code }),
+      (b: any) => outletRows.find((r) => r.branch_id === Number(b.id))?.name ?? b.name,
+      (b: any) => ({ sublabel: b.code as string | undefined }),
+    ),
   ]
 
   const statusChip = (value: StatusFilter, label: string) => {

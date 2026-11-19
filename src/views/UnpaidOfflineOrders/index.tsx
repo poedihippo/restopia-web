@@ -191,8 +191,8 @@ export default function UnpaidOfflineOrdersView() {
           setPage(1)
         }}
         quick={
-          <div style={{ width: 280 }}>
-            <DateRange
+          <div style={{ maxWidth: '100%' }}>
+            <DateRange inline
               from={dateFrom}
               to={dateTo}
               onFromChange={(v) => { setDateFrom(v); setPage(1) }}

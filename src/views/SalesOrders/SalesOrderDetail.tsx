@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Plus, Loader2, Trash2, Check, User, Printer, Pencil, RotateCcw, Receipt } from 'lucide-react';
 import BackLink from '@/components/BackLink';
+import PrintDocument, { PrintTotals, formatPrintDate, printFileTitle, usePrintCompany } from '@/components/print/PrintDocument'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service';
 import { paymentsService } from '@/services/payments.service';
 import { paymentMethodsService } from '@/services/payment-methods.service';
@@ -330,6 +331,9 @@ export default function SalesOrderDetail() {
     paymentStatus = 'PARTIAL'
     paymentStatusColor = 'var(--warning)' // orange
   }
+
+  // Print kop = company of the selling branch.
+  const printCompany = usePrintCompany(order?.branch?.id ?? order?.branch_id, order?.branch?.name)
 
   const { hasPermission } = useAuth()
   const canReturn = hasPermission('sales-order.return') || hasPermission('point-of-sale.return')
@@ -1110,171 +1114,81 @@ export default function SalesOrderDetail() {
         </div>
       )}
 
-      {/* 🖨️ Printable A4 Invoice (hidden on screen, shown only in print) */}
-      <div className="invoice-print">
-        {/* Header */}
-        <div style={{ textAlign: 'center', color: '#5c3a21', padding: '6mm 0', marginBottom: '6mm', borderBottom: '2px solid #5c3a21' }}>
-          <div style={{ fontSize: '24pt', fontWeight: 800, letterSpacing: '2px' }}>
-            DAPUR COKELAT
-          </div>
-          <div style={{ fontSize: '14pt', fontWeight: 600, marginTop: '2mm', letterSpacing: '1px', opacity: 0.9 }}>
-            INVOICE
-          </div>
-        </div>
-
-        {/* Invoice Info */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8mm', padding: '0 4mm' }}>
-          <div>
-            <div style={{ fontSize: '10pt', fontWeight: 700, color: '#5c3a21', textTransform: 'uppercase' }}>Billed To</div>
-            <div style={{ fontSize: '12pt', fontWeight: 600, marginTop: '2mm', color: '#333' }}>{order?.customer?.name || '-'}</div>
-            <div style={{ fontSize: '10pt', color: '#666', marginTop: '1mm' }}>{order?.customer?.phone || ''}</div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '10pt', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>Invoice No:</strong> {order?.code || '-'}
-            </div>
-            <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>Date:</strong> {order?.date || '-'}
-            </div>
-            <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>Branch:</strong> {order?.branch?.name || '-'}
-            </div>
-          </div>
-        </div>
-
-        {/* Payment Status Label */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6mm', padding: '0 4mm' }}>
-          <div style={{
-            padding: '6px 16px',
-            border: `2px solid ${paymentStatusColor}`,
-            color: paymentStatusColor,
-            fontWeight: 800,
-            fontSize: '12pt',
-            borderRadius: '6px',
-            textTransform: 'uppercase',
-            letterSpacing: '1px'
-          }}>
-            {paymentStatus}
-          </div>
-        </div>
-
-        {/* Line Items */}
-        <div style={{ padding: '0 4mm', marginBottom: '8mm' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: '8px', overflow: 'hidden' }}>
-            <thead>
-              <tr style={{ color: '#5c3a21' }}>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>No</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>Product Name</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>Qty</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>Unit Price</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {details.map((item: any, i: number) => {
-                  let snap = item.product_inventory_snapshot
-                  if (typeof snap === 'string') {
-                      try { snap = JSON.parse(snap) } catch (e) { }
-                  }
-                  // Prefer product_uom_snapshot (frozen at order time)
-                  const uomSnap = item.product_uom_snapshot
-                  const name =
-                      uomSnap?.product?.name ??
-                      snap?.product_uom?.product?.name ??
-                      snap?.product_uom_batch?.product_uom?.product?.name ??
-                      snap?.name ??
-                      item.product_inventory?.product_uom?.product?.name ??
-                      item.product_uom_batch?.product_uom?.product?.name ??
-                      item.bundle?.name ??
-                      `Item ${item.id ?? i + 1}`
-
-                return (
-                <tr key={i} style={{ borderBottom: '1px solid #e5e5e5' }}>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>{name}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '10pt', color: '#444' }}>{item.qty}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#444' }}>{formatCurrency(Number(item.price))}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 600 }}>{formatCurrency(Number(item.price) * Number(item.qty))}</td>
-                </tr>
-              )})}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Totals */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 4mm' }}>
-          <div style={{ width: '50%', padding: '16px', borderRadius: '8px', border: '1px solid #d4c4a8' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>Subtotal</td>
-                  <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 500 }}>{formatCurrency(subtotal)}</td>
-                </tr>
-                {(order?.additional_charges || []).map((c: any, i: number) => (
-                  <tr key={i}>
-                    <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>
-                      {c.name} {c.tax ? `(${c.tax.name})` : ''}
-                    </td>
-                    <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
-                      {formatCurrency(c.amount)}
-                    </td>
-                  </tr>
-                ))}
-                <tr>
-                      <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>Tax</td>
-                      <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 500 }}>{formatCurrency((order as any)?.tax_amount ?? 0)}</td>
-                    </tr>
-                  {discount > 0 && (
-                    <tr>
-                      <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>Discount</td>
-                    <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', color: '#e11d48', fontWeight: 500 }}>- {formatCurrency(discount)}</td>
-                  </tr>
-                )}
-                <tr>
-                  <td style={{ padding: '8px 0', fontSize: '11pt', fontWeight: 700, color: '#5c3a21', borderTop: '2px dashed #d4c4a8', marginTop: '4px' }}>Grand Total</td>
-                  <td style={{ padding: '8px 0', textAlign: 'right', fontSize: '12pt', fontWeight: 800, color: '#5c3a21', borderTop: '2px dashed #d4c4a8', marginTop: '4px' }}>{formatCurrency(total)}</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>Total Paid</td>
-                  <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', color: '#16a34a', fontWeight: 600 }}>{formatCurrency(totalPaid)}</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '8px 0', fontSize: '11pt', fontWeight: 700, color: '#5c3a21', borderTop: '1px solid #d4c4a8' }}>Remaining Balance</td>
-                  <td style={{ padding: '8px 0', textAlign: 'right', fontSize: '12pt', fontWeight: 800, color: remaining > 0 ? '#e11d48' : '#16a34a', borderTop: '1px solid #d4c4a8' }}>{formatCurrency(Math.max(0, remaining))}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <style>{`
-        .invoice-print { display: none; }
-        @media print {
-          @page { size: A4 portrait; margin: 15mm; }
-          /* Enforce background colors in print */
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+      {/* Printable A4 invoice (hidden on screen, shown only in print) */}
+      <PrintDocument
+        title="INVOICE"
+        company={printCompany}
+        meta={[
+          { label: 'Invoice No.', value: order?.code || '-' },
+          { label: 'Date', value: order?.date ? formatPrintDate(order.date) : '-' },
+          {
+            label: 'Billed To',
+            value: (
+              <>
+                {order?.customer?.name || '-'}
+                {order?.customer?.phone ? ` (${order.customer.phone})` : ''}
+              </>
+            ),
+          },
+          { label: 'Branch', value: order?.branch?.name || '-' },
+          { label: 'Payment', value: paymentStatus },
+        ]}
+        columns={[
+          { header: 'NO', width: '11mm', align: 'center' },
+          { header: 'PRODUCT' },
+          { header: 'QTY', width: '16mm', align: 'center' },
+          { header: 'UNIT PRICE', width: '32mm', align: 'right', nowrap: true },
+          { header: 'SUBTOTAL', width: '34mm', align: 'right', nowrap: true },
+        ]}
+        rows={details.map((item: any, i: number) => {
+          let snap = item.product_inventory_snapshot
+          if (typeof snap === 'string') {
+            try { snap = JSON.parse(snap) } catch (e) { }
           }
-          /* Defeat the global pos-print.css rule that otherwise collapses #__next and blanks this page. */
-          body > * { display: block !important; }
-          #pos-receipt { display: none !important; }
-          /* Isolate: hide the on-screen detail UI, show only the invoice. */
-          body * { visibility: hidden !important; }
-          .invoice-print, .invoice-print * { visibility: visible !important; }
-          .invoice-print {
-            display: block !important;
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            background: #fff;
-            font-family: 'Inter', Arial, Helvetica, sans-serif;
+          // Prefer product_uom_snapshot (frozen at order time)
+          const uomSnap = item.product_uom_snapshot
+          const name =
+            uomSnap?.product?.name ??
+            snap?.product_uom?.product?.name ??
+            snap?.product_uom_batch?.product_uom?.product?.name ??
+            snap?.name ??
+            item.product_inventory?.product_uom?.product?.name ??
+            item.product_uom_batch?.product_uom?.product?.name ??
+            item.bundle?.name ??
+            `Item ${item.id ?? i + 1}`
+          return {
+            key: item.id ?? i,
+            cells: [
+              i + 1,
+              name,
+              item.qty,
+              formatCurrency(Number(item.price)),
+              formatCurrency(Number(item.price) * Number(item.qty)),
+            ],
           }
-          .invoice-print thead { display: table-header-group; }
+        })}
+        afterTable={
+          <PrintTotals
+            lines={[
+              { label: 'Subtotal', value: formatCurrency(subtotal) },
+              ...((order?.additional_charges || []) as any[]).map((c: any) => ({
+                label: `${c.name}${c.tax ? ` (${c.tax.name})` : ''}`,
+                value: formatCurrency(c.amount),
+              })),
+              { label: 'Tax', value: formatCurrency((order as any)?.tax_amount ?? 0) },
+              ...(discount > 0 ? [{ label: 'Discount', value: `- ${formatCurrency(discount)}` }] : []),
+              { label: 'Grand Total', value: formatCurrency(total), strong: true, ruleAbove: true },
+              { label: 'Total Paid', value: formatCurrency(totalPaid) },
+              { label: 'Remaining Balance', value: formatCurrency(Math.max(0, remaining)), strong: true, ruleAbove: true },
+            ]}
+          />
         }
-      `}</style>
+        fileTitle={printFileTitle(
+          `Invoice ${order?.code ?? ''}`,
+          order?.customer?.name,
+          order?.date ? formatPrintDate(order.date) : '',
+        )}
+      />
     </div>
   );
 }

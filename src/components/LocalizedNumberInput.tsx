@@ -18,6 +18,8 @@ interface LocalizedNumberInputProps {
   'aria-label'?: string
   /** Select the whole value on focus/click so typing replaces it (e.g. POS qty). */
   selectOnFocus?: boolean
+  /** Keystrokes that would make the value >= this are ignored (e.g. a DP below the total). */
+  maxExclusive?: number
 }
 
 const baseStyle: React.CSSProperties = {
@@ -47,11 +49,15 @@ export default function LocalizedNumberInput({
   name,
   'aria-label': ariaLabel,
   selectOnFocus = false,
+  maxExclusive,
 }: LocalizedNumberInputProps) {
   const numeric = typeof value === 'number' ? value : parseNumberId(value)
   const formatOpts = { pad: padDecimals }
   const [text, setText] = useState(() => formatNumberId(numeric, decimals, formatOpts))
   const [focused, setFocused] = useState(false)
+  // A click focuses the field and its mouseup then collapses the selection:
+  // swallow that one mouseup so "select all on focus" sticks.
+  const justFocusedRef = React.useRef(false)
 
   useEffect(() => {
     if (!focused) {
@@ -63,12 +69,14 @@ export default function LocalizedNumberInput({
     // Saat mengetik: pemisah ribuan "." langsung tampil, bagian desimal
     // dibiarkan (tidak dipotong) sampai blur.
     const next = formatWhileTyping(e.target.value)
+    if (maxExclusive != null && parseNumberId(next) >= maxExclusive) return
     setText(next)
     onChange?.(parseNumberId(next))
   }
 
   const handleBlur = () => {
     setFocused(false)
+    justFocusedRef.current = false
     const n = parseNumberId(text)
     // Saat blur: desimal dibatasi sesuai `decimals` dan dirapikan formatnya.
     setText(formatNumberId(n, decimals, formatOpts))
@@ -92,7 +100,14 @@ export default function LocalizedNumberInput({
         if (selectOnFocus) {
           // Next frame: a mouse click would otherwise collapse the selection.
           const el = e.currentTarget
+          justFocusedRef.current = true
           requestAnimationFrame(() => el.select())
+        }
+      }}
+      onMouseUp={(e) => {
+        if (selectOnFocus && justFocusedRef.current) {
+          e.preventDefault()
+          justFocusedRef.current = false
         }
       }}
       onBlur={handleBlur}

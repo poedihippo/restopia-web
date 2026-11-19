@@ -96,7 +96,8 @@ const chipStyle: React.CSSProperties = {
  * suggestion links the order to that customer (customer_id); otherwise the
  * typed name/phone are sent as free text.
  */
-function CustomerField({
+/** Customer search / name + phone, shared by Konfirmasi Pesanan and the Payment modal. */
+export function CustomerField({
   open,
   selectedName,
   onClear,
@@ -400,7 +401,7 @@ export default function PosOrderReviewModal({
     setVoucherWarn(false)
   }
   // An online order belongs to a marketplace: no channel, no order.
-  const missingChannel = orderType === 'online' && !salesChannelId
+  const missingChannel = !salesChannelId
   const handleProceed = () => {
     if (missingChannel) return
     if (voucherPending) {
@@ -498,11 +499,7 @@ export default function PosOrderReviewModal({
               <span style={chipStyle}>
                 {orderType === 'online' ? 'Online' : 'Offline'}
               </span>
-              {orderType !== 'online' && salesChannelName && (
-                <span style={chipStyle}>
-                  {salesChannelName}
-                </span>
-              )}
+
             </div>
           </div>
           <button
@@ -530,7 +527,8 @@ export default function PosOrderReviewModal({
             background: 'var(--background)',
           }}
         >
-          {orderType === 'online' && setSalesChannelId && (
+          {/* Sales channel lives here (not in Payment) for every order type. */}
+          {setSalesChannelId && (
             <div>
               <span style={fieldLabel}>
                 Sales Channel <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -552,7 +550,9 @@ export default function PosOrderReviewModal({
               </select>
               {!salesChannelId && (
                 <div style={{ fontSize: 12, color: 'var(--warning)', marginTop: 6 }}>
-                  Pilih sales channel (GoFood, GrabFood, …) untuk membuat order.
+                  {orderType === 'online'
+                    ? 'Pilih sales channel (GoFood, GrabFood, …) untuk membuat order.'
+                    : 'Pilih sales channel (mis. Walk-in).'}
                 </div>
               )}
             </div>

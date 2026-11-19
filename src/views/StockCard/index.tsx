@@ -383,8 +383,8 @@ export default function StockCardView() {
         }}
         quick={
           <>
-            <div style={{ width: 280, maxWidth: '100%' }} title="Periode">
-              <DateRange
+            <div style={{ maxWidth: '100%' }} title="Periode">
+              <DateRange inline
                 from={startDate}
                 to={endDate}
                 onFromChange={setStartDate}

@@ -12,6 +12,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { withProductType } from '@/utils/productUomName'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { X, Loader2 } from 'lucide-react'
 
 const INCLUDE =
@@ -70,32 +71,45 @@ export default function ProductUomBatchSheet({
 
   const activeProductTypes = useActiveBranchProductTypes()
 
-  // Create mode — product UOMs for the picker (single call, no loop)
-  const { data: puData, isLoading: puLoading } = useQuery({
+  // Product UOMs for the picker — paged (20 per page, next page on scroll),
+  // search delegated to the server (`filter[search]`).
+  const puOpts = useInfiniteOptions<any>({
     queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch],
     enabled: open,
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           'filter[search]': debouncedDropdownSearch || undefined,
-          per_page: 1000,
+          per_page: 20,
+          sort: 'id',
           include: 'product,uom',
           'filter[product_types]': activeProductTypes,
           'filter[is_active]': true,
         } as any)
         .then((r) => r.data),
   })
-  const allProductUoms = (puData as any)?.data ?? []
+  const puLoading = puOpts.loading
+  const allProductUoms = puOpts.items
   const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
 
-  const productUomOptions = productUoms.map((pu: any) => ({
+  const toPuOption = (pu: any) => ({
     value: pu.id as number,
     label: withProductType(
       `${pu.product?.name ?? 'Product'} — ${pu.uom?.name ?? pu.uom?.code ?? 'UOM'}`,
       pu.product?.type,
     ),
     description: pu.code ?? undefined,
-  }))
+  })
+  const productUomOptions = productUoms.map(toPuOption)
+  // Edit mode: the batch's saved product UOM may not be on a loaded page yet —
+  // keep its label from the included relation.
+  if (
+    batch?.product_uom?.id &&
+    !productUomOptions.some((o: any) => o.value === batch.product_uom.id)
+  ) {
+    productUomOptions.unshift(toPuOption(batch.product_uom))
+  }
 
   // Populate / reset the form whenever the sheet opens
   useEffect(() => {
@@ -312,6 +326,7 @@ export default function ProductUomBatchSheet({
                       loading={puLoading}
                       error={errors.product_uom_id?.message}
                       onSearchChange={setDropdownSearch}
+                      {...puOpts.selectProps}
 />
                   )}
                 />

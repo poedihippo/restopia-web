@@ -23,6 +23,7 @@ import {
   X,
   Loader2,
 } from 'lucide-react'
+import ActiveToggle from '@/components/ActiveToggle'
 
 interface Stage {
   id: number
@@ -215,36 +216,7 @@ function StageSheet({ open, onClose, editData }: StageSheetProps) {
               name="is_active"
               control={control}
               render={({ field }) => (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {([true, false] as const).map((val) => {
-                    const isSelected = field.value === val
-                    return (
-                      <button
-                        key={String(val)}
-                        type="button"
-                        onClick={() => field.onChange(val)}
-                        style={{
-                          padding: '6px 16px',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: 13,
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          background: isSelected
-                            ? val
-                              ? 'var(--success-bg)'
-                              : 'var(--destructive-bg)'
-                            : 'var(--background)',
-                          color: isSelected ? (val ? 'var(--success)' : 'var(--destructive)') : 'var(--foreground-muted)',
-                          border: isSelected
-                            ? `1px solid ${val ? 'var(--success)' : 'var(--destructive)'}`
-                            : '1px solid var(--border)',
-                        }}
-                      >
-                        {val ? 'Aktif' : 'Nonaktif'}
-                      </button>
-                    )
-                  })}
-                </div>
+                <ActiveToggle value={field.value} onChange={field.onChange} activeLabel="Aktif" inactiveLabel="Nonaktif" />
               )}
             />
           </div>

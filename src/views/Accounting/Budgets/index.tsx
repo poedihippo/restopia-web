@@ -16,7 +16,11 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { blockedStyle } from '@/lib/actionGuards'
+import AccountingBranchFilter, { accountingBranchParam, useBranchNameOf, useOtherBranchBlock } from '../AccountingBranchFilter'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
+import { useDebounce } from '@/hooks/useDebounce'
 import { Controller } from 'react-hook-form'
 import {
   Plus, Pencil, Trash2,
@@ -67,6 +71,10 @@ export default function BudgetsView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [coaFilter, setCoaFilter] = useState(0)
   const [periodFilter, setPeriodFilter] = useState('')
+  // '' = every branch of the company (accounting is run by head office).
+  const [branchFilter, setBranchFilter] = useState('')
+  const branchNameOf = useBranchNameOf()
+  const otherBranchBlock = useOtherBranchBlock()
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -79,17 +87,20 @@ export default function BudgetsView() {
 
   useEffect(() => { const t = setTimeout(() => setDebouncedPeriodSearch(periodSearch), 400); return () => clearTimeout(t) }, [periodSearch])
   useEffect(() => { const t = setTimeout(() => setDebouncedCoaSearch(coaSearch), 400); return () => clearTimeout(t) }, [coaSearch])
+  const [filterCoaSearch, setFilterCoaSearch] = useState('')
+  const debouncedFilterCoaSearch = useDebounce(filterCoaSearch, 400)
 
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
-    queryKey: ['budgets', page, perPage, debouncedSearch, coaFilter, periodFilter],
+    queryKey: ['budgets', page, perPage, debouncedSearch, coaFilter, periodFilter, branchFilter],
     queryFn: () => budgetsService.list({
-      page, per_page: perPage, sort: '-id', include: 'chart_of_account,period',
+      page, per_page: perPage, sort: '-id', include: 'chart_of_account,period,branch',
       'filter[search]': debouncedSearch || undefined,
       'filter[chart_of_account_id]': coaFilter || undefined,
       'filter[period_id]': periodFilter || undefined,
+      ...accountingBranchParam(branchFilter),
     } as any).then((r) => r.data),
   })
   // Any refetch (after a create/update/delete invalidates the list, or a
@@ -101,30 +112,42 @@ export default function BudgetsView() {
     queryKey: ['periods-all', ''],
     queryFn: () => periodsService.list({ per_page: 1000, sort: '-id' } as any).then((r) => r.data),
   })
-  const { data: filterCoaData } = useQuery({
-    queryKey: ['chart-of-accounts-all', 'budgets-filter'],
-    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code' } as any).then((r) => r.data),
+  const filterCoaOpts = useInfiniteOptions<CoA>({
+    queryKey: ['chart-of-accounts-all', 'budgets-filter', debouncedFilterCoaSearch],
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 20, sort: 'code,id', 'filter[search]': debouncedFilterCoaSearch || undefined } as any).then((r) => r.data),
   })
   const filterPeriods: Period[] = (filterPeriodsData as any)?.data ?? []
-  const filterCoaOptions = [
-    { value: 0, label: 'All Accounts' },
-    ...(((filterCoaData as any)?.data ?? []) as CoA[]).map((a) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
-  ]
 
   const { data: periodsData } = useQuery({
     queryKey: ['periods-all', debouncedPeriodSearch],
     queryFn: () => periodsService.list({ per_page: 1000, sort: '-id', 'filter[search]': debouncedPeriodSearch || undefined }).then((r) => r.data),
   })
 
-  const { data: coaData } = useQuery({
+  const coaOpts = useInfiniteOptions<CoA>({
     queryKey: ['chart-of-accounts-all', 'budgets', debouncedCoaSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaSearch || undefined }).then((r) => r.data),
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 20, sort: 'code,id', 'filter[search]': debouncedCoaSearch || undefined } as any).then((r) => r.data),
   })
 
   const items: Budget[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
   const periods: Period[] = (periodsData as any)?.data ?? []
-  const accounts: CoA[] = (coaData as any)?.data ?? []
+  const accounts: CoA[] = coaOpts.items
+
+  // id → account cache (loaded pages + budgets' included chart_of_account) so a chosen
+  // account keeps its label when it is outside the loaded pages.
+  const seenCoaRef = React.useRef(new Map<number, CoA>())
+  for (const a of [...filterCoaOpts.items, ...accounts]) seenCoaRef.current.set(a.id, a)
+  for (const b of items) if (b.chart_of_account?.id) seenCoaRef.current.set(b.chart_of_account.id, b.chart_of_account as CoA)
+  if (editData?.chart_of_account?.id) seenCoaRef.current.set(editData.chart_of_account.id, editData.chart_of_account as CoA)
+  const coaOptionsWith = (list: CoA[], id: unknown) => {
+    const n = Number(id) || 0
+    const rows = n && !list.some((a) => a.id === n) && seenCoaRef.current.has(n) ? [...list, seenCoaRef.current.get(n)!] : list
+    return rows.map((a) => ({ value: a.id, label: `${a.code} – ${a.name}` }))
+  }
+  const filterCoaOptions = [
+    { value: 0, label: 'All Accounts' },
+    ...coaOptionsWith(filterCoaOpts.items, coaFilter),
+  ]
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => budgetsService.delete(id),
@@ -155,7 +178,12 @@ export default function BudgetsView() {
   })
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
-    mutationFn: () => reportsService.exportBudgets(),
+    // Same filter[...] keys as the list (the export reuses the budget list query).
+    mutationFn: () => reportsService.exportBudgets({
+      'filter[chart_of_account_id]': coaFilter || undefined,
+      'filter[period_id]': periodFilter || undefined,
+      ...accountingBranchParam(branchFilter),
+    } as any),
     onSuccess: (res) => { downloadFileFromResponse(res, 'budgets.xlsx') },
     onError: () => toast.error('Gagal mengekspor data.'),
   })
@@ -189,10 +217,11 @@ export default function BudgetsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search budgets..."
-        activeCount={countActive(coaFilter, periodFilter)}
-        onClear={() => { setCoaFilter(0); setPeriodFilter(''); setPage(1) }}
+        activeCount={countActive(coaFilter, periodFilter, branchFilter)}
+        onClear={() => { setBranchFilter(''); setCoaFilter(0); setPeriodFilter(''); setPage(1) }}
         quick={
           <>
+            <AccountingBranchFilter value={branchFilter} onChange={(v) => { setBranchFilter(v); setPage(1) }} />
             <div style={{ width: 260 }}>
               <SearchableSelect
                 value={coaFilter}
@@ -200,6 +229,9 @@ export default function BudgetsView() {
                 options={filterCoaOptions}
                 placeholder="All Accounts"
                 searchPlaceholder="Search account..."
+                onSearchChange={setFilterCoaSearch}
+                loading={filterCoaOpts.loading}
+                {...filterCoaOpts.selectProps}
                 triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
               />
             </div>
@@ -216,6 +248,7 @@ export default function BudgetsView() {
           <thead>
             <tr>
               <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
+              <th style={{ ...thStyle, width: 150 }}>Branch</th>
               <th style={thStyle}>Account</th>
               <th style={{ ...thStyle, width: 180 }}>Periode</th>
               <th style={{ ...thStyle, width: 160, textAlign: 'right' }}>Amount Budgets</th>
@@ -225,12 +258,12 @@ export default function BudgetsView() {
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 5 }).map((__, j) => (
+                <tr key={i}>{Array.from({ length: 6 }).map((__, j) => (
                   <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 4 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
                 ))}</tr>
               ))
             ) : items.length === 0 ? (
-              <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <PiggyBank size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No budgets found</span>
@@ -244,6 +277,7 @@ export default function BudgetsView() {
                   <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
                     {(page - 1) * perPage + idx + 1}
                   </td>
+                  <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{branchNameOf(item as any)}</span></td>
                   <td style={tdStyle}>
                     {item.chart_of_account
                       ? <div><span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--foreground-muted)', marginRight: 6 }}>{item.chart_of_account.code}</span><span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{item.chart_of_account.name}</span></div>
@@ -255,8 +289,16 @@ export default function BudgetsView() {
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                      {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
-                      {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
+                      {(() => {
+                        // Writes go to the budget's own branch (the API scopes them to the active branch).
+                        const branchBlock = otherBranchBlock(item as any)
+                        return (
+                          <>
+                            {canUpdate && <button onClick={() => { if (!branchBlock) { setEditData(item); setSheetOpen(true) } }} disabled={!!branchBlock} title={branchBlock ?? 'Edit'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex', ...(branchBlock ? blockedStyle : {}) }}><Pencil size={14} /></button>}
+                            {canDelete && <button onClick={() => { if (!branchBlock) setDeleteConfirmId(item.id) }} disabled={!!branchBlock} title={branchBlock ?? 'Delete'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex', ...(branchBlock ? blockedStyle : {}) }}><Trash2 size={14} /></button>}
+                          </>
+                        )
+                      })()}
                     </div>
                   </td>
                 </tr>
@@ -300,11 +342,13 @@ export default function BudgetsView() {
                     <SearchableSelect
                       value={field.value ? Number(field.value) : 0}
                       onChange={(val) => field.onChange(Number(val) || 0)}
-                      options={accounts.map((a) => ({ value: a.id, label: `${a.code} – ${a.name}` }))}
+                      options={coaOptionsWith(accounts, field.value)}
                       placeholder="-- Select Account --"
                       searchPlaceholder="Search account..."
                       error={errors.chart_of_account_id?.message}
                       onSearchChange={setCoaSearch}
+                      loading={coaOpts.loading}
+                      {...coaOpts.selectProps}
                     />
                   )}
                 />

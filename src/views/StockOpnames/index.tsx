@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { stockOpnamesService } from '@/services/stock-opnames.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups, withBranchDetails } from '@/lib/branchOptions'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
@@ -66,13 +67,12 @@ export default function StockOpnamesView() {
   // Branch filter options: superadmin sees every branch, other users only
   // the branches they're assigned to (filter hidden for single-branch users).
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
-    enabled: !!isSuperadmin,
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const availableBranches: any[] = isSuperadmin
     ? (branchesData as any)?.data ?? []
-    : (user as any)?.branches ?? []
+    : withBranchDetails((user as any)?.branches, (branchesData as any)?.data ?? [], (user as any)?.branch?.company)
   const showBranchFilter = !!isSuperadmin || availableBranches.length > 1
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
@@ -199,11 +199,7 @@ export default function StockOpnamesView() {
                 }}
               >
                 <option value="">All Branches</option>
-                {availableBranches.map((b: any) => (
-                  <option key={b.id} value={String(b.id)}>
-                    {b.name}
-                  </option>
-                ))}
+                <BranchOptionGroups branches={availableBranches} label={(b: any) => b.name} getValue={(b: any) => String(b.id)} />
               </FilterSelect>
             )}
           </>

@@ -8,6 +8,7 @@ import { Download, Loader2, ArrowUpRight } from 'lucide-react'
 import { FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, DateRange, countActive } from '@/components/ListFilters'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { usersService } from '@/services/users.service'
 import { customersService } from '@/services/customers.service'
@@ -120,8 +121,8 @@ export default function SalesOrdersView() {
   }, [customerSearch])
 
   const { data: branchesData } = useQuery({
-    queryKey: ['so-filter-branches'],
-    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
+    queryKey: ['so-filter-branches', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 200, sort: 'name', include: 'company' } as any).then((r) => r.data),
   })
   const branchOptions: any[] = (branchesData as any)?.data ?? []
 
@@ -613,9 +614,7 @@ export default function SalesOrdersView() {
               }}
             >
               <option value="">All branches</option>
-              {branchOptions.map((b: any) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
+              <BranchOptionGroups branches={branchOptions} label={(b: any) => b.name} getValue={(b) => b.id} />
             </FilterSelect>
           </FilterField>
           <FilterField label="Buyer branch">
@@ -628,9 +627,7 @@ export default function SalesOrdersView() {
               }}
             >
               <option value="">All buyer branches</option>
-              {branchOptions.map((b: any) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
+              <BranchOptionGroups branches={branchOptions} label={(b: any) => b.name} getValue={(b) => b.id} />
             </FilterSelect>
           </FilterField>
           <FilterField label="Sales channel">

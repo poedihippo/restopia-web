@@ -13,6 +13,8 @@ export interface CompletedTransaction {
   change: number
   isOnline: boolean
   isPartial: boolean
+  /** Kredit Customer saved with nothing paid now. */
+  isCustomerCredit?: boolean
   /** Remaining balance after a DP / partial payment. */
   remaining: number
   printedCount: number
@@ -63,7 +65,7 @@ export default function PosTransactionCompleteModal({
 
   if (!transaction) return null
 
-  const { receipt, tendered, change, isOnline, isPartial, remaining, printedCount } = transaction
+  const { receipt, tendered, change, isOnline, isPartial, remaining, printedCount, isCustomerCredit } = transaction
   const totalQty = receipt.items.reduce((s, i) => s + Number(i.qty || 0), 0)
 
   const row = (label: string, value: React.ReactNode, strong = false) => (
@@ -74,7 +76,13 @@ export default function PosTransactionCompleteModal({
       </span>
     </div>
   )
-  const title = isOnline ? 'Online Order Created' : isPartial ? 'Down Payment Received' : 'Payment Successful'
+  const title = isOnline
+    ? 'Online Order Created'
+    : isCustomerCredit
+      ? 'Kredit Customer Disimpan'
+      : isPartial
+        ? 'Down Payment Received'
+        : 'Payment Successful'
 
   return (
     <div

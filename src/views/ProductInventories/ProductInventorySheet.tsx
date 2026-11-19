@@ -4,7 +4,7 @@ import React, { useState,  useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -12,6 +12,7 @@ import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 
 
 
@@ -118,20 +119,26 @@ export default function ProductInventorySheet({
     },
   })
 
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
+  // Product UOMs for the create picker — paged (20 per page, next page on
+  // scroll), search delegated to the server (`filter[search]`). The picker is
+  // create-only; SearchableSelect keeps the chosen option's label.
+  const productUomOpts = useInfiniteOptions<any>({
     queryKey: ['product-uoms-all', debouncedDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           'filter[search]': debouncedDropdownSearch || undefined,
-          per_page: 1000,
+          per_page: 20,
+          sort: 'id',
           include: 'product,uom',
           'filter[is_active]': true,
-        })
+        } as any)
         .then((r) => r.data),
     enabled: !isEditMode,
   })
-  const productUoms = (productUomsData as any)?.data ?? []
+  const productUomsLoading = productUomOpts.loading
+  const productUoms = productUomOpts.items
 
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
@@ -329,6 +336,7 @@ export default function ProductInventorySheet({
                     loading={productUomsLoading}
                     error={errors.product_uom_id?.message as string | undefined}
                     onSearchChange={setDropdownSearch}
+                    {...productUomOpts.selectProps}
 />
                 )}
               />

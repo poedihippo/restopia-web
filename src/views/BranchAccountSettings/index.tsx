@@ -7,7 +7,9 @@ import { branchesService } from '@/services/branches.service'
 import { accountSettingsService } from '@/services/account-settings.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useAuth } from '@/hooks/useAuth'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import BranchAccountSettingSheet from './BranchAccountSettingSheet'
 import AccountSettingUsageCell, { AccountSettingDetailDialog } from '@/components/AccountSettingUsage'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -62,19 +64,18 @@ export default function BranchAccountSettingsView() {
     const t = setTimeout(() => setDebouncedCoaFilterSearch(coaFilterSearch), 400)
     return () => clearTimeout(t)
   }, [coaFilterSearch])
-  const { data: coaFilterData, isFetching: coaFilterLoading } = useQuery({
+  const coaFilterOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-all', 'branch-filter', debouncedCoaFilterSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
-    placeholderData: (prev: any) => prev,
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 20, sort: 'code,id', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
   })
   const coaFilterOptions = [
     { value: 0, label: 'All Accounts' },
-    ...((coaFilterData as any)?.data ?? []).map((a: any) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
+    ...coaFilterOpts.items.map((a: any) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
   ]
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'by-name'],
-    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then(r => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then(r => r.data),
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []
 
@@ -143,9 +144,7 @@ export default function BranchAccountSettingsView() {
           <>
             <FilterSelect value={branchFilter} onChange={(e) => setBranchFilter(e.target.value ? Number(e.target.value) : '')} style={{ minWidth: 200 }}>
               <option value="">All Branches</option>
-              {allBranches.map((b: any) => (
-                <option key={b.id} value={b.id}>{b.code} - {b.name}</option>
-              ))}
+              <BranchOptionGroups branches={allBranches} label={(b: any) => `${b.code} - ${b.name}`} getValue={(b: any) => b.id} />
             </FilterSelect>
             <FilterSelect value={keyFilter} onChange={(e) => setKeyFilter(e.target.value ? Number(e.target.value) : '')} style={{ maxWidth: 240 }}>
               <option value="">All Account Keys</option>
@@ -161,7 +160,8 @@ export default function BranchAccountSettingsView() {
                 placeholder="All Accounts"
                 searchPlaceholder="Search account..."
                 triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
-                loading={coaFilterLoading}
+                loading={coaFilterOpts.loading}
+                {...coaFilterOpts.selectProps}
                 onSearchChange={setCoaFilterSearch}
               />
             </div>

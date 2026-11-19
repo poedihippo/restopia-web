@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { recipesService } from '@/services/recipes.service'
-import { X, Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, Search, Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { getProductUomName } from '@/utils/productUomName'
 
 interface RecipeImportModalProps {
@@ -17,8 +17,11 @@ export default function RecipeImportModal({
   onImport,
 }: RecipeImportModalProps) {
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const perPage = 15
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
   const [selectedRecipesMap, setSelectedRecipesMap] = useState<Record<number, any>>({})
 
   // Filter recipes by logged-in user's branch type
@@ -27,26 +30,35 @@ export default function RecipeImportModal({
     ? undefined
     : user?.branch?.type
 
-  // Fetch ALL recipes (total is only 178 recipes, takes only 2 fast requests of 100 items)
-  const { data: allRecipes = [], isLoading, isFetching } = useQuery({
+  // Recipes in pages of 20; the next page loads when the list is scrolled to the
+  // bottom. GET /recipes' filter[search] only matches the `qty` column (no product
+  // name / SKU), so the text search below stays client-side over the loaded pages —
+  // and while the sentinel stays visible (few/no matches) pages keep loading.
+  const recipesQuery = useInfiniteOptions<any>({
     queryKey: ['all-recipes-for-modal', recipeTypeFilter],
     enabled: open,
-    queryFn: () =>
+    staleTime: 60 * 1000,
+    fetchPage: (page) =>
       recipesService
         .list({
-          per_page: 1000,
+          page,
+          per_page: 20,
           include: 'product_uom,recipe_materials',
           sort: '-id',
           ...(recipeTypeFilter ? { 'filter[type]': recipeTypeFilter } : {}),
         } as any)
-        .then((r) => (r.data as any)?.data ?? []),
-    staleTime: 60 * 1000,
+        .then((r) => r.data),
   })
+  const allRecipes = recipesQuery.items
+  const { isLoading, isFetching, hasNextPage, isFetchingNextPage, fetchNextPage } = recipesQuery
+  const totalRecipes = Number(
+    ((recipesQuery.data?.pages?.[0] as any)?.data?.meta ?? (recipesQuery.data?.pages?.[0] as any)?.meta)?.total ?? 0,
+  )
 
-  // Instant client-side search across all loaded recipes
+  // Client-side search across the loaded recipes (debounced)
   const filteredRecipes = useMemo(() => {
-    if (!search.trim()) return allRecipes
-    const q = search.toLowerCase().trim()
+    if (!debouncedSearch.trim()) return allRecipes
+    const q = debouncedSearch.toLowerCase().trim()
     return allRecipes.filter((r: any) => {
       const productName = (r.product_uom?.product?.name || '').toLowerCase()
       const productCode = (r.product_uom?.product?.code || '').toLowerCase()
@@ -69,21 +81,24 @@ export default function RecipeImportModal({
         materialsMatch
       )
     })
-  }, [allRecipes, search])
+  }, [allRecipes, debouncedSearch])
 
-  // Reset to page 1 whenever search query changes
+  // Load the next page when the bottom sentinel scrolls into the list's view. The
+  // observer is re-created after every page, so it fires again if still visible.
+  const listRef = useRef<HTMLDivElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    setPage(1)
-  }, [search])
-
-  const totalItems = filteredRecipes.length
-  const totalPages = Math.ceil(totalItems / perPage) || 1
-
-  // Paginated slice
-  const paginatedRecipes = useMemo(() => {
-    const start = (page - 1) * perPage
-    return filteredRecipes.slice(start, start + perPage)
-  }, [filteredRecipes, page, perPage])
+    const el = sentinelRef.current
+    if (!open || !el || !hasNextPage || isFetchingNextPage) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) fetchNextPage()
+      },
+      { root: listRef.current, rootMargin: '0px 0px 80px 0px' },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [open, hasNextPage, isFetchingNextPage, fetchNextPage, filteredRecipes.length, isLoading])
 
   const toggleSelect = (recipe: any) => {
     setSelectedRecipesMap((prev) => {
@@ -100,7 +115,7 @@ export default function RecipeImportModal({
   const selectAllCurrentPage = () => {
     setSelectedRecipesMap((prev) => {
       const next = { ...prev }
-      paginatedRecipes.forEach((r: any) => {
+      filteredRecipes.forEach((r: any) => {
         next[r.id] = r
       })
       return next
@@ -119,20 +134,15 @@ export default function RecipeImportModal({
     onClose()
     setSelectedRecipesMap({})
     setSearch('')
-    setPage(1)
   }
 
   const handleClose = () => {
     onClose()
     setSelectedRecipesMap({})
     setSearch('')
-    setPage(1)
   }
 
   if (!open) return null
-
-  const fromItem = totalItems > 0 ? (page - 1) * perPage + 1 : 0
-  const toItem = totalItems > 0 ? Math.min(page * perPage, totalItems) : 0
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -236,19 +246,20 @@ export default function RecipeImportModal({
               <button
                 type="button"
                 onClick={selectAllCurrentPage}
-                disabled={paginatedRecipes.length === 0}
+                disabled={filteredRecipes.length === 0}
                 style={{
                   fontSize: 12,
                   padding: '6px 12px',
                   background: 'var(--background)',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
-                  cursor: paginatedRecipes.length === 0 ? 'not-allowed' : 'pointer',
+                  cursor: filteredRecipes.length === 0 ? 'not-allowed' : 'pointer',
                   color: 'var(--foreground)',
-                  opacity: paginatedRecipes.length === 0 ? 0.6 : 1,
+                  opacity: filteredRecipes.length === 0 ? 0.6 : 1,
                 }}
               >
-                Select Page
+                {/* The count makes clear how many recipes (all loaded ones, not one page) get selected. */}
+                Select Shown ({filteredRecipes.length})
               </button>
               <button
                 type="button"
@@ -277,15 +288,16 @@ export default function RecipeImportModal({
                 <Loader2 size={24} className="animate-spin" style={{ color: 'var(--foreground-muted)' }} />
                 <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Loading recipes...</span>
               </div>
-            ) : paginatedRecipes.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                {search
-                  ? `No recipes found matching "${search}".`
-                  : 'No recipes found.'}
-              </div>
             ) : (
-              <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                {paginatedRecipes.map((recipe: any) => {
+              <div ref={listRef} style={{ maxHeight: 320, overflowY: 'auto' }}>
+                {filteredRecipes.length === 0 && !hasNextPage && (
+                  <div style={{ padding: 40, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    {debouncedSearch
+                      ? `No recipes found matching "${debouncedSearch}".`
+                      : 'No recipes found.'}
+                  </div>
+                )}
+                {filteredRecipes.map((recipe: any) => {
                   const selected = !!selectedRecipesMap[recipe.id]
                   const recipeName =
                     getProductUomName(recipe.product_uom, recipe.product_uom?.product?.name) ||
@@ -345,61 +357,27 @@ export default function RecipeImportModal({
                     </div>
                   )
                 })}
+                {hasNextPage && (
+                  <div
+                    ref={sentinelRef}
+                    style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, color: 'var(--foreground-muted)' }}
+                  >
+                    {isFetchingNextPage && <Loader2 size={12} className="animate-spin" />}
+                    {isFetchingNextPage ? 'Memuat...' : 'Scroll untuk memuat lebih banyak'}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* Pagination Controls */}
-          {totalItems > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--foreground-muted)' }}>
+          {/* Loaded count */}
+          {filteredRecipes.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', fontSize: 12, color: 'var(--foreground-muted)' }}>
               <span>
-                Showing {fromItem}–{toItem} of {totalItems} recipes
+                {debouncedSearch
+                  ? `${filteredRecipes.length} matching of ${allRecipes.length} loaded recipes`
+                  : `Showing ${allRecipes.length}${totalRecipes > 0 ? ` of ${totalRecipes}` : ''} recipes`}
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    padding: '4px 8px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border)',
-                    background: 'var(--background)',
-                    cursor: page === 1 ? 'not-allowed' : 'pointer',
-                    color: 'var(--foreground)',
-                    opacity: page === 1 ? 0.5 : 1,
-                  }}
-                >
-                  <ChevronLeft size={14} />
-                  Prev
-                </button>
-                <span style={{ padding: '0 4px', fontWeight: 500 }}>
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    padding: '4px 8px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border)',
-                    background: 'var(--background)',
-                    cursor: page >= totalPages ? 'not-allowed' : 'pointer',
-                    color: 'var(--foreground)',
-                    opacity: page >= totalPages ? 0.5 : 1,
-                  }}
-                >
-                  Next
-                  <ChevronRight size={14} />
-                </button>
-              </div>
             </div>
           )}
         </div>

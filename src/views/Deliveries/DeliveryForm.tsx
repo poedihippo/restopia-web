@@ -10,17 +10,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
+import { branchSelectOptions } from '@/lib/branchOptions'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { companiesService } from '@/services/companies.service'
-import { dimensionTransferRequestsService } from '@/services/dimension-transfer-requests.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import api from '@/hooks/useApi'
-import { Plus, Trash2, Loader2, Save, ArrowRightLeft } from 'lucide-react'
+import { Plus, Trash2, Loader2, Save } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 import SearchableSelect from '@/components/SearchableSelect'
 
@@ -129,13 +129,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     if (productSearchTimer.current) clearTimeout(productSearchTimer.current)
   }, [])
 
-  const [branchSearch, setBranchSearch] = useState('')
-  const [branchSearchDebounced, setBranchSearchDebounced] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => setBranchSearchDebounced(branchSearch), 400)
-    return () => clearTimeout(t)
-  }, [branchSearch])
-
   const [companySearch, setCompanySearch] = useState('')
   const [companySearchDebounced, setCompanySearchDebounced] = useState('')
   useEffect(() => {
@@ -229,16 +222,11 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     0
   )
 
-  // Dimension transfer state
-  const [enableDimensionTransfer, setEnableDimensionTransfer] = useState(false)
-  const [dimTransferToOwner, setDimTransferToOwner] = useState('')
-  const [dimTransferToStage, setDimTransferToStage] = useState('')
-  const [dimTransferToLocation, setDimTransferToLocation] = useState('GENERAL')
-  const [dimTransferDescription, setDimTransferDescription] = useState('')
-
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', branchSearchDebounced],
-    queryFn: () => branchesService.list({ 'filter[search]': branchSearchDebounced || undefined,  per_page: 100 }).then((r) => r.data),
+    // Whole list (small) with company so the selector can group company → premiere → pickup points;
+    // the select filters client-side.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
@@ -250,26 +238,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
 
-  // "Owner Tujuan" (dimension transfer) searches on its own so typing there
-  // doesn't narrow the source-owner list, and vice versa.
-  const [targetCompanySearch, setTargetCompanySearch] = useState('')
-  const [targetCompanySearchDebounced, setTargetCompanySearchDebounced] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => setTargetCompanySearchDebounced(targetCompanySearch), 400)
-    return () => clearTimeout(t)
-  }, [targetCompanySearch])
-  const { data: targetCompaniesData, isFetching: targetCompaniesLoading } = useQuery({
-    queryKey: ['companies-all', targetCompanySearchDebounced],
-    enabled: enableDimensionTransfer,
-    placeholderData: (prev: any) => prev,
-    queryFn: () => companiesService.list({ 'filter[search]': targetCompanySearchDebounced || undefined,  per_page: 100 } as any).then((r) => r.data),
-  })
-  const targetCompanies: { id: number; name: string }[] = (targetCompaniesData as any)?.data ?? []
-
   // Remember every company name seen so a selected owner keeps its label
   // after the search narrows the result set.
   const companyLabelsRef = useRef(new Map<string, string>())
-  for (const c of [...companies, ...targetCompanies]) companyLabelsRef.current.set(String(c.id), c.name)
+  for (const c of companies) companyLabelsRef.current.set(String(c.id), c.name)
   const buildCompanyOptions = (list: { id: number; name: string }[], selected?: string) => {
     const opts = [GENERAL_OWNER_OPTION, ...list.map((c) => ({ value: String(c.id), label: c.name }))]
     if (selected && !opts.some((o) => o.value === selected) && companyLabelsRef.current.has(selected)) {
@@ -535,21 +507,24 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     .filter((po: any) => ['accepted', 'final'].includes(po?.status))
     .sort((a: any, b: any) => b.id - a.id)
 
-  const { data: salesOrdersData, isLoading: salesOrdersLoading } = useQuery({
+  const salesOrderOpts = useInfiniteOptions<any>({
     queryKey: ['sales-orders-pending', soSearchDebounced],
     enabled: sourceTypeForPickers === 'so_to_branch',
     staleTime: 60_000,
-    queryFn: () =>
+    fetchPage: (page) =>
       salesOrdersService
         .list({
+          page,
           'filter[search]': soSearchDebounced || undefined,
-          per_page: 1000,
+          per_page: 20,
+          sort: '-id',
           'filter[status]': 'final',
           'filter[has_delivery]': 'false',
         } as any)
         .then((r) => r.data),
   })
-  const salesOrders = (salesOrdersData as any)?.data ?? []
+  const salesOrders: any[] = salesOrderOpts.items
+  const salesOrdersLoading = salesOrderOpts.loading
 
   const watchPurchaseOrderId = watch('purchase_order_id')
   const watchSalesOrderId = watch('sales_order_id')
@@ -576,6 +551,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // PO/SO query finishing and the form's replace() taking effect.
   const hasLinkedOrder = !!(prefill?.purchase_order_id || prefill?.sales_order_id)
   const [linkedOrderFormReady, setLinkedOrderFormReady] = useState(!hasLinkedOrder)
+  // Opened from a PO/SO "Deliver" button (po_id / so_id in the URL), or
+  // editing an existing delivery: the source type and linked order are fixed,
+  // so they're shown read-only like Target Branch.
+  const linkedFromUrl = mode === 'edit' || (mode === 'create' && hasLinkedOrder)
   const targetBranchReadonly =
     watchSourceType === 'po_from_supplier' ||
     watchSourceType === 'po_from_branch' ||
@@ -888,11 +867,11 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     })
   }, [sourceInventory, requiresBatch, puomToProduct])
 
-  const branchOptions = branches.map((b: any) => ({
-    value: b.id as number,
-    label: (b.name as string) ?? `Branch #${b.id}`,
-    sublabel: b.code as string | undefined,
-  }))
+  const branchOptions = branchSelectOptions(
+    branches,
+    (b: any) => (b.name as string) ?? `Branch #${b.id}`,
+    (b: any) => ({ sublabel: b.code as string | undefined }),
+  )
   const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu), pu.product?.type),
@@ -934,9 +913,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       sublabel: po.date ? po.date : undefined,
     })),
   ]
+  // Keep the linked SO labelled even when the loaded pages don't contain it
+  // (soDetail is fetched by id).
   const salesOrderOptions = [
     { value: 0, label: 'No linked SO' },
-    ...salesOrders.map((so: any) => ({
+    ...[
+      ...(soDetail && !salesOrders.some((so: any) => so.id === soDetail.id) ? [soDetail] : []),
+      ...salesOrders,
+    ].map((so: any) => ({
       value: so.id as number,
       label: so.code ?? `SO-${so.id}`,
       sublabel: undefined,
@@ -967,8 +951,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     total_price: totalPrice,
     purchase_order_id: values.purchase_order_id || undefined,
     sales_order_id: values.sales_order_id || undefined,
-    source_owner_ref: values.source_owner_ref,
-    source_stage: values.source_stage,
+    // Supplier deliveries consume no branch stock — always send the GENERAL dimension.
+    source_owner_ref: watchSourceType === 'po_from_supplier' ? 'GENERAL' : values.source_owner_ref,
+    source_stage: watchSourceType === 'po_from_supplier' ? 'GENERAL' : values.source_stage,
     source_location_ref: values.source_location_ref || 'GENERAL',
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
@@ -991,42 +976,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const createMutation = useMutation({
     mutationFn: (values: FormValues) =>
       deliveriesService.create(buildPayload(values) as any),
-    onSuccess: async (response: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
-
-      // Create dimension transfer requests if enabled
-      if (enableDimensionTransfer && dimTransferToOwner && dimTransferToStage) {
-        const details = getValues('details')
-        const sourceOwner = getValues('source_owner_ref')
-        const sourceStage = getValues('source_stage')
-        const sourceLocation = getValues('source_location_ref') || 'GENERAL'
-        const branchId = myBranchId
-
-        if (branchId && details?.length > 0) {
-          let transferCount = 0
-          for (const d of details) {
-            if (!d.product_uom_batch_id || !d.qty) continue
-            try {
-              await dimensionTransferRequestsService.create({
-                branch_id: branchId,
-                product_uom_batch_id: d.product_uom_batch_id,
-                qty: d.qty,
-                from: { owner_ref: sourceOwner, stage: sourceStage, location_ref: sourceLocation },
-                to: { owner_ref: dimTransferToOwner, stage: dimTransferToStage, location_ref: dimTransferToLocation || 'GENERAL' },
-                description: dimTransferDescription || `Dimension transfer dari delivery`,
-              })
-              transferCount++
-            } catch (e) {
-              console.error('Dimension transfer request failed for item', d.product_uom_batch_id, e)
-            }
-          }
-          if (transferCount > 0) {
-            queryClient.invalidateQueries({ queryKey: ['dimension-transfer-requests'] })
-            toast.success(`${transferCount} permintaan transfer dimensi diajukan`)
-          }
-        }
-      }
-
       toast.success('Delivery created')
       router.push('/transfer/deliveries')
     },
@@ -1222,6 +1173,24 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     display: 'block',
   }
 
+  // Locked field (Target Branch, and Source Type / Linked PO/SO when the
+  // order comes from the URL).
+  const readonlyBoxStyle: React.CSSProperties = {
+    width: '100%',
+    height: 38,
+    display: 'flex',
+    alignItems: 'center',
+    padding: '0 12px',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    background: 'var(--surface-muted)',
+    fontSize: 13.5,
+    boxSizing: 'border-box',
+    color: 'var(--foreground-muted)',
+    fontFamily: 'var(--font-sans)',
+    cursor: 'not-allowed',
+  }
+
   const sectionHeaderStyle: React.CSSProperties = {
     padding: '14px 20px',
     borderBottom: '1px solid var(--border)',
@@ -1342,6 +1311,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             <span style={sectionLabelStyle}>Delivery Info</span>
           </div>
           <div className="df-grid" style={fieldGridStyle}>
+            {/* Left column: all fields stacked. Right column: Notes, full height. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1365,7 +1336,11 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               <Controller
                 name="source_type"
                 control={control}
-                render={({ field }) => (
+                render={({ field }) => linkedFromUrl ? (
+                  <div style={readonlyBoxStyle}>
+                    {sourceTypeOptions.find((o) => o.value === field.value)?.label ?? field.value}
+                  </div>
+                ) : (
                   <select
                     value={field.value}
                     onChange={(e) => field.onChange(e.target.value)}
@@ -1387,22 +1362,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
               </label>
               {targetBranchReadonly ? (
-                <div
-                  style={{
-                    width: '100%',
-                    height: 38,
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '0 12px',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'var(--surface-muted)',
-                    fontSize: 13.5,
-                    boxSizing: 'border-box',
-                    color: 'var(--foreground-muted)',
-                    fontFamily: 'var(--font-sans)',
-                  }}
-                >
+                <div style={readonlyBoxStyle}>
                   {branches.find((b: any) => b.id === watch('target_branch_id'))?.name
                     ?? 'Auto-filled from selection'}
                 </div>
@@ -1422,7 +1382,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       searchPlaceholder="Search branches..."
                       loading={branchesLoading}
                       error={errors.target_branch_id?.message as string | undefined}
-                      onSearchChange={setBranchSearch}
                     />
                   )}
                 />
@@ -1431,7 +1390,16 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
             {showLinkedPO && (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>Linked Purchase Order (Optional)</label>
+                <label style={labelStyle}>
+                  {linkedFromUrl ? 'Linked Purchase Order' : 'Linked Purchase Order (Optional)'}
+                </label>
+                {linkedFromUrl ? (
+                  <div style={readonlyBoxStyle}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {!watchPurchaseOrderId ? 'No linked PO' : purchaseOrderOptions.find((o) => o.value === watchPurchaseOrderId)?.label ?? 'Loading…'}
+                    </span>
+                  </div>
+                ) : (
                 <Controller
                   name="purchase_order_id"
                   control={control}
@@ -1449,6 +1417,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     />
                   )}
                 />
+                )}
                 {!!watchPurchaseOrderId && watchPurchaseOrderId > 0 && poDetail && (
                   <span style={{ ...helpStyle, color: 'var(--success)' }}>
                     ✓ {poDetail.purchase_order_details?.length ?? 0} item(s) loaded from PO
@@ -1459,7 +1428,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
             {showLinkedSO && (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>Linked Sales Order (Optional)</label>
+                <label style={labelStyle}>
+                  {linkedFromUrl ? 'Linked Sales Order' : 'Linked Sales Order (Optional)'}
+                </label>
+                {linkedFromUrl ? (
+                  <div style={readonlyBoxStyle}>
+                    {!watchSalesOrderId ? 'No linked SO' : salesOrderOptions.find((o) => o.value === watchSalesOrderId)?.label ?? 'Loading…'}
+                  </div>
+                ) : (
                 <Controller
                   name="sales_order_id"
                   control={control}
@@ -1473,9 +1449,11 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       searchPlaceholder="Search SOs..."
                       loading={salesOrdersLoading}
                       onSearchChange={setSoSearch}
+                      {...salesOrderOpts.selectProps}
                     />
                   )}
                 />
+                )}
                 {!!watchSalesOrderId && watchSalesOrderId > 0 && soDetail && (
                   <span style={{ ...helpStyle, color: 'var(--success)' }}>
                     ✓ {soDetail.sales_order_details?.length ?? 0} item(s) loaded from SO
@@ -1484,19 +1462,22 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: '1 / -1' }}>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
                 rows={2}
                 placeholder="Optional delivery notes"
-                style={{ ...inputStyle, height: 'auto', padding: '9px 12px', resize: 'vertical', minHeight: 72, lineHeight: 1.5 }}
+                style={{ ...inputStyle, height: 'auto', padding: '9px 12px', resize: 'vertical', minHeight: 112, lineHeight: 1.5 }}
               />
             </div>
           </div>
         </div>
 
-        {/* Section 1b — Konsumsi Dari */}
+        {/* Section 1b — Konsumsi Dari (hidden for supplier POs: no branch stock is consumed) */}
+        {watchSourceType !== 'po_from_supplier' && (
         <div className="v2-card" style={cardStyle}>
           <div style={sectionHeaderStyle}>
             <span style={sectionLabelStyle}>Konsumsi Dari</span>
@@ -1567,112 +1548,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             </div>
           </div>
         </div>
-
-        {/* Section 1c — Dimension Transfer (Optional) */}
-        <div className="v2-card" style={cardStyle}>
-          <div
-            style={{
-              ...sectionHeaderStyle,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-            }}
-            onClick={() => setEnableDimensionTransfer(!enableDimensionTransfer)}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ArrowRightLeft size={15} style={{ color: 'var(--foreground-muted)' }} />
-              <span style={sectionLabelStyle}>Dimension Transfer (Opsional)</span>
-            </div>
-            <div
-              style={{
-                width: 36,
-                height: 20,
-                borderRadius: 10,
-                background: enableDimensionTransfer ? 'var(--accent)' : 'var(--border)',
-                position: 'relative',
-                transition: 'background 0.2s',
-                cursor: 'pointer',
-              }}
-            >
-              <div
-                style={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: '50%',
-                  background: 'white',
-                  position: 'absolute',
-                  top: 2,
-                  left: enableDimensionTransfer ? 18 : 2,
-                  transition: 'left 0.2s',
-                }}
-              />
-            </div>
-          </div>
-
-          {enableDimensionTransfer && (
-            <div className="df-grid" style={fieldGridStyle}>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: 0 }}>
-                  Pindahkan stok dari dimensi asal (Owner/Stage di atas) ke dimensi tujuan yang baru.
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>
-                  Owner Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
-                <SearchableSelect
-                  value={dimTransferToOwner}
-                  onChange={setDimTransferToOwner}
-                  options={buildCompanyOptions(targetCompanies, dimTransferToOwner)}
-                  placeholder="Pilih owner tujuan..."
-                  triggerStyle={fieldTriggerStyle}
-                  searchPlaceholder="Cari perusahaan..."
-                  loading={targetCompaniesLoading}
-                  onSearchChange={setTargetCompanySearch}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>
-                  Stage Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
-                <SearchableSelect
-                  value={dimTransferToStage}
-                  onChange={setDimTransferToStage}
-                  options={stageOptions}
-                  placeholder="Pilih stage tujuan..."
-                  triggerStyle={fieldTriggerStyle}
-                  searchPlaceholder="Cari stage..."
-                  loading={stagesLoading}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>Lokasi Tujuan</label>
-                <input
-                  type="text"
-                  value={dimTransferToLocation}
-                  onChange={(e) => setDimTransferToLocation(e.target.value)}
-                  placeholder="GENERAL"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>Catatan Transfer</label>
-                <input
-                  type="text"
-                  value={dimTransferDescription}
-                  onChange={(e) => setDimTransferDescription(e.target.value)}
-                  placeholder="Opsional"
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Section 2 — Line Items */}
         <div className="v2-card" style={cardStyle}>

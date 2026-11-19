@@ -17,6 +17,7 @@ import {
 import { invoiceVoidBlock, blockedStyle } from '@/lib/actionGuards'
 import { getInvoiceDueInfo } from '@/utils/invoiceDue'
 import BackLink from '@/components/BackLink'
+import PrintDocument, { PrintTotals, formatPrintDate, printFileTitle, usePrintCompany } from '@/components/print/PrintDocument'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
@@ -271,6 +272,8 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   const orderRows = useMemo(() => buildOrderRows(invoice?.invoice_sales_orders), [invoice])
 
   const statusMeta = STATUS_META[invoice?.status as keyof typeof STATUS_META] ?? STATUS_META.issued
+  // Print kop = company of the issuing branch.
+  const printCompany = usePrintCompany(invoice?.branch?.id ?? invoice?.branch_id, invoice?.branch?.name)
   // Payment status: pakai field backend; fallback turunan dari pembayaran.
   const paymentStatusValue: string =
     invoice?.payment_status ??
@@ -872,156 +875,60 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         )}
       </div>
 
-      {/* 🖨️ Printable A4 invoice (hidden on screen, shown only in print) */}
-      <div className="invoice-print">
-        {/* Header */}
-        <div
-          style={{
-            textAlign: 'center',
-            color: '#5c3a21',
-            padding: '6mm 0',
-            marginBottom: '6mm',
-            borderBottom: '2px solid #5c3a21',
-          }}
-        >
-          <div style={{ fontSize: '24pt', fontWeight: 800, letterSpacing: '2px' }}>DAPUR COKLAT</div>
-          <div style={{ fontSize: '14pt', fontWeight: 600, marginTop: '2mm', letterSpacing: '1px', opacity: 0.9 }}>
-            INVOICE
-          </div>
-        </div>
-
-        {/* Invoice info */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8mm', padding: '0 4mm' }}>
-          <div>
-            <div style={{ fontSize: '10pt', fontWeight: 700, color: '#5c3a21', textTransform: 'uppercase' }}>
-              Billed To
-            </div>
-            <div style={{ fontSize: '12pt', fontWeight: 600, marginTop: '2mm', color: '#333' }}>
-              {invoice.billed_branch?.name || '-'}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '10pt', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>Invoice No:</strong> {invoice.code || '-'}
-            </div>
-            <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>Date:</strong> {invoice.date ? formatDate(invoice.date) : '-'}
-            </div>
-            <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>Due Date:</strong> {invoice.due_date ? formatDate(invoice.due_date) : '-'}
-            </div>
-            <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>From:</strong> {invoice.branch?.name || '-'}
-            </div>
-          </div>
-        </div>
-
-        {/* Status label */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6mm', padding: '0 4mm' }}>
-          <div
-            style={{
-              padding: '6px 16px',
-              border: `2px solid ${statusMeta.color}`,
-              color: statusMeta.color,
-              fontWeight: 800,
-              fontSize: '12pt',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-            }}
-          >
-            {statusMeta.label}
-          </div>
-        </div>
-
-        {/* Purchase orders */}
-        <div style={{ padding: '0 4mm', marginBottom: '8mm' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: '8px', overflow: 'hidden' }}>
-            <thead>
-              <tr style={{ color: '#5c3a21' }}>
-                {['No', 'PO / SO', 'Date'].map((h) => (
-                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                    {h}
-                  </th>
-                ))}
-                <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {orderRows.map((row, i) => (
-                <tr key={row.key} style={{ borderBottom: '1px solid #e5e5e5' }}>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
-                    {row.poCode}
-                    <div style={{ fontSize: '8pt', color: '#777', fontWeight: 400 }}>{row.soCode}</div>
-                  </td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{row.date ? formatDate(row.date) : '-'}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 600 }}>
-                    {rp(row.total)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Totals */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 4mm' }}>
-          <div style={{ width: '50%', padding: '16px', borderRadius: '8px', border: '1px solid #d4c4a8' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '6px 0', fontSize: '10pt', color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
-                    Subtotal
-                  </td>
-                  <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
-                    {rp(invoice.subtotal_price ?? 0)}
-                  </td>
-                </tr>
-                {(invoice.discount_price ?? 0) > 0 && (
-                  <tr>
-                    <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Discount</td>
-                    <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>-{rp(invoice.discount_price)}</td>
-                  </tr>
-                )}
-                {invoice.additional_charges?.length ? (
-                  invoice.additional_charges.map((ac) => (
-                    <tr key={`print-ac-${ac.id}`}>
-                      <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>{ac.name || 'Additional Charges'}</td>
-                      <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(ac.amount)}</td>
-                    </tr>
-                  ))
-                ) : (invoice.additional_charge_price ?? 0) !== 0 ? (
-                  <tr>
-                    <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Additional Charges</td>
-                    <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(invoice.additional_charge_price)}</td>
-                  </tr>
-                ) : null}
-                {Number(invoice.handling_fee_amount ?? 0) > 0 && (
-                  <tr>
-                    <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Handling fee ({Number(invoice.handling_fee_percent ?? 0)}%)</td>
-                    <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(invoice.handling_fee_amount)}</td>
-                  </tr>
-                )}
-                <tr>
-                  <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Tax</td>
-                  <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rpRounded(invoice.tax_amount)}</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '8px 0', fontSize: '11pt', fontWeight: 700, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
-                    Grand Total
-                  </td>
-                  <td style={{ padding: '8px 0', textAlign: 'right', fontSize: '12pt', fontWeight: 800, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
-                    {rp(invoice.total_price)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      {/* Printable A4 invoice (hidden on screen, shown only in print) */}
+      <PrintDocument
+        title="INVOICE"
+        company={printCompany}
+        meta={[
+          { label: 'Invoice No.', value: invoice.code || '-' },
+          { label: 'Date', value: invoice.date ? formatPrintDate(invoice.date) : '-' },
+          { label: 'Billed To', value: invoice.billed_branch?.name || '-' },
+          { label: 'Due Date', value: invoice.due_date ? formatPrintDate(invoice.due_date) : '-' },
+          { label: 'From', value: invoice.branch?.name || '-' },
+          { label: 'Status', value: String(statusMeta.label).toUpperCase() },
+        ]}
+        columns={[
+          { header: 'NO', width: '11mm', align: 'center' },
+          { header: 'PO / SO' },
+          { header: 'DATE', width: '30mm', nowrap: true },
+          { header: 'TOTAL', width: '38mm', align: 'right', nowrap: true },
+        ]}
+        rows={orderRows.map((row, i) => ({
+          key: row.key,
+          cells: [
+            i + 1,
+            <>
+              {row.poCode}
+              {row.soCode ? <div style={{ fontSize: '8pt' }}>{row.soCode}</div> : null}
+            </>,
+            row.date ? formatPrintDate(row.date) : '-',
+            rp(row.total),
+          ],
+        }))}
+        afterTable={
+          <PrintTotals
+            lines={[
+              { label: 'Subtotal', value: rp(invoice.subtotal_price ?? 0) },
+              ...((invoice.discount_price ?? 0) > 0 ? [{ label: 'Discount', value: `-${rp(invoice.discount_price)}` }] : []),
+              ...(invoice.additional_charges?.length
+                ? invoice.additional_charges.map((ac) => ({ label: ac.name || 'Additional Charges', value: rp(ac.amount) }))
+                : (invoice.additional_charge_price ?? 0) !== 0
+                  ? [{ label: 'Additional Charges', value: rp(invoice.additional_charge_price) }]
+                  : []),
+              ...(Number(invoice.handling_fee_amount ?? 0) > 0
+                ? [{ label: `Handling fee (${Number(invoice.handling_fee_percent ?? 0)}%)`, value: rp(invoice.handling_fee_amount) }]
+                : []),
+              { label: 'Tax', value: rpRounded(invoice.tax_amount) },
+              { label: 'Grand Total', value: rp(invoice.total_price), strong: true, ruleAbove: true },
+            ]}
+          />
+        }
+        fileTitle={printFileTitle(
+          `Invoice ${invoice.code ?? ''}`,
+          invoice.billed_branch?.name,
+          invoice.date ? formatPrintDate(invoice.date) : '',
+        )}
+      />
 
       {voidConfirmOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1055,31 +962,6 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           .inv-meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .inv-meta-cell:nth-child(3) { border-left: none; }
           .inv-meta-cell:nth-child(n + 3) { border-top: 1px solid var(--border); }
-        }
-        .invoice-print { display: none; }
-        @media print {
-          @page { size: A4 portrait; margin: 15mm; }
-          /* Enforce background colors in print */
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          /* Defeat the global pos-print.css rule that otherwise collapses #__next and blanks this page. */
-          body > * { display: block !important; }
-          #pos-receipt { display: none !important; }
-          /* Isolate: hide the on-screen detail UI, show only the invoice. */
-          body * { visibility: hidden !important; }
-          .invoice-print, .invoice-print * { visibility: visible !important; }
-          .invoice-print {
-            display: block !important;
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            background: #fff;
-            font-family: 'Inter', Arial, Helvetica, sans-serif;
-          }
-          .invoice-print thead { display: table-header-group; }
         }
       `}</style>
     </div>

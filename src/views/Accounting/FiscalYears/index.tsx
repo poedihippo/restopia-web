@@ -4,7 +4,7 @@ import { formatDate, toInputDate } from '@/utils/date';
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { fiscalYearsService, type FiscalYearRequest } from '@/services/accounting.service'
@@ -19,6 +19,7 @@ import {
   Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, CalendarRange, CheckCircle2, Lock, Download,
 } from 'lucide-react'
+import ActiveToggle from '@/components/ActiveToggle'
 
 interface FiscalYear {
   id: number
@@ -95,7 +96,7 @@ export default function FiscalYearsView() {
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: { name: '', start_date: '', end_date: '', is_active: true },
   })
@@ -309,11 +310,13 @@ export default function FiscalYearsView() {
                   {errors.end_date && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.end_date.message}</span>}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--foreground)' }}>
-                  <input type="checkbox" {...register('is_active')} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
-                  Active
-                </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Status</label>
+                <Controller
+                  name="is_active"
+                  control={control}
+                  render={({ field }) => <ActiveToggle value={field.value} onChange={field.onChange} />}
+                />
               </div>
             </form>
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

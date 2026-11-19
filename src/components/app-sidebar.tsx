@@ -206,15 +206,9 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Sales Orders', href: '/sales/sales-orders', icon: ReceiptText, permission: 'sales-order.menu' },
       { label: 'Unpaid Orders', href: '/sales/unpaid-offline-orders', icon: Hourglass, permission: 'sales-order.menu' },
+      // Online / employee / customer credit by stage (settling is in Accounting).
+      { label: 'Credit Orders', href: '/sales/credit-orders', icon: HandCoins, permission: 'sales-order.menu' },
       { label: 'Payments', href: '/sales/payments', icon: Wallet, permission: 'payment.menu' },
-      {
-        label: 'Settlements',
-        icon: Banknote,
-        children: [
-          { label: 'Offline Orders', href: '/sales/payment-settlements', permission: 'payment.menu', channel: 'offline' },
-          { label: 'Online Orders', href: '/sales/settle-payout', permission: 'sales-order.menu', channel: 'online' },
-        ],
-      },
       {
         label: 'Sales Setup',
         icon: Settings2,
@@ -253,6 +247,17 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Cash Transactions', href: '/accounting/cash-transactions', permission: 'cash-transaction.menu' },
           { label: 'Bank Reconciliation', href: '/accounting/bank-reconciliation', permission: 'bank-reconciliation.menu' },
           { label: 'Budgets', href: '/accounting/budgets', permission: 'budget.menu' },
+        ],
+      },
+      // Settling is accounting's job (the outlet only collects): offline tenders
+      // and employee credit into the bank / payroll, online marketplace payouts.
+      {
+        label: 'Settlements',
+        icon: Banknote,
+        children: [
+          { label: 'Offline Orders', href: '/sales/payment-settlements', permission: 'journal.menu', channel: 'offline' },
+          { label: 'Kredit Karyawan', href: '/accounting/employee-credit-settlements', permission: 'journal.menu' },
+          { label: 'Online Orders', href: '/sales/settle-payout', permission: 'sales-order.bulk-update-settlement-status', channel: 'online' },
         ],
       },
       {

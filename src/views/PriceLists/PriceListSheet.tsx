@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { priceListsService } from '@/services/price-lists.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { X, Loader2 } from 'lucide-react'
-import { Checkbox } from '@/components/ui/checkbox'
+import ActiveToggle from '@/components/ActiveToggle'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -209,18 +209,12 @@ export default function PriceListSheet({ open, onClose, editData }: PriceListShe
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Status</label>
             <Controller
               control={control}
               name="is_active"
               render={({ field }) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Checkbox 
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    id="is_active"
-                  />
-                  <label htmlFor="is_active" style={{ fontSize: 13, fontWeight: 500 }}>Active</label>
-                </div>
+                <ActiveToggle value={field.value} onChange={field.onChange} />
               )}
             />
           </div>

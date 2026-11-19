@@ -17,6 +17,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import { describeSuggestionReason, withProductType } from '@/utils/productUomName'
+import ActiveToggle from '@/components/ActiveToggle'
 const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!canReadPrice) return '***'
@@ -710,34 +711,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
                 name="is_active"
                 control={control}
                 render={({ field }) => (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {([true, false] as const).map((val) => (
-                      <button
-                        key={String(val)}
-                        type="button"
-                        onClick={() => field.onChange(val)}
-                        style={{
-                          flex: 1,
-                          padding: '6px 8px',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: 12,
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          background: field.value === val
-                            ? val ? 'var(--success-bg)' : 'var(--destructive-bg)'
-                            : 'var(--background)',
-                          color: field.value === val
-                            ? val ? 'var(--success)' : 'var(--destructive)'
-                            : 'var(--foreground-muted)',
-                          border: field.value === val
-                            ? `1px solid ${val ? 'var(--success)' : 'var(--destructive)'}`
-                            : '1px solid var(--border)',
-                        }}
-                      >
-                        {val ? 'Yes' : 'No'}
-                      </button>
-                    ))}
-                  </div>
+                  <ActiveToggle value={field.value} onChange={field.onChange} />
                 )}
               />
             </div>

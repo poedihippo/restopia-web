@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { invoicesService } from '@/services/invoices.service'
 import { receiptsService } from '@/services/receipts.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { useAuth } from '@/hooks/useAuth'
 import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -109,9 +110,9 @@ export default function InvoicesView() {
   }, [debouncedSearch])
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
+    queryKey: ['branches-all', 'with-company'],
     enabled: canRead,
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branchOptions: { id: number; name: string }[] = (branchesData as any)?.data ?? []
 
@@ -315,17 +316,13 @@ export default function InvoicesView() {
           <FilterField label="Branch">
             <FilterSelect block value={branchFilter} onChange={(e) => { setBranchFilter(e.target.value); setPage(1) }}>
               <option value="">All branches</option>
-              {branchOptions.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
+              <BranchOptionGroups branches={branchOptions} label={(b) => b.name} getValue={(b) => b.id} />
             </FilterSelect>
           </FilterField>
           <FilterField label="Billed branch">
             <FilterSelect block value={billedBranchFilter} onChange={(e) => { setBilledBranchFilter(e.target.value); setPage(1) }}>
               <option value="">All billed branches</option>
-              {branchOptions.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
+              <BranchOptionGroups branches={branchOptions} label={(b) => b.name} getValue={(b) => b.id} />
             </FilterSelect>
           </FilterField>
         </FilterGroup>
@@ -590,9 +587,7 @@ export default function InvoicesView() {
               style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', marginBottom: 24 }}
             >
               <option value="">Select a branch</option>
-              {branchOptions.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
+              <BranchOptionGroups branches={branchOptions} label={(b) => b.name} getValue={(b) => b.id} />
             </select>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setUnlockOpen(false)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>

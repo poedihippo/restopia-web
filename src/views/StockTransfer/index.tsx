@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
+import { BranchOptionGroups } from '@/lib/branchOptions'
 import { useAuth } from '@/hooks/useAuth'
 import {
   ArrowRight,
@@ -72,8 +73,8 @@ export default function StockTransferView() {
   }, [debouncedSearch, statusFilter, hasReceiptFilter, counterpartBranchFilter, dateFrom, dateTo])
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'basic'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const counterpartBranches: any[] = ((branchesData as any)?.data ?? []).filter(
     (b: any) => b.id !== myBranchId,
@@ -386,11 +387,7 @@ export default function StockTransferView() {
               }}
             >
               <option value="">{activeTab === 'out' ? 'All Destinations' : 'All Sources'}</option>
-              {counterpartBranches.map((b: any) => (
-                <option key={b.id} value={String(b.id)}>
-                  {b.name}
-                </option>
-              ))}
+              <BranchOptionGroups branches={counterpartBranches} label={(b: any) => b.name} getValue={(b: any) => String(b.id)} />
             </FilterSelect>
           </>
         }

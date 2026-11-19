@@ -17,8 +17,10 @@ import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 import { cashTransactionDeleteBlock, blockedStyle } from '@/lib/actionGuards'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive, filterControlStyle } from '@/components/ListFilters'
+import AccountingBranchFilter, { accountingBranchParam, useBranchNameOf, useOtherBranchBlock } from '../AccountingBranchFilter'
 import FinancePeriodSelect from '@/views/Reports/FinancePeriodSelect'
 import { formatCurrency } from '@/utils/price'
 import { formatDate, formatDateTime } from '@/utils/date'
@@ -119,6 +121,10 @@ export default function CashTransactionsView() {
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
+  // '' = every branch of the company (accounting is run by head office).
+  const [branchFilter, setBranchFilter] = useState('')
+  const branchNameOf = useBranchNameOf()
+  const otherBranchBlock = useOtherBranchBlock()
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [bankDropdownSearch, setBankDropdownSearch] = useState('')
@@ -148,7 +154,7 @@ export default function CashTransactionsView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, typeFilter, startDate, endDate])
+  }, [debouncedSearch, typeFilter, startDate, endDate, branchFilter])
 
   // Fetch Cash Transactions
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
@@ -160,6 +166,7 @@ export default function CashTransactionsView() {
       typeFilter,
       startDate,
       endDate,
+      branchFilter,
     ],
     queryFn: () =>
       cashTransactionsService
@@ -174,6 +181,7 @@ export default function CashTransactionsView() {
           'filter[type]': typeFilter || undefined,
           'filter[date_from]': startDate || undefined,
           'filter[date_to]': endDate || undefined,
+          ...accountingBranchParam(branchFilter),
         } as any)
         .then((res) => res.data),
   })
@@ -199,14 +207,15 @@ export default function CashTransactionsView() {
   }))
 
   // Fetch Chart of Accounts for offsetting selection
-  const { data: coaData } = useQuery({
+  const coaOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-for-cash', debouncedCoaDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true', 'filter[is_header]': 'false', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
+        .list({ page, per_page: 20, sort: 'code,id', 'filter[is_active]': 'true', 'filter[is_header]': 'false', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
         .then((res) => res.data),
   })
-  const coaList: any[] = ((coaData as any)?.data ?? []).filter((c: any) => !c.is_header && c.is_active !== false)
+  // is_header / is_active are filtered server-side; the row check is only a safety net.
+  const coaList: any[] = coaOpts.items.filter((c: any) => !c.is_header && c.is_active !== false)
   const coaOptions = coaList.map((item: any) => ({
     value: item.id,
     label: `${item.account_code ?? item.code} — ${item.account_name ?? item.name}`,
@@ -418,8 +427,9 @@ export default function CashTransactionsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search transaction number..."
-        activeCount={countActive(typeFilter, startDate, endDate)}
+        activeCount={countActive(typeFilter, startDate, endDate, branchFilter)}
         onClear={() => {
+          setBranchFilter('')
           setTypeFilter('')
           setStartDate('')
           setEndDate('')
@@ -427,6 +437,7 @@ export default function CashTransactionsView() {
         }}
         quick={
           <>
+            <AccountingBranchFilter value={branchFilter} onChange={setBranchFilter} />
             <FilterSelect value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
               <option value="">All Types</option>
               <option value="cash_in">Cash In</option>
@@ -467,6 +478,7 @@ export default function CashTransactionsView() {
               <tr>
                 <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                 <th style={{ ...thStyle, width: 170 }}>Txn Number / Date</th>
+                <th style={{ ...thStyle, width: 130 }}>Branch</th>
                 <th style={{ ...thStyle, width: 110 }}>Type</th>
                 <th style={thStyle}>Accounts Flow</th>
                 <th style={{ ...thStyle, textAlign: 'right', width: 150 }}>Amount</th>
@@ -478,14 +490,14 @@ export default function CashTransactionsView() {
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 7 }).map((__, j) => (
+                    {Array.from({ length: 8 }).map((__, j) => (
                       <td key={j} style={tdStyle}>
                         <div
                           style={{
                             height: 14,
                             borderRadius: 'var(--radius-sm)',
                             background: 'var(--border)',
-                            width: j === 6 ? 60 : '75%',
+                            width: j === 7 ? 60 : '75%',
                             animation: 'pulse 1.5s ease-in-out infinite',
                           }}
                         />
@@ -596,6 +608,10 @@ export default function CashTransactionsView() {
                         </div>
                       </td>
 
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{branchNameOf(item as any)}</span>
+                      </td>
+
                       {/* Type Badge */}
                       <td style={tdStyle}>
                         <span
@@ -703,29 +719,34 @@ export default function CashTransactionsView() {
                             <Eye size={15} />
                           </button>
 
-                          {canReverse && (
+                          {canReverse && (() => {
+                            // Writes go to the transaction's own branch (the API scopes them to the active branch).
+                            const branchBlock = otherBranchBlock(item as any)
+                            const blocked = item.is_reversed || !!branchBlock
+                            return (
                             <button
                               onClick={() => {
-                                if (item.is_reversed) return
+                                if (blocked) return
                                 setReverseConfirmItem(item)
                               }}
-                              disabled={item.is_reversed}
-                              title={item.is_reversed ? 'Already Reversed' : 'Reverse / Void'}
+                              disabled={blocked}
+                              title={item.is_reversed ? 'Already Reversed' : branchBlock ?? 'Reverse / Void'}
                               style={{
                                 padding: 6,
                                 background: 'none',
                                 border: 'none',
-                                cursor: item.is_reversed ? 'not-allowed' : 'pointer',
-                                color: item.is_reversed ? 'var(--foreground-muted)' : 'var(--warning)',
-                                opacity: item.is_reversed ? 0.35 : 1,
+                                cursor: blocked ? 'not-allowed' : 'pointer',
+                                color: blocked ? 'var(--foreground-muted)' : 'var(--warning)',
+                                opacity: blocked ? 0.35 : 1,
                               }}
                             >
                               <RotateCcw size={15} />
                             </button>
-                          )}
+                            )
+                          })()}
 
                           {canDelete && (() => {
-                            const reason = cashTransactionDeleteBlock(item)
+                            const reason = otherBranchBlock(item as any) ?? cashTransactionDeleteBlock(item)
                             return (
                             <button
                               onClick={() => { if (!reason) setDeleteConfirmId(item.id) }}
@@ -1004,6 +1025,8 @@ export default function CashTransactionsView() {
                           placeholder="Petty cash (default)"
                           searchPlaceholder="Search COA..."
                           onSearchChange={setCoaDropdownSearch}
+                          loading={coaOpts.loading}
+                          {...coaOpts.selectProps}
                         />
                       )}
                     />
