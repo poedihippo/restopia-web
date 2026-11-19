@@ -57,7 +57,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
     queryKey: ['branches-all', 'with-company'],
     queryFn: () =>
       branchesService
-        .list({ per_page: 1000, sort: 'name', include: 'company' } as any)
+        .list({ per_page: 100, sort: 'name', include: 'company' } as any)
         .then((r) => r.data),
     // Non-superadmins need branch.read to list branches (their own still show without it).
     enabled: isSuperadmin || hasPermission('branch.read'),

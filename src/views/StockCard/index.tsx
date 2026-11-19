@@ -522,11 +522,7 @@ export default function StockCardView() {
                   const stockCell = item.stock != null ? toDisplay(item.stock, rowUom) : null
 
                   return (
-                    <tr
-                      key={item.id}
-                      onClick={() => goToMovements(item)}
-                      style={{ cursor: 'pointer' }}
-                    >
+                    <tr key={item.id}>
                       <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 12 }}>
                         {(page - 1) * perPage + idx + 1}
                       </td>
@@ -584,7 +580,27 @@ export default function StockCardView() {
                         />
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>
-                        <ExternalLink size={14} style={{ color: 'var(--foreground-muted)' }} />
+                        <button
+                          type="button"
+                          className="v2-icon-btn"
+                          onClick={() => goToMovements(item)}
+                          title="View stock movements"
+                          aria-label="View stock movements"
+                          style={{
+                            width: 30,
+                            height: 30,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: 'none',
+                            borderRadius: 'var(--radius-md)',
+                            background: 'transparent',
+                            color: 'var(--foreground-muted)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <ExternalLink size={14} />
+                        </button>
                       </td>
                     </tr>
                   )
