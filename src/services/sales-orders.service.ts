@@ -36,7 +36,9 @@ export const salesOrdersService = {
       const body = r.data
       const rows = Array.isArray(body?.data) ? body.data : body?.data?.data ?? []
       out.push(...rows)
-      const lastPage = Number((body?.meta ?? body?.data?.meta)?.last_page ?? 1)
+      // The API sends total_pages (last_page on older envelopes).
+      const meta = body?.meta ?? body?.data?.meta
+      const lastPage = Number(meta?.total_pages ?? meta?.last_page ?? 1)
       if (page >= lastPage || page >= 100) break
     }
     return out

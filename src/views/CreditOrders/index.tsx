@@ -4,7 +4,11 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowUpRight, Inbox, Loader2 } from 'lucide-react'
+import { ArrowUpRight, FileSpreadsheet, FileText, Inbox, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excelExport'
+import { printTableAsPdf } from '@/utils/pdfExport'
+import { formatCurrency as fmtMoney, getCanReadPrice } from '@/utils/price'
 import { FilterBar, DateRange, countActive } from '@/components/ListFilters'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { formatCurrency } from '@/utils/price'
@@ -180,13 +184,122 @@ export default function CreditOrdersView() {
   const tone = TONE[stage.tone]
   const colCount = 7
 
+  // ── Export: the selected tab + status + search/dates, every page ──────────
+  const [exporting, setExporting] = useState<null | 'excel' | 'pdf'>(null)
+  const periodLabel = dateFrom || dateTo ? `${dateFrom || '…'} – ${dateTo || '…'}` : undefined
+  const exportTitle = `Credit Orders — ${typeDef.label} — ${stage.label}`
+  const fileStem = `credit-orders-${typeDef.key}-${stage.key}-${new Date().toLocaleDateString('en-CA')}`
+  const fetchAllForExport = async () =>
+    salesOrdersService.listAll({ sort: '-date', include: 'customer,branch,sales_channel,credit_by', ...filtersFor(stage) })
+  const statusOf = (o: any) => (o.payment_status === 'partial' && stage.key === 'unpaid' ? 'DP / Sebagian' : stage.label)
+
+  const exportExcel = async () => {
+    setExporting('excel')
+    try {
+      const all = await fetchAllForExport()
+      if (all.length === 0) {
+        toast.info('Tidak ada order untuk diekspor')
+        return
+      }
+      const rows: ExcelRow[] = [
+        ...reportHeader({
+          title: exportTitle,
+          period: periodLabel,
+          extra: debouncedSearch ? [`Search : ${debouncedSearch}`] : [],
+        }),
+        ['No', 'Order', 'Outlet', 'Tanggal', partyLabel, 'Total', 'Dibayar', 'Sisa', 'Status'],
+        ...all.map((o: any, i: number) => [
+          i + 1,
+          o.code,
+          o.branch?.name ?? '',
+          formatDateShort(o.date),
+          partyOf(o),
+          money(o.total_price),
+          money(o.total_payment),
+          money(Math.max(0, remainingOf(o))),
+          statusOf(o),
+        ]),
+        [],
+        ['', '', '', '', 'Total',
+          money(all.reduce((s: number, o: any) => s + Number(o.total_price ?? 0), 0)),
+          money(all.reduce((s: number, o: any) => s + Number(o.total_payment ?? 0), 0)),
+          money(all.reduce((s: number, o: any) => s + Math.max(0, remainingOf(o)), 0)),
+          ''],
+      ]
+      downloadExcel(`${fileStem}.xlsx`, [{ name: `${typeDef.label} ${stage.label}`, rows, cols: [5, 20, 22, 12, 26, 16, 16, 16, 20] }])
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Gagal mengekspor Excel')
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  const exportPdf = async () => {
+    setExporting('pdf')
+    try {
+      const all = await fetchAllForExport()
+      const canPrice = getCanReadPrice()
+      const cur = (v: number) => (canPrice ? fmtMoney(v) : '***')
+      const sum = (pick: (o: any) => number) => all.reduce((s: number, o: any) => s + pick(o), 0)
+      const ok = printTableAsPdf({
+        title: exportTitle,
+        subtitle: [
+          ...(periodLabel ? [`Periode: ${periodLabel}`] : []),
+          ...(debouncedSearch ? [`Search: ${debouncedSearch}`] : []),
+          `${all.length} order`,
+        ],
+        headers: ['No', 'Order', 'Outlet', 'Tanggal', partyLabel, 'Total', 'Dibayar', 'Sisa', 'Status'],
+        rows: all.map((o: any, i: number) => [
+          i + 1,
+          o.code,
+          o.branch?.name ?? '',
+          formatDateShort(o.date),
+          partyOf(o),
+          cur(Number(o.total_price ?? 0)),
+          cur(Number(o.total_payment ?? 0)),
+          cur(Math.max(0, remainingOf(o))),
+          statusOf(o),
+        ]),
+        footer: ['', '', '', '', 'Total',
+          cur(sum((o) => Number(o.total_price ?? 0))),
+          cur(sum((o) => Number(o.total_payment ?? 0))),
+          cur(sum((o) => Math.max(0, remainingOf(o)))),
+          ''],
+        rightAlign: [5, 6, 7],
+      })
+      if (!ok) toast.error('Gagal membuat PDF')
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Gagal membuat PDF')
+    } finally {
+      setExporting(null)
+    }
+  }
+  const exportBtnStyle: CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px',
+    border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)',
+    color: 'var(--foreground)', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap',
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--foreground)' }}>Credit Orders</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--foreground-muted)' }}>
-          Order online, kredit karyawan dan kredit customer yang belum lunas atau belum di-settle. Settlement dicatat accounting di Accounting › Settlements.
-        </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--foreground)' }}>Credit Orders</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--foreground-muted)' }}>
+            Order online, kredit karyawan dan kredit customer yang belum lunas atau belum di-settle. Settlement dicatat accounting di Accounting › Settlements.
+          </p>
+        </div>
+        {/* Exports the selected tab + status with the current search / dates (all pages). */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={exportExcel} disabled={!!exporting} style={{ ...exportBtnStyle, opacity: exporting ? 0.6 : 1 }}>
+            {exporting === 'excel' ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <FileSpreadsheet size={15} />}
+            Export Excel
+          </button>
+          <button type="button" onClick={exportPdf} disabled={!!exporting} style={{ ...exportBtnStyle, opacity: exporting ? 0.6 : 1 }}>
+            {exporting === 'pdf' ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={15} />}
+            Export PDF
+          </button>
+        </div>
       </div>
 
       <div role="tablist" aria-label="Jenis kredit" style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
