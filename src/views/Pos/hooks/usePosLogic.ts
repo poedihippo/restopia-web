@@ -426,7 +426,11 @@ export function usePosLogic() {
     queryFn: () =>
       paymentMethodsService.list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders', 'filter[is_active]': true } as any).then((r) => r.data),
   })
-  const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
+  // "Refund …" methods (e.g. Refund Tunai, paid out of the outlet's Kas Kecil)
+  // only pay refunds on returns — never offered as a way to pay a sale.
+  const paymentMethods: any[] = ((paymentMethodsData as any)?.data ?? []).filter(
+    (pm: any) => !String(pm?.name ?? '').toLowerCase().includes('refund'),
+  )
 
   // Active branch record — the receipt header prints its address. auth/me's
   // embedded branch can be stale or lack the address, so read it fresh.
