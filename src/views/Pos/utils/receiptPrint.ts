@@ -15,6 +15,13 @@ const BRANCH_FALLBACK_NAME = 'DAPUR COKELAT'
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
 
+// Keep the line breaks (and blank lines) typed into a multi-line field such as
+// branch.address; runs of spaces stay visible too.
+const multiline = (s: string) =>
+  escapeHtml(String(s).replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').replace(/^\n+|\n+$/g, ''))
+    .replace(/ {2,}/g, (m) => ' ' + '&nbsp;'.repeat(m.length - 1))
+    .replace(/\n/g, '<br>')
+
 /** Convert the on-screen receipt into the ESC/POS (WebUSB) builder shape. */
 export function mapReceiptToBuilder(r: ReceiptData): PrinterReceiptData {
   const isOnline = r.orderType === 'online'
@@ -66,7 +73,7 @@ export function buildReceiptHtml(r: ReceiptData): string {
     <div style="text-align:center;margin:8px 0 4px;">
       DAPUR COKELAT<br>
       ${escapeHtml(b.branchName)}<br>
-      ${b.branchAddress ? `${escapeHtml(b.branchAddress)}<br>` : ''}
+      ${b.branchAddress ? `${multiline(b.branchAddress)}<br>` : ''}
       ${b.branchPhone ? escapeHtml(b.branchPhone) : ''}
     </div>
     ${divider}

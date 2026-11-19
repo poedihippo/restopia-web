@@ -84,6 +84,15 @@ function formatTotalLine(
 // the printer never overruns the right margin.
 function wrap(s: string, width: number): string[] {
   if (!s) return ['']
+  // Typed line breaks are kept: each line wraps on its own and a blank line
+  // in the source (e.g. branch.address) prints as an empty line.
+  const lines = String(s).replace(/\r\n?/g, '\n').replace(/^\s*\n|\n\s*$/g, '').split('\n')
+  if (lines.length > 1) return lines.flatMap((l) => (l.trim() ? wrapLine(l, width) : ['']))
+  return wrapLine(s, width)
+}
+
+function wrapLine(s: string, width: number): string[] {
+  if (!s) return ['']
   const out: string[] = []
   const words = s.split(/\s+/).filter(Boolean)
   let line = ''

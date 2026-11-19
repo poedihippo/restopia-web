@@ -8,9 +8,8 @@ import { branchesService } from '@/services/branches.service'
 import { companiesService } from '@/services/companies.service'
 import { useAuth } from '@/hooks/useAuth'
 import BranchSheet from './BranchSheet'
-import { BranchOptionGroups } from '@/lib/branchOptions'
+import { BranchOptionGroups, orderBranches } from '@/lib/branchOptions'
 import { toastMutationApiError } from '@/utils/apiError';
-import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   ChevronLeft,
@@ -21,6 +20,7 @@ import {
   Check,
   Eye,
   X,
+  Store,
 } from 'lucide-react'
 import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 
@@ -49,7 +49,8 @@ export default function BranchesView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
+  // ~30 branches in total: one page of 100 shows them all in business order.
+  const perPage = 100
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Branch | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -78,7 +79,7 @@ export default function BranchesView() {
 
   const { data: parentBranchesData } = useQuery({
     queryKey: ['branches-all', 'with-company'],
-    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
+    queryFn: () => branchesService.list({ per_page: 100, sort: 'name', include: 'company' } as any).then((r) => r.data),
     enabled: canRead,
   })
   const parentBranchOptions: { id: number; name: string }[] = (parentBranchesData as any)?.data ?? []
@@ -91,7 +92,8 @@ export default function BranchesView() {
         .list({
           page,
           per_page: perPage,
-          sort: '-created_at',
+          sort: 'name',
+          include: 'company',
           'filter[search]': debouncedSearch || undefined,
           'filter[company_id]': companyFilter || undefined,
           'filter[format]': formatFilter || undefined,
@@ -105,6 +107,13 @@ export default function BranchesView() {
 
   const items: Branch[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+  // Same order as the branch switcher: business order, grouped by company,
+  // pickup points nested under their premiere outlet.
+  const orderedRows = orderBranches(items as any[])
+  const companyCounts = orderedRows.reduce<Record<string, number>>((acc, r) => {
+    acc[r.company] = (acc[r.company] ?? 0) + 1
+    return acc
+  }, {})
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => branchesService.delete(id),
@@ -256,19 +265,19 @@ export default function BranchesView() {
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
+          overflowX: 'auto',
         }}
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
-              <th style={{ ...thStyle, width: 120 }}>Code</th>
+              <th style={{ ...thStyle, width: 90 }}>Code</th>
               <th style={thStyle}>Name</th>
-              <th style={{ ...thStyle, width: 120 }}>Format</th>
+              <th style={{ ...thStyle, width: 130 }}>Format</th>
               <th style={{ ...thStyle, width: 100 }}>Default</th>
-              <th style={{ ...thStyle, width: 140 }}>Created</th>
-              <th style={{ ...thStyle, width: 80 }} />
+              <th style={{ ...thStyle, width: 120 }}>Created</th>
+              <th style={{ ...thStyle, width: 110 }} />
             </tr>
           </thead>
           <tbody>
@@ -316,17 +325,33 @@ export default function BranchesView() {
                 </td>
               </tr>
             ) : (
-              items.map((item, idx) => (
-                <tr
-                  key={item.id}
-                  style={{ transition: 'background 120ms' }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = 'var(--background)')
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = 'transparent')
-                  }
-                >
+              orderedRows.map(({ branch, company, indent }, idx, rows) => {
+                const item = branch as Branch
+                const isChild = indent > 0
+                const showGroup = company !== rows[idx - 1]?.company
+                return (
+                <React.Fragment key={item.id}>
+                {showGroup && (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      style={{
+                        padding: '14px 16px 8px',
+                        background: 'var(--background)',
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Building2 size={14} style={{ color: 'var(--foreground-subtle)' }} />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>{company}</span>
+                        <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>
+                          {companyCounts[company]} {companyCounts[company] === 1 ? 'branch' : 'branches'}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                <tr>
                   <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
                     {(page - 1) * perPage + idx + 1}
                   </td>
@@ -335,10 +360,10 @@ export default function BranchesView() {
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        padding: '2px 10px',
+                        padding: '2px 8px',
                         borderRadius: 'var(--radius-sm)',
-                        background: 'var(--accent-light-bg)',
-                        color: 'var(--accent)',
+                        background: isChild ? 'var(--surface-muted, var(--background))' : 'var(--accent-light-bg)',
+                        color: isChild ? 'var(--foreground-muted)' : 'var(--accent)',
                         fontFamily: 'monospace',
                         fontSize: 12,
                         fontWeight: 600,
@@ -348,36 +373,58 @@ export default function BranchesView() {
                     </span>
                   </td>
                   <td style={tdStyle}>
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 500,
-                        color: 'var(--foreground)',
-                      }}
-                    >
-                      {item.name}
-                    </span>
-                    {item.address && (
-                      <div
-                        title={item.address}
-                        style={{
-                          fontSize: 12,
-                          color: 'var(--foreground-muted)',
-                          marginTop: 2,
-                          maxWidth: 360,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {item.address}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: isChild ? 38 : 0, minWidth: 0 }}>
+                      {!isChild && (
+                        <span
+                          style={{
+                            width: 28,
+                            height: 28,
+                            flexShrink: 0,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: 8,
+                            background: 'var(--accent-light-bg)',
+                            color: 'var(--accent)',
+                          }}
+                        >
+                          <Store size={14} />
+                        </span>
+                      )}
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: isChild ? 400 : 600,
+                            color: 'var(--foreground)',
+                          }}
+                        >
+                          {item.name}
+                        </div>
+                        {item.address && (
+                          <div
+                            title={item.address}
+                            style={{
+                              fontSize: 12,
+                              color: 'var(--foreground-subtle)',
+                              marginTop: 2,
+                              maxWidth: 420,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {item.address.replace(/\s*\n\s*/g, ' · ')}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </td>
                   <td style={tdStyle}>
                     <span
                       style={{
                         display: 'inline-block',
+                        whiteSpace: 'nowrap',
                         padding: '2px 10px',
                         borderRadius: 'var(--radius-sm)',
                         fontSize: 11,
@@ -466,13 +513,39 @@ export default function BranchesView() {
                     </div>
                   </td>
                 </tr>
-              ))
+                </React.Fragment>
+                )
+              })
             )}
           </tbody>
         </table>
       </div>
       {/* Pagination */}
-      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
+      {lastPage > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+            Page {page} of {lastPage}
+          </span>
+          <button
+            type="button"
+            aria-label="Previous page"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            style={{ ...actionBtnStyle, border: '1px solid var(--border)', opacity: page <= 1 ? 0.4 : 1 }}
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <button
+            type="button"
+            aria-label="Next page"
+            disabled={page >= lastPage}
+            onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+            style={{ ...actionBtnStyle, border: '1px solid var(--border)', opacity: page >= lastPage ? 0.4 : 1 }}
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
