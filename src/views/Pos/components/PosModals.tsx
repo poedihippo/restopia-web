@@ -949,7 +949,7 @@ export default function PosModals({
                       marginBottom: 6,
                     }}
                   >
-                    Cash Tendered
+                    Cash Nominal
                   </label>
                   <LocalizedNumberInput
                     id="pos-cash-tendered"
@@ -1221,7 +1221,7 @@ export default function PosModals({
                     paymentMode !== 'partial' &&
                     Number(cashTendered.replace(/\D/g, '')) < total
                   ) {
-                    toast.error('Cash tendered is less than total')
+                    toast.error('Cash nominal kurang dari total')
                     return
                   }
                   if (
@@ -1229,7 +1229,7 @@ export default function PosModals({
                     paymentMode === 'partial' &&
                     Number(cashTendered.replace(/\D/g, '')) < Number(partialAmount.replace(/\D/g, ''))
                   ) {
-                    toast.error('Cash tendered is less than DP amount')
+                    toast.error('Cash nominal kurang dari DP')
                     return
                   }
                 }
