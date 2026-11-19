@@ -82,7 +82,7 @@ export default function PosReceipt({ data }: Props) {
           {data.branchName.toUpperCase()}
         </div>
         {data.branchAddress && (
-          <div style={{ fontSize: 11 }}>{data.branchAddress}</div>
+          <div style={{ fontSize: 11, whiteSpace: 'pre-line' }}>{data.branchAddress.trim()}</div>
         )}
         {data.branchPhone && <div>{data.branchPhone}</div>}
       </div>

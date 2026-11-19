@@ -235,7 +235,7 @@ export default function PrintDocument({
         <div style={{ borderBottom: '2px solid #000', paddingBottom: '3mm' }}>
           <div style={{ fontSize: '12pt', fontWeight: 700 }}>{company.name || '-'}</div>
           {company.address ? (
-            <div style={{ fontSize: '8.5pt', marginTop: '1mm', lineHeight: 1.4 }}>{company.address}</div>
+            <div style={{ fontSize: '8.5pt', marginTop: '1mm', lineHeight: 1.4, whiteSpace: 'pre-line' }}>{String(company.address).trim()}</div>
           ) : null}
         </div>
         {/* Document title */}
