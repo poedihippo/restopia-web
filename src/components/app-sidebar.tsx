@@ -61,12 +61,13 @@ export type NavChild = {
   // Kept in NAV_GROUPS (route permission gating still applies) but not shown in the sidebar.
   hidden?: boolean;
   // Sales channel marker: icon + coloured channel word, so Offline/Online can't be mixed up.
-  channel?: 'offline' | 'online';
+  channel?: 'offline' | 'online' | 'credit';
 };
 
 const CHANNEL_META = {
   offline: { icon: Store, word: 'Offline', color: 'var(--pastel-gold-ink, #A87810)' },
   online: { icon: Globe, word: 'Online', color: 'var(--pastel-blue-ink, #3B6FE0)' },
+  credit: { icon: HandCoins, word: 'Kredit', color: 'var(--pastel-mint-ink, #1C9466)' },
 } as const;
 
 export type NavItem = {
@@ -256,7 +257,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Banknote,
         children: [
           { label: 'Offline Orders', href: '/sales/payment-settlements', permission: 'journal.menu', channel: 'offline' },
-          { label: 'Kredit Karyawan', href: '/accounting/employee-credit-settlements', permission: 'journal.menu' },
+          { label: 'Kredit Karyawan', href: '/accounting/employee-credit-settlements', permission: 'journal.menu', channel: 'credit' },
           { label: 'Online Orders', href: '/sales/settle-payout', permission: 'sales-order.bulk-update-settlement-status', channel: 'online' },
         ],
       },
